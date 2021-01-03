@@ -44,8 +44,9 @@ public class ClientConfig {
      * 处理业务逻辑执行器线程数量 默认为cpu核数
      */
     private int clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
+
     /**
-     * Pulling topic information interval from the named server
+     * 从注册中心获取主题信息的周期
      */
     private int pollNameServerInterval = 1000 * 30;
     /**

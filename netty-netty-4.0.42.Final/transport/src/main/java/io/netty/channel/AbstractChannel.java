@@ -62,9 +62,24 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     private final VoidChannelPromise unsafeVoidPromise = new VoidChannelPromise(this, false);
     private final CloseFuture closeFuture = new CloseFuture(this);
 
+    /**
+     * 本地服务地址
+     */
     private volatile SocketAddress localAddress;
+
+    /**
+     * jdk底层channel连接的远程服务器地址
+     */
     private volatile SocketAddress remoteAddress;
+
+    /**
+     * channel绑定的轮训器的执行器
+     */
     private volatile EventLoop eventLoop;
+
+    /**
+     * 是否已经注册过
+     */
     private volatile boolean registered;
 
     /** Cache for the string representation of this channel */
@@ -377,7 +392,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         private volatile ChannelOutboundBuffer outboundBuffer = new ChannelOutboundBuffer(AbstractChannel.this);
         private boolean inFlush0;
-        /** true if the channel has never been registered, false otherwise */
+
+        /**
+         * channel是否一次都没有注册到某个eventloop上
+         */
         private boolean neverRegistered = true;
 
         private void assertEventLoop() {
@@ -399,27 +417,40 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             return remoteAddress0();
         }
 
+        /**
+         * 将当前channel注册到某个eventloop执行器上
+         * @param eventLoop channel将要被注册到的eventloop执行器
+         * @param promise 异步操偶作对象
+         */
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
-            if (eventLoop == null) {
+            if (eventLoop == null) {//执行器不能为空
                 throw new NullPointerException("eventLoop");
             }
+            //如果channel已经被注册过了
             if (isRegistered()) {
+                //设置注册失败的原因 channel已经注册过一次了
                 promise.setFailure(new IllegalStateException("registered to an event loop already"));
                 return;
             }
+
+            //如果将要注册到的执行器不适用于当前channel
             if (!isCompatible(eventLoop)) {
+                //设置注册失败原因 当前channel不能注册到这种类型的eventloop上
                 promise.setFailure(
                         new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
                 return;
             }
 
+            //设置轮训当前channel事件的执行器
             AbstractChannel.this.eventLoop = eventLoop;
 
+            //如果当前线程是执行器的工作线程 直接调用register方法进行注册
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
                 try {
+                    //当前线程不是执行器的工作线程 向执行器添加一个注册任务
                     eventLoop.execute(new Runnable() {
                         @Override
                         public void run() {
@@ -437,34 +468,46 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        /**
+         * 将当前channel注册到eventlooop的执行方法体
+         * @param promise 注册的异步操作对象
+         */
         private void register0(ChannelPromise promise) {
             try {
-                // check if the channel is still open as it could be closed in the mean time when the register
-                // call was outside of the eventLoop
+
+                //注册的异步操作对象设置不能取消 并且通道已经打开
                 if (!promise.setUncancellable() || !ensureOpen(promise)) {
                     return;
                 }
+                //第一次注册标识
                 boolean firstRegistration = neverRegistered;
+                //开始注册 将channel底层的selectionkey注册到eventloop的selector轮训器上
                 doRegister();
+                //设置从没有注册为false
                 neverRegistered = false;
+                //设置channel已经注册到eventloop的标志位true
                 registered = true;
 
-                // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
-                // user may already fire events through the pipeline in the ChannelFutureListener.
+                //执行pipeline在channel没有注册到eventloop之前添加到channelhandlerContext链表上的handler的handleradded方法
                 pipeline.invokeHandlerAddedIfNeeded();
 
+                //设置注册的异步操作结果为成功
                 safeSetSuccess(promise);
+
+                //下发channel注册事件 交由每一个handler的channelregistered方法进行处理
                 pipeline.fireChannelRegistered();
-                // Only fire a channelActive if the channel has never been registered. This prevents firing
-                // multiple channel actives if the channel is deregistered and re-registered.
+
+                //如果通道已经激活
                 if (isActive()) {
-                    if (firstRegistration) {
+                    if (firstRegistration) {//如果是第一次注册
+                        //下发channel激活事件
                         pipeline.fireChannelActive();
                     } else if (config().isAutoRead()) {
                         // This channel was registered before and autoRead() is set. This means we need to begin read
                         // again so that we process inbound data.
                         //
                         // See https://github.com/netty/netty/issues/4805
+                        //开始读取数据
                         beginRead();
                     }
                 }

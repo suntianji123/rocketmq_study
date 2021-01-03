@@ -18,11 +18,23 @@ package org.apache.rocketmq.remoting.netty;
 
 import io.netty.channel.Channel;
 
+/**
+ * netty channel事件对象
+ */
 public class NettyEvent {
+    //netty channel事件类型 connect close idle exception
     private final NettyEventType type;
+    //远程服务器地址
     private final String remoteAddr;
+    //与服务器建立的channel对象
     private final Channel channel;
 
+    /**
+     * 实例化一个Netty事件对象
+     * @param type 事件类型connect close idle exception
+     * @param remoteAddr 远程服务器地址
+     * @param channel 与服务器建立的channel对象
+     */
     public NettyEvent(NettyEventType type, String remoteAddr, Channel channel) {
         this.type = type;
         this.remoteAddr = remoteAddr;

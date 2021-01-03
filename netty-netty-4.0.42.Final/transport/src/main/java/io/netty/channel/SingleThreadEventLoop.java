@@ -55,21 +55,34 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
         return (EventLoop) super.next();
     }
 
+    /**
+     * 将某个channel注册到当前eventloop上
+     * @param channel 将要被注册的channel
+     * @return
+     */
     @Override
     public ChannelFuture register(Channel channel) {
         return register(channel, new DefaultChannelPromise(channel, this));
     }
 
+    /**
+     * 将某个channel注册到当前的eventloop上
+     * @param channel  将要注册到当前执行器上的channel对象
+     * @param promise 注册的异步操作对象
+     * @return
+     */
     @Override
     public ChannelFuture register(final Channel channel, final ChannelPromise promise) {
-        if (channel == null) {
+        if (channel == null) {//将要被注册的channel不能为空
             throw new NullPointerException("channel");
         }
-        if (promise == null) {
+        if (promise == null) {//注册channel到当前eventloop的异步操作对象不能为空
             throw new NullPointerException("promise");
         }
 
+        //调用channel的unsafe进行注册
         channel.unsafe().register(this, promise);
+        //返回注册的异步操作对象
         return promise;
     }
 

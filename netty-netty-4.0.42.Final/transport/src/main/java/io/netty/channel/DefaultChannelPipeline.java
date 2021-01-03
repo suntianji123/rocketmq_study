@@ -64,20 +64,16 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     private boolean firstRegistration = true;
 
     /**
-     * This is the head of a linked list that is processed by {@link #callHandlerAddedForAllHandlers()} and so process
-     * all the pending {@link #callHandlerAdded0(AbstractChannelHandlerContext)}.
-     *
-     * We only keep the head because it is expected that the list is used infrequently and its size is small.
-     * Thus full iterations to do insertions is assumed to be a good compromised to saving memory and tail management
-     * complexity.
+     * 如果将某个handler添加到channel的pipeline时 channel还没有绑定到某个eventloop上
+     * 则等到channel绑定到eventloop上之后 遍历这个链表 执行每个handler的handleradded方法
      */
     private PendingHandlerCallback pendingHandlerCallbackHead;
 
     /**
-     * Set to {@code true} once the {@link AbstractChannel} is registered.Once set to {@code true} the value will never
-     * change.
+     * channel是否已经注册到某个eventloop上
      */
     private boolean registered;
+
 
     protected DefaultChannelPipeline(Channel channel) {
         this.channel = ObjectUtil.checkNotNull(channel, "channel");
@@ -181,20 +177,32 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return addLast(null, name, handler);
     }
 
+    /**
+     * 将某一个handler添加到pipeline的channelhandlercontext链表的末尾
+     * @param group    handler的执行器组
+     *                 methods
+     * @param name    channelhandlercontext的名字
+     * @param handler  被添加的handler
+     *
+     * @return
+     */
     @Override
     public final ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler) {
+        //定义一个channdlerhandlercontext
         final AbstractChannelHandlerContext newCtx;
-        synchronized (this) {
+        synchronized (this) {//枷锁
+            //handler不是公共 并且已经添加过 抛出异常
             checkMultiplicity(handler);
 
+            //实例化一个channelhandlerContext
             newCtx = newContext(group, filterName(name, handler), handler);
 
+            //将实例化的channelhandlerContext对象添加到channelpipeline的channelhandlercontext链表
             addLast0(newCtx);
 
-            // If the registered is false it means that the channel was not registered on an eventloop yet.
-            // In this case we add the context to the pipeline and add a task that will call
-            // ChannelHandler.handlerAdded(...) once the channel is registered.
-            if (!registered) {
+
+            if (!registered) {//如果channel没有注册到eventloop上
+                //设置channelhandlercontext的装填
                 newCtx.setAddPending();
                 callHandlerCallbackLater(newCtx, true);
                 return this;
@@ -216,7 +224,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    /**
+     * 将某个channelhandlerContext添加到链表的末尾
+     * @param newCtx 将要被添加的channelhandlerContext对象
+     */
     private void addLast0(AbstractChannelHandlerContext newCtx) {
+        //获取尾部的前一个
         AbstractChannelHandlerContext prev = tail.prev;
         newCtx.prev = prev;
         newCtx.next = tail;
@@ -363,17 +376,29 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    /**
+     *向channel的pipeline在channelhandlercontext链表的末端添加一个或handler
+     * @param handlers  被添加的handler 列表
+     * @return
+     */
     @Override
     public final ChannelPipeline addLast(ChannelHandler... handlers) {
         return addLast(null, handlers);
     }
 
+    /**
+     *  给pipeline的channelhandlercontext链表的末尾添加一个或多个handler
+     * @param executor 执行器
+     * @param handlers  handler列表
+     * @return
+     */
     @Override
     public final ChannelPipeline addLast(EventExecutorGroup executor, ChannelHandler... handlers) {
-        if (handlers == null) {
+        if (handlers == null) {//handlers列表不能为空
             throw new NullPointerException("handlers");
         }
 
+        //遍历每一个handler
         for (ChannelHandler h: handlers) {
             if (h == null) {
                 break;
@@ -565,14 +590,20 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         oldCtx.next = newCtx;
     }
 
+    /**
+     * 判断handler是否可以公共
+     * @param handler
+     */
     private static void checkMultiplicity(ChannelHandler handler) {
         if (handler instanceof ChannelHandlerAdapter) {
+            //转为适配器对象
             ChannelHandlerAdapter h = (ChannelHandlerAdapter) handler;
-            if (!h.isSharable() && h.added) {
+            if (!h.isSharable() && h.added) {//如果channel不是可共享 并且已经被添加 则抛出异常
                 throw new ChannelPipelineException(
                         h.getClass().getName() +
                         " is not a @Sharable handler, so can't be added or removed multiple times.");
             }
+            //设置channel被添加标志
             h.added = true;
         }
     }
@@ -1084,9 +1115,15 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * 设置某个handler被添加到pipeline的channelhandlercontext的链表之后的回调方法
+     * @param ctx
+     * @param added
+     */
     private void callHandlerCallbackLater(AbstractChannelHandlerContext ctx, boolean added) {
         assert !registered;
 
+        //稍后执行器链表
         PendingHandlerCallback task = added ? new PendingHandlerAddedTask(ctx) : new PendingHandlerRemovedTask(ctx);
         PendingHandlerCallback pending = pendingHandlerCallbackHead;
         if (pending == null) {

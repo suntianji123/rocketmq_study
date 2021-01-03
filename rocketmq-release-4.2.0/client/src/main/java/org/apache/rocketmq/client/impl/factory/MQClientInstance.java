@@ -102,9 +102,13 @@ public class MQClientInstance {
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
     /*
-    mqclient所维护的消费者列表
+    mqclient所维护的生产者列表
      */
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
+
+    /**
+     * mqclient所维护的消费者列表
+     */
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
 
@@ -121,12 +125,18 @@ public class MQClientInstance {
      */
     private final MQAdminImpl mQAdminImpl;
     private final ConcurrentMap<String/* Topic */, TopicRouteData> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
+
+    //访问注册中心远程netty server的所
     private final Lock lockNamesrv = new ReentrantLock();
     private final Lock lockHeartbeat = new ReentrantLock();
     private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable =
         new ConcurrentHashMap<String, HashMap<Long, String>>();
     private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable =
         new ConcurrentHashMap<String, HashMap<String, Integer>>();
+
+    /**
+     * 实例化一个单线程池的定时任务执行器
+     */
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -286,7 +296,7 @@ public class MQClientInstance {
 
                     //启动mqclientapi实现对象
                     this.mQClientAPIImpl.start();
-                    // Start various schedule tasks
+                    // 启动定时任务
                     this.startScheduledTask();
                     // Start pull service
                     this.pullMessageService.start();
@@ -309,7 +319,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 启动定时任务
+     */
     private void startScheduledTask() {
+        //没有配置注册中心地址 则以固定的周期 从寻址对象访问web server获取注册中心地址
         if (null == this.clientConfig.getNamesrvAddr()) {
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
@@ -324,6 +338,7 @@ public class MQClientInstance {
             }, 1000 * 10, 1000 * 60 * 2, TimeUnit.MILLISECONDS);
         }
 
+        //启动一个定时任务 每个30秒从注册中心获取主题信息
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -378,18 +393,26 @@ public class MQClientInstance {
         return clientId;
     }
 
+    /**
+     * 从注册中心获取主题信息
+     */
     public void updateTopicRouteInfoFromNameServer() {
+        //实例化一个主题列表
         Set<String> topicList = new HashSet<String>();
 
         // Consumer
         {
+            //获取所有消费者的迭代器
             Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
-            while (it.hasNext()) {
+            while (it.hasNext()) {//遍历消费者
                 Entry<String, MQConsumerInner> entry = it.next();
+                //获取消费者实现
                 MQConsumerInner impl = entry.getValue();
-                if (impl != null) {
+                if (impl != null) {//消费者实现不为空
+                    //获取消费者的订阅数据列表对象
                     Set<SubscriptionData> subList = impl.subscriptions();
                     if (subList != null) {
+                        //遍历消费者的每一个订阅数据 获取订阅的主题
                         for (SubscriptionData subData : subList) {
                             topicList.add(subData.getTopic());
                         }
@@ -400,18 +423,21 @@ public class MQClientInstance {
 
         // Producer
         {
+            //获取生产者迭代器
             Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
-            while (it.hasNext()) {
+            while (it.hasNext()) {//遍历生产者迭代器
                 Entry<String, MQProducerInner> entry = it.next();
                 MQProducerInner impl = entry.getValue();
                 if (impl != null) {
+                    //获取生产者发布的主题列表
                     Set<String> lst = impl.getPublishTopicList();
+                    //添加到主题列表
                     topicList.addAll(lst);
                 }
             }
         }
 
-        for (String topic : topicList) {
+        for (String topic : topicList) {//遍历每一个主题 更新主题信息
             this.updateTopicRouteInfoFromNameServer(topic);
         }
     }
@@ -542,6 +568,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 从注册中心获取数据 更新主题信息
+     * @param topic 主题
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic) {
         return updateTopicRouteInfoFromNameServer(topic, false, null);
     }
@@ -639,11 +670,20 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 从注册中心获取主题的发布信息 然后更新主题发布信息列表
+     * @param topic 主题
+     * @param isDefault 是否为默认的主题
+     * @param defaultMQProducer 主题生产者
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
+            //当前线程唯一持有注册中心锁 超时时间3秒 单独访问注册中心
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
+                    //定义一个主题路径数据
                     TopicRouteData topicRouteData;
                     if (isDefault && defaultMQProducer != null) {
                         topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(defaultMQProducer.getCreateTopicKey(),
@@ -656,6 +696,7 @@ public class MQClientInstance {
                             }
                         }
                     } else {
+                        //从注册中心获取主题路径信息 超时时间为3秒
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
                     if (topicRouteData != null) {

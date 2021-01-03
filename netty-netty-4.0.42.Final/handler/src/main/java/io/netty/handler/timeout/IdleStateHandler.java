@@ -106,39 +106,67 @@ public class IdleStateHandler extends ChannelDuplexHandler {
         }
     };
 
+    /**
+     * 读空闲时间毫秒数
+     */
     private final long readerIdleTimeNanos;
+
+    /**
+     * 写空闲时间毫秒数
+     */
     private final long writerIdleTimeNanos;
+
+    /**
+     * 所有空闲时间毫秒数
+     */
     private final long allIdleTimeNanos;
 
     private ScheduledFuture<?> readerIdleTimeout;
+    /**
+     * 上一次读时间（时间戳）
+     */
     private long lastReadTime;
+
+    /**
+     * channel第一次出现在指定的事件段内没有发生任何io读时间
+     */
     private boolean firstReaderIdleEvent = true;
 
     private ScheduledFuture<?> writerIdleTimeout;
+
+    /**
+     * 上一次写时间 （时间戳）
+     */
     private long lastWriteTime;
+
+    /**
+     * channel是否在指定超时时间内 没有发生任何写时间
+     */
     private boolean firstWriterIdleEvent = true;
 
+    /**
+     * 所有空闲的定时任务异步操作结果对象
+     */
     private ScheduledFuture<?> allIdleTimeout;
+
+    /**
+     * 是否为channel的第一个idle 事件 也就是说 在120秒第一次出现channel没有发生任何读写事件
+     */
     private boolean firstAllIdleEvent = true;
 
     private byte state; // 0 - none, 1 - initialized, 2 - destroyed
-    private boolean reading;
 
     /**
-     * Creates a new instance firing {@link IdleStateEvent}s.
-     *
-     * @param readerIdleTimeSeconds
-     *        an {@link IdleStateEvent} whose state is {@link IdleState#READER_IDLE}
-     *        will be triggered when no read was performed for the specified
-     *        period of time.  Specify {@code 0} to disable.
-     * @param writerIdleTimeSeconds
-     *        an {@link IdleStateEvent} whose state is {@link IdleState#WRITER_IDLE}
-     *        will be triggered when no write was performed for the specified
-     *        period of time.  Specify {@code 0} to disable.
-     * @param allIdleTimeSeconds
-     *        an {@link IdleStateEvent} whose state is {@link IdleState#ALL_IDLE}
-     *        will be triggered when neither read nor write was performed for
-     *        the specified period of time.  Specify {@code 0} to disable.
+     * handler是否正在读数据
+     */
+    private boolean reading;
+
+
+    /**
+     * 实例化一个handler
+     * @param readerIdleTimeSeconds 读空闲时间秒数
+     * @param writerIdleTimeSeconds 写空闲时间秒数
+     * @param allIdleTimeSeconds 所有空闲时间秒数 默认为120
      */
     public IdleStateHandler(
             int readerIdleTimeSeconds,
@@ -149,45 +177,40 @@ public class IdleStateHandler extends ChannelDuplexHandler {
              TimeUnit.SECONDS);
     }
 
+
     /**
-     * Creates a new instance firing {@link IdleStateEvent}s.
-     *
-     * @param readerIdleTime
-     *        an {@link IdleStateEvent} whose state is {@link IdleState#READER_IDLE}
-     *        will be triggered when no read was performed for the specified
-     *        period of time.  Specify {@code 0} to disable.
-     * @param writerIdleTime
-     *        an {@link IdleStateEvent} whose state is {@link IdleState#WRITER_IDLE}
-     *        will be triggered when no write was performed for the specified
-     *        period of time.  Specify {@code 0} to disable.
-     * @param allIdleTime
-     *        an {@link IdleStateEvent} whose state is {@link IdleState#ALL_IDLE}
-     *        will be triggered when neither read nor write was performed for
-     *        the specified period of time.  Specify {@code 0} to disable.
-     * @param unit
-     *        the {@link TimeUnit} of {@code readerIdleTime},
-     *        {@code writeIdleTime}, and {@code allIdleTime}
+     * 实例化一个idle handler对象
+     * @param readerIdleTime 读空闲时间
+     * @param writerIdleTime 写空闲时间
+     * @param allIdleTime 所有空闲时间
+     * @param unit 时间单位
      */
     public IdleStateHandler(
             long readerIdleTime, long writerIdleTime, long allIdleTime,
             TimeUnit unit) {
-        if (unit == null) {
+        if (unit == null) {//时间单位不能为空
             throw new NullPointerException("unit");
         }
-
-        if (readerIdleTime <= 0) {
+        if (readerIdleTime <= 0) {//读空闲时间小于0
+            //读空闲时间毫秒数为0
             readerIdleTimeNanos = 0;
         } else {
+            //读空闲时间毫秒数
             readerIdleTimeNanos = Math.max(unit.toNanos(readerIdleTime), MIN_TIMEOUT_NANOS);
         }
-        if (writerIdleTime <= 0) {
+        if (writerIdleTime <= 0) {//写空闲时间秒数小于0
+            //写空闲时间为0
             writerIdleTimeNanos = 0;
         } else {
+            //写空闲时间秒数大于0
             writerIdleTimeNanos = Math.max(unit.toNanos(writerIdleTime), MIN_TIMEOUT_NANOS);
         }
+
+        //所有空闲时间毫秒双联户
         if (allIdleTime <= 0) {
             allIdleTimeNanos = 0;
         } else {
+            //所有空闲时间毫秒数
             allIdleTimeNanos = Math.max(unit.toNanos(allIdleTime), MIN_TIMEOUT_NANOS);
         }
     }
@@ -237,11 +260,18 @@ public class IdleStateHandler extends ChannelDuplexHandler {
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         // Initialize early if channel is active already.
         if (ctx.channel().isActive()) {
+            //如果在2分钟之内 channel没有发生任何的io时间 那么将会下发用户时间
+            //将channel空闲超时的事件下发给其他handler进行处理 idlestateevent传给下一个handler进行处理
             initialize(ctx);
         }
         super.channelRegistered(ctx);
     }
 
+    /**
+     * 当channel底层selectionkey绑定到eventloop的selector上之后 会执行性channelregistered方法
+     * @param ctx channelhandlercontext对象
+     * @throws Exception
+     */
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         // This method will be invoked only if this handler was added
@@ -284,6 +314,10 @@ public class IdleStateHandler extends ChannelDuplexHandler {
         ctx.write(msg, promise);
     }
 
+    /**
+     * 初始化channelhandlerContext对象
+     * @param ctx 被初始化的channelhandlerContext对象
+     */
     private void initialize(ChannelHandlerContext ctx) {
         // Avoid the case where destroy() is called before scheduling timeouts.
         // See: https://github.com/netty/netty/issues/143
@@ -293,17 +327,20 @@ public class IdleStateHandler extends ChannelDuplexHandler {
             return;
         }
 
+        //state 初始值为0 赋值为1
         state = 1;
 
+        //获取channelhandlerContext的执行器
         EventExecutor loop = ctx.executor();
 
+        //把上一次读时间、写时间赋值为当前时间
         lastReadTime = lastWriteTime = System.nanoTime();
-        if (readerIdleTimeNanos > 0) {
+        if (readerIdleTimeNanos > 0) {//初始值为0
             readerIdleTimeout = loop.schedule(
                     new ReaderIdleTimeoutTask(ctx),
                     readerIdleTimeNanos, TimeUnit.NANOSECONDS);
         }
-        if (writerIdleTimeNanos > 0) {
+        if (writerIdleTimeNanos > 0) {//初始值为0
             writerIdleTimeout = loop.schedule(
                     new WriterIdleTimeoutTask(ctx),
                     writerIdleTimeNanos, TimeUnit.NANOSECONDS);
@@ -337,19 +374,23 @@ public class IdleStateHandler extends ChannelDuplexHandler {
      * {@link ChannelHandlerContext#fireUserEventTriggered(Object)}.
      */
     protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception {
+        //触发用户时间
         ctx.fireUserEventTriggered(evt);
     }
 
     /**
-     * Returns a {@link IdleStateEvent}.
+     * 创建一个channel idle event事件对象
+     * @param state 空闲的类型
+     * @param first 是否为channel第一次出现空闲
+     * @return
      */
     protected IdleStateEvent newIdleStateEvent(IdleState state, boolean first) {
         switch (state) {
-            case ALL_IDLE:
+            case ALL_IDLE://在指定的超时时间内 channel没有发生任何的读或者写的io事件
                 return first ? IdleStateEvent.FIRST_ALL_IDLE_STATE_EVENT : IdleStateEvent.ALL_IDLE_STATE_EVENT;
-            case READER_IDLE:
+            case READER_IDLE://在指定的超时时间内 channel没有发生任何的读io事件
                 return first ? IdleStateEvent.FIRST_READER_IDLE_STATE_EVENT : IdleStateEvent.READER_IDLE_STATE_EVENT;
-            case WRITER_IDLE:
+            case WRITER_IDLE://在指定的超时时间内 channel没有发生任何的写io事件
                 return first ? IdleStateEvent.FIRST_WRITER_IDLE_STATE_EVENT : IdleStateEvent.WRITER_IDLE_STATE_EVENT;
             default:
                 throw new Error();
@@ -433,35 +474,49 @@ public class IdleStateHandler extends ChannelDuplexHandler {
         }
     }
 
+    /**
+     * 所有空闲的超时任务
+     */
     private final class AllIdleTimeoutTask implements Runnable {
 
+        /**
+         * idlehandlerContext对象
+         */
         private final ChannelHandlerContext ctx;
 
         AllIdleTimeoutTask(ChannelHandlerContext ctx) {
             this.ctx = ctx;
         }
 
+        /**
+         * channel jdk底层的selectionkey注册到e没ventloop的selector上之后120秒之后执行这个方法
+         */
         @Override
         public void run() {
+            //idlehandlercontext的channel没有打开 直接return
             if (!ctx.channel().isOpen()) {
                 return;
             }
 
+            //超时时间120 * 1000000微妙
             long nextDelay = allIdleTimeNanos;
             if (!reading) {
                 nextDelay -= System.nanoTime() - Math.max(lastReadTime, lastWriteTime);
             }
+
+            //期间handler处理任何channel的读写的io事件
             if (nextDelay <= 0) {
-                // Both reader and writer are idle - set a new timeout and
-                // notify the callback.
+                //再次添加一个定时任务 120秒之后 再次这个run方法
                 allIdleTimeout = ctx.executor().schedule(
                         this, allIdleTimeNanos, TimeUnit.NANOSECONDS);
                 try {
+                    //实例化一个channel的 空闲状态事件对象
                     IdleStateEvent event = newIdleStateEvent(IdleState.ALL_IDLE, firstAllIdleEvent);
                     if (firstAllIdleEvent) {
                         firstAllIdleEvent = false;
                     }
 
+                    //如果channel在指定超时时间段内没有发生io时间 处理
                     channelIdle(ctx, event);
                 } catch (Throwable t) {
                     ctx.fireExceptionCaught(t);

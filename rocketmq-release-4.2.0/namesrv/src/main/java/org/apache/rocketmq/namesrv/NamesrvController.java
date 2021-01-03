@@ -109,7 +109,12 @@ public class NamesrvController {
         }
     }
 
+    /**
+     * 启动注册中心控制器
+     * @throws Exception
+     */
     public void start() throws Exception {
+        //启动远程netty server服务器
         this.remotingServer.start();
     }
 

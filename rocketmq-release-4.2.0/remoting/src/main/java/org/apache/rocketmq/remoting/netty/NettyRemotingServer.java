@@ -64,19 +64,52 @@ import org.slf4j.LoggerFactory;
 
 public class NettyRemotingServer extends NettyRemotingAbstract implements RemotingServer {
     private static final Logger log = LoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
+
+    /**
+     * netty server启动配置对象
+     */
     private final ServerBootstrap serverBootstrap;
+
+    /**
+     * 轮训客户端channel对象 读写事件的执行器组
+     */
     private final EventLoopGroup eventLoopGroupSelector;
+
+    /**
+     * 轮训接收客户端连接的channel的执行器组
+     */
     private final EventLoopGroup eventLoopGroupBoss;
+
+    /**
+     * netty server配置对象
+     */
     private final NettyServerConfig nettyServerConfig;
 
+    /**
+     * 业务逻辑公共执行器
+     */
     private final ExecutorService publicExecutor;
+
+    /**
+     * 客户端channel 连接事件监听器 close idle exception connect
+     */
     private final ChannelEventListener channelEventListener;
 
+    /**
+     * 定时器
+     */
     private final Timer timer = new Timer("ServerHouseKeepingService", true);
+
+    /**
+     * 处理客户端连接的io事件的执行器 组
+     */
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
     private RPCHook rpcHook;
 
+    /**
+     * 接收客户端连接的channel绑定的端口号
+     */
     private int port = 0;
 
     private static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
@@ -160,24 +193,30 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             && Epoll.isAvailable();
     }
 
+    /**
+     * 启动远程服务器
+     */
     @Override
     public void start() {
+        //netty  server处理channel 读写io事件的执行器组 默认8个执行器
         this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(
             nettyServerConfig.getServerWorkerThreads(),
             new ThreadFactory() {
 
                 private AtomicInteger threadIndex = new AtomicInteger(0);
 
+                //执行器单线程池工作线程的名字后缀
                 @Override
                 public Thread newThread(Runnable r) {
                     return new Thread(r, "NettyServerCodecThread_" + this.threadIndex.incrementAndGet());
                 }
             });
 
+        //实例化一个netty server启动配置项
         ServerBootstrap childHandler =
             this.serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
-                .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
-                .option(ChannelOption.SO_BACKLOG, 1024)
+                .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)//设置伦伦器
+                .option(ChannelOption.SO_BACKLOG, 1024)//多个请求来的时候 最多等待队列的大小
                 .option(ChannelOption.SO_REUSEADDR, true)
                 .option(ChannelOption.SO_KEEPALIVE, false)
                 .childOption(ChannelOption.TCP_NODELAY, true)
@@ -200,22 +239,29 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                     }
                 });
 
+        //使用带缓存池的堆外内存分配空间
         if (nettyServerConfig.isServerPooledByteBufAllocatorEnable()) {
             childHandler.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
         }
 
         try {
+            //绑定端口 生成接收客户端连接的channel
             ChannelFuture sync = this.serverBootstrap.bind().sync();
+            //获取连接地址对象
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
+            //设置端口号
             this.port = addr.getPort();
         } catch (InterruptedException e1) {
             throw new RuntimeException("this.serverBootstrap.bind().sync() InterruptedException", e1);
         }
 
+        //启动监听channel事件的监听器
         if (this.channelEventListener != null) {
             this.nettyEventExecutor.start();
         }
 
+        //启动一个定时候 每1秒去扫描一次响应的异步操作列表
+        //交由执行异步回调的执行器去执行响应的异步操作回调方法
         this.timer.scheduleAtFixedRate(new TimerTask() {
 
             @Override

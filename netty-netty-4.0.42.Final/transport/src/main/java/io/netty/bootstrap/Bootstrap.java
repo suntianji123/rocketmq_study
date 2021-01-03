@@ -105,14 +105,18 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
     }
 
     /**
-     * Connect a {@link Channel} to the remote peer.
+     * 创建远程连接
+     * @param remoteAddress 远程连接地址
+     * @return
      */
     public ChannelFuture connect(SocketAddress remoteAddress) {
         if (remoteAddress == null) {
             throw new NullPointerException("remoteAddress");
         }
 
+        //校验group channelFactory handler都不为空
         validate();
+        //开始连接
         return doConnect(remoteAddress, localAddress());
     }
 
@@ -128,19 +132,25 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
     }
 
     /**
-     * @see {@link #connect()}
+     * 连接远程服务器
+     * @param remoteAddress 远程服务器地址
+     * @param localAddress 本地地址
+     * @return
      */
     private ChannelFuture doConnect(final SocketAddress remoteAddress, final SocketAddress localAddress) {
+        //将channel注册到eventloop的执行器上
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
-        if (regFuture.cause() != null) {
+        if (regFuture.cause() != null) {//注册失败
             return regFuture;
         }
 
+        //实例化一个连接的异步操作对象
         final ChannelPromise promise = channel.newPromise();
-        if (regFuture.isDone()) {
+        if (regFuture.isDone()) {//如果注册已经完成 尝试连接
             doConnect0(regFuture, channel, remoteAddress, localAddress, promise);
         } else {
+            //注册没有完成 给注册的异步操作添加一个回调 尝试连接远程服务器
             regFuture.addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
@@ -149,9 +159,18 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
             });
         }
 
+        //返回连接的异步操作
         return promise;
     }
 
+    /**
+     * 连接远程服务器
+     * @param regFuture 注册的异步操作
+     * @param channel 将要连接到远程服务器的chanel
+     * @param remoteAddress 远程地址
+     * @param localAddress 本地地址
+     * @param promise 连接的异步操作对象
+     */
     private static void doConnect0(
             final ChannelFuture regFuture, final Channel channel,
             final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
@@ -161,26 +180,35 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
         channel.eventLoop().execute(new Runnable() {
             @Override
             public void run() {
-                if (regFuture.isSuccess()) {
+                if (regFuture.isSuccess()) {//连接成功
                     if (localAddress == null) {
+                        //调用channel的连接方法
                         channel.connect(remoteAddress, promise);
                     } else {
                         channel.connect(remoteAddress, localAddress, promise);
                     }
                     promise.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
-                } else {
+                } else {//如果注册失败 设置连接的异步操作结果为失败
                     promise.setFailure(regFuture.cause());
                 }
             }
         });
     }
 
+    /**
+     * 初始化客户端channel
+     * @param channel
+     * @throws Exception
+     */
     @Override
     @SuppressWarnings("unchecked")
     void init(Channel channel) throws Exception {
+        //获取channelpipeline
         ChannelPipeline p = channel.pipeline();
+        //向管道添加一默认的handler 等到channel注册到eventloop之后 执行这个handler的handleAdded方法
         p.addLast(handler());
 
+        //设置channel的选项
         final Map<ChannelOption<?>, Object> options = options();
         synchronized (options) {
             for (Entry<ChannelOption<?>, Object> e: options.entrySet()) {
@@ -194,6 +222,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
             }
         }
 
+        //设置channel的属性
         final Map<AttributeKey<?>, Object> attrs = attrs();
         synchronized (attrs) {
             for (Entry<AttributeKey<?>, Object> e: attrs.entrySet()) {
@@ -202,9 +231,15 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
         }
     }
 
+    /**
+     * 校验netty启动配置
+     * @return
+     */
     @Override
     public Bootstrap validate() {
+        //轮训创建的channel的io事件的执行器组不能为空 创建channel的工厂类不能为空
         super.validate();
+        //channel绑定到eventloop轮训器工作线程的执行器上后的处理不能为空
         if (handler() == null) {
             throw new IllegalStateException("handler not set");
         }

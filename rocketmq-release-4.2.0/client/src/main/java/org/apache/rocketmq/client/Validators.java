@@ -80,25 +80,30 @@ public class Validators {
     }
 
     /**
-     * Validate message
+     * 验证消息的合法性
+     * @param msg 消息体
+     * @param defaultMQProducer 生产者对象
+     * @throws MQClientException
      */
     public static void checkMessage(Message msg, DefaultMQProducer defaultMQProducer)
         throws MQClientException {
-        if (null == msg) {
+        if (null == msg) {//消息不能为空
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message is null");
         }
-        // topic
+        // 验证消息主题的合理性
         Validators.checkTopic(msg.getTopic());
 
-        // body
+        // 消息体不能为null
         if (null == msg.getBody()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body is null");
         }
 
+        //消息体的长度为0
         if (0 == msg.getBody().length) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body length is zero");
         }
 
+        //消息体的长度不能超过生产者的规定的最大消息长度4M
         if (msg.getBody().length > defaultMQProducer.getMaxMessageSize()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL,
                 "the message body size over max value, MAX: " + defaultMQProducer.getMaxMessageSize());
@@ -106,24 +111,26 @@ public class Validators {
     }
 
     /**
-     * Validate topic
+     * 验证消息的主题
      */
     public static void checkTopic(String topic) throws MQClientException {
-        if (UtilAll.isBlank(topic)) {
+        if (UtilAll.isBlank(topic)) {//主题不能为"" or null
             throw new MQClientException("The specified topic is blank", null);
         }
 
+        //主题必须满足指定的正则
         if (!regularExpressionMatcher(topic, PATTERN)) {
             throw new MQClientException(String.format(
                 "The specified topic[%s] contains illegal characters, allowing only %s", topic,
                 VALID_PATTERN_STR), null);
         }
 
+        //主题的长度必须小于等于255
         if (topic.length() > CHARACTER_MAX_LENGTH) {
             throw new MQClientException("The specified topic is longer than topic max length 255.", null);
         }
 
-        //whether the same with system reserved keyword
+        //消息的名字不能为默认的名字
         if (topic.equals(MixAll.DEFAULT_TOPIC)) {
             throw new MQClientException(
                 String.format("The topic[%s] is conflict with default topic.", topic), null);

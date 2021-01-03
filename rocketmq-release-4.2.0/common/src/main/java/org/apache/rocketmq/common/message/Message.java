@@ -21,12 +21,30 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 消息类
+ */
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
+    /**
+     * 消息主题
+     */
     private String topic;
+
+    /**
+     * 消息标志
+     */
     private int flag;
+
+    /**
+     * 消息附加属性
+     */
     private Map<String, String> properties;
+
+    /**
+     * 消息体
+     */
     private byte[] body;
 
     public Message() {
@@ -36,20 +54,38 @@ public class Message implements Serializable {
         this(topic, "", "", 0, body, true);
     }
 
+    /**
+     * 实例化一个消息对象
+     * @param topic 消息主题
+     * @param tags 消息标签
+     * @param keys 默认为""
+     * @param flag 默认为0
+     * @param body 消息体
+     * @param waitStoreMsgOK 默认为true
+     */
     public Message(String topic, String tags, String keys, int flag, byte[] body, boolean waitStoreMsgOK) {
         this.topic = topic;
         this.flag = flag;
+        //设置消息体
         this.body = body;
 
+        //设置标签
         if (tags != null && tags.length() > 0)
             this.setTags(tags);
 
+        //设置key
         if (keys != null && keys.length() > 0)
             this.setKeys(keys);
 
         this.setWaitStoreMsgOK(waitStoreMsgOK);
     }
 
+    /**
+     * 实例化一个信息对象
+     * @param topic 信息主题
+     * @param tags 信息标签
+     * @param body 信息体
+     */
     public Message(String topic, String tags, byte[] body) {
         this(topic, tags, "", 0, body, true);
     }
@@ -58,7 +94,12 @@ public class Message implements Serializable {
         this(topic, tags, keys, 0, body, true);
     }
 
+    /**
+     * 设置消息的关键字
+     * @param keys 关键字
+     */
     public void setKeys(String keys) {
+        //向附加属性中添加消息的关键字
         this.putProperty(MessageConst.PROPERTY_KEYS, keys);
     }
 
@@ -116,7 +157,12 @@ public class Message implements Serializable {
         return this.getProperty(MessageConst.PROPERTY_TAGS);
     }
 
+    /**
+     * 添加消息标签
+     * @param tags
+     */
     public void setTags(String tags) {
+        //向福建属性中添加消息标签
         this.putProperty(MessageConst.PROPERTY_TAGS, tags);
     }
 

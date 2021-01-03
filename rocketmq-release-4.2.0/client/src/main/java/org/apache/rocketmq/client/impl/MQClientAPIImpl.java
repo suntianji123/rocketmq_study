@@ -1237,32 +1237,58 @@ public class MQClientAPIImpl {
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, false);
     }
 
+    /**
+     *从注册中心服务器获取主题的发布路径信息
+     * @param topic 主题
+     * @param timeoutMillis 请求注册中心服务器超时时间
+     * @return
+     * @throws RemotingException
+     * @throws MQClientException
+     * @throws InterruptedException
+     */
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis)
         throws RemotingException, MQClientException, InterruptedException {
 
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, true);
     }
 
+    /**
+     * 请求注册中心服务器 获取主题的发布路径信息
+     * @param topic 主题
+     * @param timeoutMillis 请求注册中心服务器超时时间
+     * @param allowTopicNotExist 是否允许主题不存在
+     * @return
+     * @throws MQClientException
+     * @throws InterruptedException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws RemotingConnectException
+     */
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis,
         boolean allowTopicNotExist) throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
+        //实例化一个路径信息请求头对象
         GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();
+        //设置路径信息的请求头的主题
         requestHeader.setTopic(topic);
 
+        //创建一个远程命令 设置请求码 命令版本号252
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ROUTEINTO_BY_TOPIC, requestHeader);
-
+        //执行远程命令 获取执行结果
         RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.TOPIC_NOT_EXIST: {
+        switch (response.getCode()) {//判断响应的状态码
+            case ResponseCode.TOPIC_NOT_EXIST: {//主题不存在
                 if (allowTopicNotExist && !topic.equals(MixAll.DEFAULT_TOPIC)) {
                     log.warn("get Topic [{}] RouteInfoFromNameServer is not exist value", topic);
                 }
 
                 break;
             }
-            case ResponseCode.SUCCESS: {
+            case ResponseCode.SUCCESS: {//响应成功
+                //获取响应体
                 byte[] body = response.getBody();
                 if (body != null) {
+                    //解码响应体 返回主题路径信息
                     return TopicRouteData.decode(body, TopicRouteData.class);
                 }
             }

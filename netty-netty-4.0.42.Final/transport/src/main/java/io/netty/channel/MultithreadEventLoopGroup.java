@@ -59,6 +59,11 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
         return (EventLoop) super.next();
     }
 
+    /**
+     * 将channel注册到eventloopgroup的某个eventloop上
+     * @param channel 将要被注册的channel
+     * @return
+     */
     @Override
     public ChannelFuture register(Channel channel) {
         return next().register(channel);

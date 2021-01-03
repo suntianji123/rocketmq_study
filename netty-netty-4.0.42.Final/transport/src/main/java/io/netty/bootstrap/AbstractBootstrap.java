@@ -46,11 +46,26 @@ import java.util.Map;
  */
 public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C extends Channel> implements Cloneable {
 
+    /**
+     * 轮训channel io事件的执行器组
+     */
     volatile EventLoopGroup group;
+
+    /**
+     * 创建channel的工厂类
+     */
     private volatile ChannelFactory<? extends C> channelFactory;
+
+    /**
+     * 本地地址
+     */
     private volatile SocketAddress localAddress;
     private final Map<ChannelOption<?>, Object> options = new LinkedHashMap<ChannelOption<?>, Object>();
     private final Map<AttributeKey<?>, Object> attrs = new LinkedHashMap<AttributeKey<?>, Object>();
+
+    /**
+     * channel绑定到eventloop执行器上后的处理
+     */
     private volatile ChannelHandler handler;
 
     AbstractBootstrap() {
@@ -192,14 +207,16 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     /**
-     * Validate all the parameters. Sub-classes may override this, but should
-     * call the super method in that case.
+     * 校验bootstrap启动配置
+     * @return
      */
     @SuppressWarnings("unchecked")
     public B validate() {
-        if (group == null) {
+        if (group == null) {//轮训channel事件的执行器组不能味浓
             throw new IllegalStateException("group not set");
         }
+
+        //创建channel的工厂类不能为空
         if (channelFactory == null) {
             throw new IllegalStateException("channel or channelFactory not set");
         }
@@ -303,10 +320,18 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
     }
 
+
+    /**
+     * 初始化和注册
+     * @return
+     */
     final ChannelFuture initAndRegister() {
+        //定义一个channel
         Channel channel = null;
         try {
+            //channelfactory根据反射创建一个channel
             channel = channelFactory().newChannel();
+            //初始化channel
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
@@ -317,6 +342,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(channel, GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        //将channel注册到eventloop上
         ChannelFuture regFuture = group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {

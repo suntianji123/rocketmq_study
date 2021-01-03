@@ -734,17 +734,24 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         return isTerminated();
     }
 
+    /**
+     * 提交一个任务给执行器执行
+     * @param task 被提交的任务
+     */
     @Override
     public void execute(Runnable task) {
-        if (task == null) {
+        if (task == null) {//任务不能为空
             throw new NullPointerException("task");
         }
 
+        //当前线程是否为执行器的工作线程
         boolean inEventLoop = inEventLoop();
         if (inEventLoop) {
             addTask(task);
-        } else {
+        } else {//不是执行器的工作线程
+            //启动执行器的工作线程
             startThread();
+            //将任务添加到执行器的任务列表
             addTask(task);
             if (isShutdown() && removeTask(task)) {
                 reject();

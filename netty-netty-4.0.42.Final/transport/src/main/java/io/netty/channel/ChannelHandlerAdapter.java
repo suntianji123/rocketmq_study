@@ -26,7 +26,9 @@ import java.util.WeakHashMap;
  */
 public abstract class ChannelHandlerAdapter implements ChannelHandler {
 
-    // Not using volatile because it's used only for a sanity check.
+      /**
+     * 判断handler是否已经被添加到某个channel的pipeline的channelhandlercontext上
+     */
     boolean added;
 
     /**

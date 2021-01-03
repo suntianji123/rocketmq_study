@@ -21,6 +21,13 @@ final class DefaultChannelHandlerContext extends AbstractChannelHandlerContext {
 
     private final ChannelHandler handler;
 
+    /**
+     * 实例化一个channelhandlercontext对象
+     * @param pipeline 生成的channelhandlercontext所位于的channelpipeline的channelhandlerContext链表
+     * @param executor 执行handler方法的执行器
+     * @param name 名字
+     * @param handler handler对象
+     */
     DefaultChannelHandlerContext(
             DefaultChannelPipeline pipeline, EventExecutor executor, String name, ChannelHandler handler) {
         super(pipeline, executor, name, isInbound(handler), isOutbound(handler));

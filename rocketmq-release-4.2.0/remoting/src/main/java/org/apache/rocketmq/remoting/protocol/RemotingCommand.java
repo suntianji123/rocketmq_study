@@ -31,6 +31,9 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 远程命令类
+ */
 public class RemotingCommand {
     public static final String SERIALIZE_TYPE_PROPERTY = "rocketmq.serialize.type";
     public static final String SERIALIZE_TYPE_ENV = "ROCKETMQ_SERIALIZE_TYPE";
@@ -53,6 +56,10 @@ public class RemotingCommand {
     private static final String LONG_CANONICAL_NAME_2 = long.class.getCanonicalName();
     private static final String BOOLEAN_CANONICAL_NAME_1 = Boolean.class.getCanonicalName();
     private static final String BOOLEAN_CANONICAL_NAME_2 = boolean.class.getCanonicalName();
+
+    /**
+     * 远程命令版本号 静态字段
+     */
     private static volatile int configVersion = -1;
     private static AtomicInteger requestId = new AtomicInteger(0);
 
@@ -69,13 +76,25 @@ public class RemotingCommand {
         }
     }
 
+    /**
+     * 请求码
+     */
     private int code;
     private LanguageCode language = LanguageCode.JAVA;
+
+    /**
+     * 远程命令的版本号
+     */
     private int version = 0;
+
+    /**
+     * 远程命令 id
+     */
     private int opaque = requestId.getAndIncrement();
     private int flag = 0;
     private String remark;
     private HashMap<String, String> extFields;
+    //请求头
     private transient CommandCustomHeader customHeader;
 
     private SerializeType serializeTypeCurrentRPC = serializeTypeConfigInThisServer;
@@ -85,22 +104,39 @@ public class RemotingCommand {
     protected RemotingCommand() {
     }
 
+    /**
+     * 创建一个远程命令
+     * @param code 请求码
+     * @param customHeader 自定义的请求头
+     * @return
+     */
     public static RemotingCommand createRequestCommand(int code, CommandCustomHeader customHeader) {
+        //实例化一个远程命令
         RemotingCommand cmd = new RemotingCommand();
+        //设置远程命令的请求码
         cmd.setCode(code);
+        //设置远程命令的请求头
         cmd.customHeader = customHeader;
         setCmdVersion(cmd);
         return cmd;
     }
 
+    /**
+     * 设置远程命令的版本号
+     * @param cmd 远程命令
+     */
     private static void setCmdVersion(RemotingCommand cmd) {
-        if (configVersion >= 0) {
+        if (configVersion >= 0) {//如果是第一次调用远程命令的静态方法 值为-1
             cmd.setVersion(configVersion);
         } else {
+            //获取jvm系统柜参数 获取远程命令版本号 252
             String v = System.getProperty(REMOTING_VERSION_KEY);
             if (v != null) {
+                //设置请求版本号
                 int value = Integer.parseInt(v);
+                //设置请求命令的版本号
                 cmd.setVersion(value);
+                //设置静态的远程版本号
                 configVersion = value;
             }
         }
@@ -444,6 +480,10 @@ public class RemotingCommand {
         return code;
     }
 
+    /**
+     * 设置远程命令的请求码
+     * @param code 请求码
+     */
     public void setCode(int code) {
         this.code = code;
     }
@@ -475,10 +515,18 @@ public class RemotingCommand {
         return version;
     }
 
+    /**
+     * 设置远程命令的版本号 默认为252
+     * @param version 版本号
+     */
     public void setVersion(int version) {
         this.version = version;
     }
 
+    /**
+     * 获取远程命令id
+     * @return
+     */
     public int getOpaque() {
         return opaque;
     }

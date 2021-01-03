@@ -56,6 +56,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
     private final SelectableChannel ch;
     protected final int readInterestOp;
+
+    /**
+     * channel在eventloop的selector轮训器上的key
+     */
     volatile SelectionKey selectionKey;
     private volatile boolean inputShutdown;
     private volatile boolean readPending;
@@ -325,16 +329,26 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         }
     }
 
+    /**
+     * 判断将要注册到的evenloop是否是当前channel可以注册的执行器类型
+     * @param loop 执行器
+     * @return
+     */
     @Override
     protected boolean isCompatible(EventLoop loop) {
         return loop instanceof NioEventLoop;
     }
 
+    /**
+     * 将channel注册到channel的执行器的selector上
+     * @throws Exception
+     */
     @Override
     protected void doRegister() throws Exception {
         boolean selected = false;
         for (;;) {
             try {
+                //将channel底层的selectionkey 注册到执行器的selector轮训器上
                 selectionKey = javaChannel().register(eventLoop().selector, 0, this);
                 return;
             } catch (CancelledKeyException e) {

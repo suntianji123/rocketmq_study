@@ -32,10 +32,9 @@ package io.netty.channel;
 public class ChannelInboundHandlerAdapter extends ChannelHandlerAdapter implements ChannelInboundHandler {
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelRegistered()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     *
-     * Sub-classes may override this method to change behavior.
+     * 下发channel底层selectionkey绑定到eventloop selector事件
+     * @param ctx
+     * @throws Exception
      */
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {

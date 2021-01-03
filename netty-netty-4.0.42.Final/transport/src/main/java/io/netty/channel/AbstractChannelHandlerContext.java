@@ -38,6 +38,9 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
     volatile AbstractChannelHandlerContext next;
     volatile AbstractChannelHandlerContext prev;
 
+    /**
+     * channelhandlercontext的状态 初始化为init 当handler添加到channel的pipeline后状态为ADDED
+     */
     private static final AtomicIntegerFieldUpdater<AbstractChannelHandlerContext> HANDLER_STATE_UPDATER;
 
     static {
@@ -68,14 +71,34 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
      */
     private static final int INIT = 0;
 
+    /**
+     * 是否为输入的channelhandlercontext
+     */
     private final boolean inbound;
+
+    /**
+     * 是否为输出的channelhandlerContext
+     */
     private final boolean outbound;
+
+    /**
+     * channelhandlercontext所位于的channelpipeline的channelhandlercontext链表
+     */
     private final DefaultChannelPipeline pipeline;
+
+    /**
+     * 名字
+     */
     private final String name;
+
+    /**
+     * 是否有序
+     */
     private final boolean ordered;
 
-    // Will be set to null if no child executor should be used, otherwise it will be set to the
-    // child executor.
+    /**
+     * 执行handler方法的执行器
+     */
     final EventExecutor executor;
     private ChannelFuture succeededFuture;
 
@@ -88,14 +111,28 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
 
     private volatile int handlerState = INIT;
 
+    /**
+     * 实例化一个默认的channdlerHandlerContext对象
+     * @param pipeline channelhandlercontext所位于的channelpipeline的channelhandlerContext链表
+     * @param executor 执行器handler方法的执行器
+     * @param name 名字
+     * @param inbound 是否为输入handler
+     * @param outbound 是否输出handler
+     */
     AbstractChannelHandlerContext(DefaultChannelPipeline pipeline, EventExecutor executor, String name,
                                   boolean inbound, boolean outbound) {
+        //设置名字
         this.name = ObjectUtil.checkNotNull(name, "name");
+        //设置pipeline
         this.pipeline = pipeline;
+        //设置执行器
         this.executor = executor;
+        //设置是否为输入
         this.inbound = inbound;
+        //设置是否为输出
         this.outbound = outbound;
         // Its ordered if its driven by the EventLoop or the given Executor is an instanceof OrderedEventExecutor.
+        //设置执行方法是否是有序的
         ordered = executor == null || executor instanceof OrderedEventExecutor;
     }
 
