@@ -65,11 +65,18 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     private volatile boolean readPending;
 
     /**
-     * The future of the current connection attempt.  If not null, subsequent
-     * connection attempts will fail.
+     * 连接的异步操作对象
      */
     private ChannelPromise connectPromise;
+
+    /**
+     * 可超时连接远程服务器的异步操作对象
+     */
     private ScheduledFuture<?> connectTimeoutFuture;
+
+    /**
+     * 已经请求过的远程服务器地址对象
+     */
     private SocketAddress requestedRemoteAddress;
 
     /**
@@ -192,33 +199,47 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             return javaChannel();
         }
 
+        /**
+         * 连接远程服务器
+         * @param remoteAddress 远程服务器地址
+         * @param localAddress 本地地址
+         * @param promise 连接的异步操作对象
+         */
         @Override
         public final void connect(
                 final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
+            //异步操作设置不能取消 并且通道已经打开
             if (!promise.setUncancellable() || !ensureOpen(promise)) {
                 return;
             }
 
             try {
+                //如果之前有连接的异步操作 说明已经连接了
                 if (connectPromise != null) {
                     // Already a connect in process.
                     throw new ConnectionPendingException();
                 }
 
+                //判断通道是否激活
                 boolean wasActive = isActive();
-                if (doConnect(remoteAddress, localAddress)) {
+                if (doConnect(remoteAddress, localAddress)) {//使用channel底层的socketchannel连接远程服务器 返回连接结果 连接陈宫
                     fulfillConnectPromise(promise, wasActive);
-                } else {
+                } else {//连接失败 地址不存在
+                    //设置连接异步操作
                     connectPromise = promise;
+                    //设置请求连接的远程地址
                     requestedRemoteAddress = remoteAddress;
 
-                    // Schedule connect timeout.
+                    //获取超时连接时间
                     int connectTimeoutMillis = config().getConnectTimeoutMillis();
-                    if (connectTimeoutMillis > 0) {
+                    if (connectTimeoutMillis > 0) {//超时连接时间大于0
+                        //添加一个定时任务 等待一段时间 再次获取连接的异步操作
                         connectTimeoutFuture = eventLoop().schedule(new Runnable() {
                             @Override
                             public void run() {
+                                //获取连接的异步操作
                                 ChannelPromise connectPromise = AbstractNioChannel.this.connectPromise;
+                                //如果连接的异步操作可以设置操作失败 则关闭channel
                                 ConnectTimeoutException cause =
                                         new ConnectTimeoutException("connection timed out: " + remoteAddress);
                                 if (connectPromise != null && connectPromise.tryFailure(cause)) {
@@ -228,14 +249,18 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                         }, connectTimeoutMillis, TimeUnit.MILLISECONDS);
                     }
 
+                    //给连接的异步添加事件
                     promise.addListener(new ChannelFutureListener() {
                         @Override
                         public void operationComplete(ChannelFuture future) throws Exception {
-                            if (future.isCancelled()) {
-                                if (connectTimeoutFuture != null) {
+                            if (future.isCancelled()) {//如果连接的异步操作已经取消
+                                if (connectTimeoutFuture != null) {//超时连接的异步操作对象
+                                    //取消可超时连接的异步操作对象
                                     connectTimeoutFuture.cancel(false);
                                 }
+                                //连接的异步操作设置为空
                                 connectPromise = null;
+                                //关闭channel
                                 close(voidPromise());
                             }
                         }
@@ -247,27 +272,37 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             }
         }
 
+        /**
+         * 完整的填充连接的异步操作
+         * @param promise 连接的异步操作对象
+         * @param wasActive 通道是否已经激活
+         */
         private void fulfillConnectPromise(ChannelPromise promise, boolean wasActive) {
-            if (promise == null) {
+            if (promise == null) {//连接的异步操作对象为空 直接返回
                 // Closed via cancellation and the promise has been notified already.
                 return;
             }
 
             // Get the state as trySuccess() may trigger an ChannelFutureListener that will close the Channel.
             // We still need to ensure we call fireChannelActive() in this case.
+            //通道状态
             boolean active = isActive();
 
             // trySuccess() will return false if a user cancelled the connection attempt.
+            //尝试设置连接的异步操作结果为成功
             boolean promiseSet = promise.trySuccess();
 
             // Regardless if the connection attempt was cancelled, channelActive() event should be triggered,
             // because what happened is what happened.
+            //如果通道之前没有激活  现在激活了 下发channelActive事件
             if (!wasActive && active) {
                 pipeline().fireChannelActive();
             }
 
             // If a user cancelled the connection attempt, close the channel, which is followed by channelInactive().
+            //如果设置连接的异步操作为成功 操作失败
             if (!promiseSet) {
+                //关闭通道
                 close(voidPromise());
             }
         }
@@ -470,12 +505,19 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         return buf;
     }
 
+    /**
+     * 关闭channel
+     * @throws Exception
+     */
     @Override
     protected void doClose() throws Exception {
+        //连接的异步操作对象
         ChannelPromise promise = connectPromise;
-        if (promise != null) {
+        if (promise != null) {//已经连接过
             // Use tryFailure() instead of setFailure() to avoid the race against cancel().
+            //设置连接的异步操作结果为失败
             promise.tryFailure(DO_CLOSE_CLOSED_CHANNEL_EXCEPTION);
+            //设置连接的异步操作为null
             connectPromise = null;
         }
 

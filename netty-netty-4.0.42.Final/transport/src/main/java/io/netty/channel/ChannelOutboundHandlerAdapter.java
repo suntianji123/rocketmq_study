@@ -36,10 +36,12 @@ public class ChannelOutboundHandlerAdapter extends ChannelHandlerAdapter impleme
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#connect(SocketAddress, SocketAddress, ChannelPromise)} to forward
-     * to the next {@link ChannelOutboundHandler} in the {@link ChannelPipeline}.
-     *
-     * Sub-classes may override this method to change behavior.
+     * 连接远程服务器
+     * @param ctx               handler的channelhandlerContext对象
+     * @param remoteAddress     远程服务器地址
+     * @param localAddress      本地地址
+     * @param promise           连接的异步操作对象
+     * @throws Exception
      */
     @Override
     public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress,

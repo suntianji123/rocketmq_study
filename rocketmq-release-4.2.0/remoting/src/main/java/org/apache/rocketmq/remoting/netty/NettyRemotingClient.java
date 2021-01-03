@@ -93,6 +93,10 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
      * 轮训通道状态的执行器组
      */
     private final EventLoopGroup eventLoopGroupWorker;
+
+    /**
+     * 范文channelTable的锁
+     */
     private final Lock lockChannelTables = new ReentrantLock();
     /**
      * netty client已经与远程netty server建立过的channel列表
@@ -356,21 +360,28 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         this.rpcHook = rpcHook;
     }
 
+    /**
+     * 关闭channel
+     * @param channel 将要被关闭的channel
+     */
     public void closeChannel(final Channel channel) {
-        if (null == channel)
+        if (null == channel)//将要被关闭的channel不能为空
             return;
 
         try {
             if (this.lockChannelTables.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
+                    //是否需要将channel从列表中移除
                     boolean removeItemFromTable = true;
+                    //channel包装对象
                     ChannelWrapper prevCW = null;
+                    //远程地址
                     String addrRemote = null;
-                    for (Map.Entry<String, ChannelWrapper> entry : channelTables.entrySet()) {
-                        String key = entry.getKey();
-                        ChannelWrapper prev = entry.getValue();
-                        if (prev.getChannel() != null) {
-                            if (prev.getChannel() == channel) {
+                    for (Map.Entry<String, ChannelWrapper> entry : channelTables.entrySet()) {//遍历列表
+                        String key = entry.getKey();//获取远程地址
+                        ChannelWrapper prev = entry.getValue();//获取channel包装对象
+                        if (prev.getChannel() != null) {//包装对象的channel不为空
+                            if (prev.getChannel() == channel) {//channel相等
                                 prevCW = prev;
                                 addrRemote = key;
                                 break;
@@ -383,14 +394,16 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                         removeItemFromTable = false;
                     }
 
-                    if (removeItemFromTable) {
-                        this.channelTables.remove(addrRemote);
+                    if (removeItemFromTable) {//需要将channel从table列表中删除
+                        this.channelTables.remove(addrRemote);//将channel从table列表中删除
                         log.info("closeChannel: the channel[{}] was removed from channel table", addrRemote);
+                        //关闭channel
                         RemotingUtil.closeChannel(channel);
                     }
                 } catch (Exception e) {
                     log.error("closeChannel: close the channel exception", e);
                 } finally {
+                    //释放访问channelTable的锁
                     this.lockChannelTables.unlock();
                 }
             } else {
@@ -783,16 +796,28 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         }
     }
 
-    class NettyConnectManageHandler extends ChannelDuplxxHandler {
+    class NettyConnectManageHandler extends ChannelDuplexHandler {
+        /**
+         * 连接远程服务器
+         * @param ctx               handler所在的channelhandlerContext对象
+         * @param remoteAddress     远程服务器地址
+         * @param localAddress      本地服务器地址
+         * @param promise           连接的异步操作对象
+         * @throws Exception
+         */
         @Override
         public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress,
             ChannelPromise promise) throws Exception {
+            //获取本地地址
             final String local = localAddress == null ? "UNKNOWN" : RemotingHelper.parseSocketAddressAddr(localAddress);
+            //获取远程地址
             final String remote = remoteAddress == null ? "UNKNOWN" : RemotingHelper.parseSocketAddressAddr(remoteAddress);
             log.info("NETTY CLIENT PIPELINE: CONNECT  {} => {}", local, remote);
 
+            //交给其他handler来处理connect 连接完成后
             super.connect(ctx, remoteAddress, localAddress, promise);
 
+            //其他handler连接完成之后 向channel事件注册一个连接事件
             if (NettyRemotingClient.this.channelEventListener != null) {
                 NettyRemotingClient.this.putNettyEvent(new NettyEvent(NettyEventType.CONNECT, remote, ctx.channel()));
             }
@@ -822,17 +847,26 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             }
         }
 
+        /**
+         * 用户触发事件
+         * @param ctx ChannelHandlerContext对象
+         * @param evt IdleStateEvent
+         * @throws Exception
+         */
         @Override
         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-            if (evt instanceof IdleStateEvent) {
+            if (evt instanceof IdleStateEvent) {//IdleStateEvent
                 IdleStateEvent event = (IdleStateEvent) evt;
                 if (event.state().equals(IdleState.ALL_IDLE)) {
+                    //解析远程服务器地址
                     final String remoteAddress = RemotingHelper.parseChannelRemoteAddr(ctx.channel());
                     log.warn("NETTY CLIENT PIPELINE: IDLE exception [{}]", remoteAddress);
+                    //关闭channel
                     closeChannel(ctx.channel());
-                    if (NettyRemotingClient.this.channelEventListener != null) {
+                    if (NettyRemotingClient.this.channelEventListener != null) {//channel事件回调对象不为空
                         NettyRemotingClient.this
                             .putNettyEvent(new NettyEvent(NettyEventType.IDLE, remoteAddress, ctx.channel()));
+                        //实例化一个Netty事件 将netty事件添加到事件列表
                     }
                 }
             }

@@ -549,23 +549,38 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         }
     }
 
+    /**
+     * 连接远程服务器
+     * @param remoteAddress 远程服务器地址
+     * @param promise 连接的异步操作对象
+     * @return
+     */
     @Override
     public ChannelFuture connect(SocketAddress remoteAddress, ChannelPromise promise) {
         return connect(remoteAddress, null, promise);
     }
 
+    /**
+     * 连接远程服务器
+     * @param remoteAddress 远程服务器地址
+     * @param localAddress 本地地址
+     * @param promise 连接的异步操作对象
+     * @return
+     */
     @Override
     public ChannelFuture connect(
             final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
 
-        if (remoteAddress == null) {
+        if (remoteAddress == null) {//远程服务器地址不能为空
             throw new NullPointerException("remoteAddress");
         }
+        //判断连接的异步操作对象是否合理
         if (!validatePromise(promise, false)) {
             // cancelled
             return promise;
         }
 
+        //寻找下一个输出的handler
         final AbstractChannelHandlerContext next = findContextOutbound();
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
@@ -581,6 +596,12 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         return promise;
     }
 
+    /**
+     * 执行连接远程服务器 调用handler的connect方法
+     * @param remoteAddress 远程服务器地址
+     * @param localAddress 本地地址
+     * @param promise 连接的异步操作对象
+     */
     private void invokeConnect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
         if (invokeHandler()) {
             try {

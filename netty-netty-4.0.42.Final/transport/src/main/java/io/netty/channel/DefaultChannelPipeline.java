@@ -996,8 +996,15 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return tail.bind(localAddress, promise);
     }
 
+    /**
+     * 连接远程服务器
+     * @param remoteAddress 远程服务器地址对象
+     * @param promise 连接的异步操作类
+     * @return
+     */
     @Override
     public final ChannelFuture connect(SocketAddress remoteAddress, ChannelPromise promise) {
+        //头部channelhandlercontext的连接方法
         return tail.connect(remoteAddress, promise);
     }
 
@@ -1255,11 +1262,20 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             unsafe.bind(localAddress, promise);
         }
 
+        /**
+         * 连接远程服务器
+         * @param ctx               handler所在channelhandlerContext对象
+         * @param remoteAddress     远程服务器地址
+         * @param localAddress      本地地址
+         * @param promise           连接的异步操作对象
+         * @throws Exception
+         */
         @Override
         public void connect(
                 ChannelHandlerContext ctx,
                 SocketAddress remoteAddress, SocketAddress localAddress,
                 ChannelPromise promise) throws Exception {
+            //使用unsafe来连接远程服务器
             unsafe.connect(remoteAddress, localAddress, promise);
         }
 

@@ -53,10 +53,9 @@ public class ChannelInboundHandlerAdapter extends ChannelHandlerAdapter implemen
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelActive()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     *
-     * Sub-classes may override this method to change behavior.
+     * channeld底层的selectionkey注册到eventloop执行器的selector后执行
+     * @param ctx channelhandlerContext对象
+     * @throws Exception
      */
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {

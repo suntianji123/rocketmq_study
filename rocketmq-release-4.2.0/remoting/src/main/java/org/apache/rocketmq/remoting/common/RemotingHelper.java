@@ -150,13 +150,20 @@ public class RemotingHelper {
         }
     }
 
+    /**
+     * 解析远程服务器地址
+     * @param channel 传入的channel
+     * @return
+     */
     public static String parseChannelRemoteAddr(final Channel channel) {
-        if (null == channel) {
+        if (null == channel) {//channel不能为空
             return "";
         }
+        //获取远程地址
         SocketAddress remote = channel.remoteAddress();
         final String addr = remote != null ? remote.toString() : "";
 
+        //解析远程服务器地址
         if (addr.length() > 0) {
             int index = addr.lastIndexOf("/");
             if (index >= 0) {

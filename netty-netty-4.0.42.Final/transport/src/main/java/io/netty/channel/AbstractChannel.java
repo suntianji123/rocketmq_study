@@ -225,8 +225,15 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return pipeline.bind(localAddress, promise);
     }
 
+    /**
+     * 连接远程服务器
+     * @param remoteAddress 远程服务器地址对象
+     * @param promise 连接的异步操作对象
+     * @return
+     */
     @Override
     public ChannelFuture connect(SocketAddress remoteAddress, ChannelPromise promise) {
+        //调用pipeline的连接方法
         return pipeline.connect(remoteAddress, promise);
     }
 

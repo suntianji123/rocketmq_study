@@ -191,11 +191,18 @@ public class RemotingUtil {
         return null;
     }
 
+    /**
+     * 使用远程工具关闭channel
+     * @param channel 将要被关闭的channel
+     */
     public static void closeChannel(Channel channel) {
+        //获取channel远程服务器地址
         final String addrRemote = RemotingHelper.parseChannelRemoteAddr(channel);
+        //给channel的关闭的异步操作添加一个回调方法
         channel.close().addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {
+                //记录channel 关闭的日志
                 log.info("closeChannel: close the connection to remote address[{}] result: {}", addrRemote,
                     future.isSuccess());
             }

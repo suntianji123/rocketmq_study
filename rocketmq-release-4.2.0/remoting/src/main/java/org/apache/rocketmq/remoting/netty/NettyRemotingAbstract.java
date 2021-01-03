@@ -531,11 +531,20 @@ public abstract class NettyRemotingAbstract {
      * netty channel的关闭 连接 事件监听器
      */
     class NettyEventExecutor extends ServiceThread {
+        /**
+         * channel事件列表
+         */
         private final LinkedBlockingQueue<NettyEvent> eventQueue = new LinkedBlockingQueue<NettyEvent>();
         private final int maxSize = 10000;
 
+        /**
+         * 向channel事件列表中添加一个channel事件
+         * @param event 将要被添加的事件
+         */
         public void putNettyEvent(final NettyEvent event) {
+            //如果事件列表的长度 小于最大长度
             if (this.eventQueue.size() <= maxSize) {
+                //将事件添加到事件列表
                 this.eventQueue.add(event);
             } else {
                 log.warn("event queue size[{}] enough, so drop this event {}", this.eventQueue.size(), event.toString());
