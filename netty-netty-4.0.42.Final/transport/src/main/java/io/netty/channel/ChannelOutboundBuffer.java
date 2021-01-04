@@ -36,21 +36,15 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 /**
- * (Transport implementors only) an internal data structure used by {@link AbstractChannel} to store its pending
- * outbound write requests.
- * <p>
- * All methods must be called by a transport implementation from an I/O thread, except the following ones:
- * <ul>
- * <li>{@link #size()} and {@link #isEmpty()}</li>
- * <li>{@link #isWritable()}</li>
- * <li>{@link #getUserDefinedWritability(int)} and {@link #setUserDefinedWritability(int, boolean)}</li>
- * </ul>
- * </p>
+ * 每个channel的出站缓冲区类
  */
 public final class ChannelOutboundBuffer {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(ChannelOutboundBuffer.class);
 
+    /**
+     * 线程上下文变量
+     */
     private static final FastThreadLocal<ByteBuffer[]> NIO_BUFFERS = new FastThreadLocal<ByteBuffer[]>() {
         @Override
         protected ByteBuffer[] initialValue() throws Exception {
@@ -58,6 +52,9 @@ public final class ChannelOutboundBuffer {
         }
     };
 
+    /**
+     * 出站缓冲区所属的channel对象
+     */
     private final Channel channel;
 
     // Entry(flushedEntry) --> ... Entry(unflushedEntry) --> ... Entry(tailEntry)
@@ -76,16 +73,28 @@ public final class ChannelOutboundBuffer {
 
     private boolean inFail;
 
+    /**
+     * 输出缓冲区 totalPendingSize 字段更新器
+     */
     private static final AtomicLongFieldUpdater<ChannelOutboundBuffer> TOTAL_PENDING_SIZE_UPDATER;
 
+    /**
+     * 输出缓冲区已经写入的字节大小
+     */
     @SuppressWarnings("UnusedDeclaration")
     private volatile long totalPendingSize;
 
     private static final AtomicIntegerFieldUpdater<ChannelOutboundBuffer> UNWRITABLE_UPDATER;
 
+    /**
+     * 不能继续向输出缓冲区写入字节的标志值 0 可写；1 不可泄
+     */
     @SuppressWarnings("UnusedDeclaration")
     private volatile int unwritable;
 
+    /**
+     * 下发channel可写状态变更的事件 run方法
+     */
     private volatile Runnable fireChannelWritabilityChangedTask;
 
     static {
@@ -104,7 +113,12 @@ public final class ChannelOutboundBuffer {
         TOTAL_PENDING_SIZE_UPDATER = pendingSizeUpdater;
     }
 
+    /**
+     * 实例化一个出站缓冲区对象
+     * @param channel channel对象
+     */
     ChannelOutboundBuffer(AbstractChannel channel) {
+        //设置出站缓冲区所属的channel对象
         this.channel = channel;
     }
 
@@ -162,20 +176,29 @@ public final class ChannelOutboundBuffer {
     }
 
     /**
-     * Increment the pending bytes which will be written at some point.
-     * This method is thread-safe!
+     * 增加输出缓冲区的字节数
+     * @param size 需要增加的size大小
      */
     void incrementPendingOutboundBytes(long size) {
         incrementPendingOutboundBytes(size, true);
     }
 
+    /**
+     * 增加输出缓冲区的字节数
+     * @param size 增加的大小
+     * @param invokeLater 是否稍后执行
+     */
     private void incrementPendingOutboundBytes(long size, boolean invokeLater) {
-        if (size == 0) {
+        if (size == 0) {//如果需要增加的值为0 直接返回
             return;
         }
 
+        //增加输出缓冲区的totalPendingSize的值 获取输出缓冲区已经存在的字节数
         long newWriteBufferSize = TOTAL_PENDING_SIZE_UPDATER.addAndGet(this, size);
+
+        //如果一次向channel的输出缓冲区写入的字节数超过了channel指定的最大字节数 默认64M
         if (newWriteBufferSize > channel.config().getWriteBufferHighWaterMark()) {
+            //设置不能向输出缓冲区写入字节
             setUnwritable(invokeLater);
         }
     }
@@ -559,12 +582,19 @@ public final class ChannelOutboundBuffer {
         }
     }
 
+    /**
+     * 设置channel的输出缓冲区不能继续 输出缓冲区的已经累计的数据超过了 channel配置的最高水位值64M
+     * @param invokeLater
+     */
     private void setUnwritable(boolean invokeLater) {
         for (;;) {
+            //获取老的不能写入的标志值
             final int oldValue = unwritable;
+            //新的状态值
             final int newValue = oldValue | 1;
             if (UNWRITABLE_UPDATER.compareAndSet(this, oldValue, newValue)) {
                 if (oldValue == 0 && newValue != 0) {
+                    //下发 channel可写的状态变化的消息
                     fireChannelWritabilityChanged(invokeLater);
                 }
                 break;
@@ -572,9 +602,14 @@ public final class ChannelOutboundBuffer {
         }
     }
 
+    /**
+     * 下发通道可写状态变更的消息
+     * @param invokeLater 是否为稍后执行
+     */
     private void fireChannelWritabilityChanged(boolean invokeLater) {
+        //获取chanel的pipeline
         final ChannelPipeline pipeline = channel.pipeline();
-        if (invokeLater) {
+        if (invokeLater) {//如果是稍后执行
             Runnable task = fireChannelWritabilityChangedTask;
             if (task == null) {
                 fireChannelWritabilityChangedTask = task = new Runnable() {

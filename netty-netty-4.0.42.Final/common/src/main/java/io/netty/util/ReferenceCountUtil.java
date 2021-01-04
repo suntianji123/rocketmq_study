@@ -50,13 +50,15 @@ public final class ReferenceCountUtil {
         return msg;
     }
 
+
     /**
-     * Try to call {@link ReferenceCounted#release()} if the specified message implements {@link ReferenceCounted}.
-     * If the specified message doesn't implement {@link ReferenceCounted}, this method does nothing.
+     * 释放消息对象的引用
+     * @param msg 对象
+     * @return 返回当前线程是否释放了对对象的引用
      */
     public static boolean release(Object msg) {
-        if (msg instanceof ReferenceCounted) {
-            return ((ReferenceCounted) msg).release();
+        if (msg instanceof ReferenceCounted) {//对象如果是引用计数类型
+            return ((ReferenceCounted) msg).release();//释放当前线程对它的引用
         }
         return false;
     }

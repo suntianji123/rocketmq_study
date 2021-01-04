@@ -106,6 +106,10 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
     // There is no need to make this volatile as at worse it will just create a few more instances then needed.
     private Runnable invokeChannelReadCompleteTask;
     private Runnable invokeReadTask;
+
+    /**
+     * 执行channel的输出缓冲区可写状态变更的任务体
+     */
     private Runnable invokeChannelWritableStateChangedTask;
     private Runnable invokeFlushTask;
 
@@ -452,7 +456,12 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         return this;
     }
 
+    /**
+     * 下发channel的输出缓冲区可写状态变更的消息
+     * @param next channelhandlerContext对象
+     */
     static void invokeChannelWritabilityChanged(final AbstractChannelHandlerContext next) {
+        //获取channelhandlerContext的执行器
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
             next.invokeChannelWritabilityChanged();
@@ -470,6 +479,9 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         }
     }
 
+    /**
+     * 执行channel的输出缓冲区可写状态变更的处理
+     */
     private void invokeChannelWritabilityChanged() {
         if (invokeHandler()) {
             try {
@@ -788,16 +800,28 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         return promise;
     }
 
+    /**
+     * 执行向channel中写入消息对象的方法
+     * @param msg 写入的数据对象
+     * @param promise 写入的异步操作对象
+     */
     private void invokeWrite(Object msg, ChannelPromise promise) {
         if (invokeHandler()) {
+            //执行向channel中写入数据
             invokeWrite0(msg, promise);
         } else {
             write(msg, promise);
         }
     }
 
+    /**
+     * 执行向channel中写入数据
+     * @param msg 需要向channel中写入的数据对象
+     * @param promise 向channel写入数据的异步操作对象
+     */
     private void invokeWrite0(Object msg, ChannelPromise promise) {
         try {
+            //获取handler 执行handler的write方法
             ((ChannelOutboundHandler) handler()).write(this, msg, promise);
         } catch (Throwable t) {
             notifyOutboundHandlerException(t, promise);
@@ -826,6 +850,9 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         return this;
     }
 
+    /**
+     * 执行刷新channel的输出缓冲区
+     */
     private void invokeFlush() {
         if (invokeHandler()) {
             invokeFlush0();
@@ -834,28 +861,42 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         }
     }
 
+    /**
+     * 执行刷新channel的缓冲区
+     */
     private void invokeFlush0() {
         try {
+            //找到context的handler对象  执行它的flush方法
             ((ChannelOutboundHandler) handler()).flush(this);
         } catch (Throwable t) {
             notifyHandlerException(t);
         }
     }
 
+    /**
+     * 向channel中写入数据
+     * @param msg 数据对象
+     * @param promise 写入数据异步操作对象
+     * @return
+     */
     @Override
     public ChannelFuture writeAndFlush(Object msg, ChannelPromise promise) {
-        if (msg == null) {
+        if (msg == null) {//数据对象不能为空
             throw new NullPointerException("msg");
         }
 
+        //验证异步操作对象的合理性
         if (!validatePromise(promise, true)) {
+            //释放消息对象
             ReferenceCountUtil.release(msg);
-            // cancelled
+            // 取消异步操作
             return promise;
         }
 
+        //向channel中写入数据
         write(msg, true, promise);
 
+        //返回写入数据的异步操作对象
         return promise;
     }
 
@@ -868,8 +909,16 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         }
     }
 
+    /**
+     * 向channel中写入数据
+     * @param msg 数据对象
+     * @param flush 是否强制刷新缓冲区
+     * @param promise 向channel写入数据的异步操作对象
+     */
     private void write(Object msg, boolean flush, ChannelPromise promise) {
+        //获取下一个输出的channelhandlerContext
         AbstractChannelHandlerContext next = findContextOutbound();
+        //获取执行器
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
             if (flush) {
@@ -878,16 +927,23 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
                 next.invokeWrite(msg, promise);
             }
         } else {
+            //实例化一个task对象
             AbstractWriteTask task;
-            if (flush) {
+            if (flush) {//强制刷新输出缓冲区
                 task = WriteAndFlushTask.newInstance(next, msg, promise);
             }  else {
                 task = WriteTask.newInstance(next, msg, promise);
             }
+            //安全的执行任务
             safeExecute(executor, task, promise, msg);
         }
     }
 
+    /**
+     * 向channel中写入数据
+     * @param msg 数据对象
+     * @return
+     */
     @Override
     public ChannelFuture writeAndFlush(Object msg) {
         return writeAndFlush(msg, newPromise());
@@ -956,36 +1012,48 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         return new FailedChannelFuture(channel(), executor(), cause);
     }
 
+    /**
+     * 验证异步操作对象
+     * @param promise 被验证的异步操作对象
+     * @param allowVoidPromise 是否允许voidPromise
+     * @return
+     */
     private boolean validatePromise(ChannelPromise promise, boolean allowVoidPromise) {
-        if (promise == null) {
+        if (promise == null) {//异步操作对象不能为空
             throw new NullPointerException("promise");
         }
 
-        if (promise.isDone()) {
+        if (promise.isDone()) {//如果异步操作对象已经执行完成
             // Check if the promise was cancelled and if so signal that the processing of the operation
             // should not be performed.
             //
             // See https://github.com/netty/netty/issues/2349
-            if (promise.isCancelled()) {
+            if (promise.isCancelled()) {//如果异步操作对象被取消 返回false
                 return false;
             }
+
+            //抛出异常
             throw new IllegalArgumentException("promise already done: " + promise);
         }
 
+        //异步操作对象的channel必须为channelhandlerContext的channel
         if (promise.channel() != channel()) {
             throw new IllegalArgumentException(String.format(
                     "promise.channel does not match: %s (expected: %s)", promise.channel(), channel()));
         }
 
+        //如果是DefaultChannelPromise返回true
         if (promise.getClass() == DefaultChannelPromise.class) {
             return true;
         }
 
+        //如果不允许voidPromise但是传入的异步操作对象的VoidPromise 抛出异常
         if (!allowVoidPromise && promise instanceof VoidChannelPromise) {
             throw new IllegalArgumentException(
                     StringUtil.simpleClassName(VoidChannelPromise.class) + " not allowed for this operation");
         }
 
+        //如果异步操作对象是关闭的异步操作 抛出异常
         if (promise instanceof AbstractChannel.CloseFuture) {
             throw new IllegalArgumentException(
                     StringUtil.simpleClassName(AbstractChannel.CloseFuture.class) + " not allowed in a pipeline");
@@ -1036,12 +1104,8 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
     }
 
     /**
-     * Makes best possible effort to detect if {@link ChannelHandler#handlerAdded(ChannelHandlerContext)} was called
-     * yet. If not return {@code false} and if called or could not detect return {@code true}.
-     *
-     * If this method returns {@code true} we will not invoke the {@link ChannelHandler} but just forward the event.
-     * This is needed as {@link DefaultChannelPipeline} may already put the {@link ChannelHandler} in the linked-list
-     * but not called {@link ChannelHandler#handlerAdded(ChannelHandlerContext)}.
+     * 判断handler是否为可执行的handler
+     * @return
      */
     private boolean invokeHandler() {
         // Store in local variable to reduce volatile reads.
@@ -1068,39 +1132,77 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         }
     }
 
+    /**
+     * 向channel写入数据的任务类
+     */
     abstract static class AbstractWriteTask implements Runnable {
 
+        /**
+         * 当向channel的输出ByteBuf写入数据的时候 估算提交数据的大小
+         */
         private static final boolean ESTIMATE_TASK_SIZE_ON_SUBMIT =
                 SystemPropertyUtil.getBoolean("io.netty.transport.estimateSizeOnSubmit", true);
 
+        //假设有一个64位JVM，16个字节的对象标头，3个参考字段和一个int字段，再加上对齐方式 累计48个字节
         // Assuming a 64-bit JVM, 16 bytes object header, 3 reference fields and one int field, plus alignment
         private static final int WRITE_TASK_OVERHEAD =
                 SystemPropertyUtil.getInt("io.netty.transport.writeTaskSizeOverhead", 48);
 
+        /**
+         * 处理回收
+         */
         private final Recycler.Handle handle;
+
+        /**
+         * 任务所属的ChannelHandlerContext对象
+         */
         private AbstractChannelHandlerContext ctx;
+
+        /**
+         * 需要写入到缓冲区的数据对象
+         */
         private Object msg;
+
+        /**
+         * 写入数据的异步操作对象
+         */
         private ChannelPromise promise;
+
+        /**
+         * 写入到chanel的msg对象的大小
+         */
         private int size;
 
         private AbstractWriteTask(Recycler.Handle handle) {
             this.handle = handle;
         }
 
+        /**
+         * 从回收站获取一个任务后 对任务的初始化的方法
+         * @param task 被初始化的任务对象
+         * @param ctx 被写入数据的channel的channelhandlercontext对象
+         * @param msg 数据对象
+         * @param promise 写入的异步操作对象
+         */
         protected static void init(AbstractWriteTask task, AbstractChannelHandlerContext ctx,
                                    Object msg, ChannelPromise promise) {
+            //设置任务的channelhandlercontext读写
             task.ctx = ctx;
+            //设置被写入的数据对象
             task.msg = msg;
+            //设置写入的异步操作对象
             task.promise = promise;
 
+            //在提交任务时候 需要估算任务的大小
             if (ESTIMATE_TASK_SIZE_ON_SUBMIT) {
+                //获取channel的出站缓冲区对象
                 ChannelOutboundBuffer buffer = ctx.channel().unsafe().outboundBuffer();
 
                 // Check for null as it may be set to null if the channel is closed already
-                if (buffer != null) {
+                if (buffer != null) {//出站缓冲区不为null
                     task.size = ctx.pipeline.estimatorHandle().size(msg) + WRITE_TASK_OVERHEAD;
                     buffer.incrementPendingOutboundBytes(task.size);
-                } else {
+                } else {//出站缓冲区为null  任务的数据大小为0
                     task.size = 0;
                 }
             } else {
@@ -1111,11 +1213,15 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         @Override
         public final void run() {
             try {
+                //获取channel的输出缓冲区
                 ChannelOutboundBuffer buffer = ctx.channel().unsafe().outboundBuffer();
-                // Check for null as it may be set to null if the channel is closed already
+
+                //判断向输出缓冲区的写入的字节是否超过channel配置的高水位值 64M 如果超过了 下发channel可写状态变更的事件
                 if (ESTIMATE_TASK_SIZE_ON_SUBMIT && buffer != null) {
                     buffer.decrementPendingOutboundBytes(size);
                 }
+
+                //向channel的输出缓冲区写入数据
                 write(ctx, msg, promise);
             } finally {
                 // Set to null so the GC can collect them directly
@@ -1126,7 +1232,14 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
             }
         }
 
+        /**
+         * 向channel的输出缓冲区写入数据的方法体
+         * @param ctx 当前channelhandlerContext对象
+         * @param msg 写入到channel的数据对象
+         * @param promise 异步操作对象
+         */
         protected void write(AbstractChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+            //执行写入消息
             ctx.invokeWrite(msg, promise);
         }
 
@@ -1168,8 +1281,16 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
             }
         };
 
+        /**
+         * 向channel写入数据并且刷新缓冲区的任务
+         * @param ctx channelhandlerContext对象
+         * @param msg 数据对象
+         * @param promise 写入数据的异步操作对象
+         * @return
+         */
         private static WriteAndFlushTask newInstance(
                 AbstractChannelHandlerContext ctx, Object msg,  ChannelPromise promise) {
+            //从回收站获取一个写入channel并且刷新缓冲区的任务
             WriteAndFlushTask task = RECYCLER.get();
             init(task, ctx, msg, promise);
             return task;
@@ -1182,6 +1303,8 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         @Override
         public void write(AbstractChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
             super.write(ctx, msg, promise);
+
+            //执行刷新缓冲区
             ctx.invokeFlush();
         }
 

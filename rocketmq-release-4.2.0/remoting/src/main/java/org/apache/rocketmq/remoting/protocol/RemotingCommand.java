@@ -80,6 +80,10 @@ public class RemotingCommand {
      * 请求码
      */
     private int code;
+
+    /**
+     * 命令语言 默认为java
+     */
     private LanguageCode language = LanguageCode.JAVA;
 
     /**

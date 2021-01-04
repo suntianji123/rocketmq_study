@@ -19,29 +19,43 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
 
 /**
- * Default {@link MessageSizeEstimator} implementation which supports the estimation of the size of
- * {@link ByteBuf}, {@link ByteBufHolder} and {@link FileRegion}.
+ * 默认的估算对象字节大小的估算器
  */
 public final class DefaultMessageSizeEstimator implements MessageSizeEstimator {
 
     private static final class HandleImpl implements Handle {
+
+        /**
+         * 计算不出对象的大小时 返回的默认值 默认为8
+         */
         private final int unknownSize;
 
+        /**
+         * 实例化估算对象字节大小的估算器
+         * @param unknownSize 指定估算不出对象字节大小的默认字节值
+         */
         private HandleImpl(int unknownSize) {
             this.unknownSize = unknownSize;
         }
 
+        /**
+         * 计算对象的字节大小
+         * @param msg       需要计算字节大小的msg对象
+         * @return
+         */
         @Override
         public int size(Object msg) {
-            if (msg instanceof ByteBuf) {
+            if (msg instanceof ByteBuf) {//如果对象是ByteBuf类型 返回可读字节数
                 return ((ByteBuf) msg).readableBytes();
             }
-            if (msg instanceof ByteBufHolder) {
+            if (msg instanceof ByteBufHolder) {//如果对象是ByteBufHolder类型  返回可读字节数
                 return ((ByteBufHolder) msg).content().readableBytes();
             }
-            if (msg instanceof FileRegion) {
+            if (msg instanceof FileRegion) {//如果是文件类型 返回0
                 return 0;
             }
+
+            //其他类型 返回默认值
             return unknownSize;
         }
     }

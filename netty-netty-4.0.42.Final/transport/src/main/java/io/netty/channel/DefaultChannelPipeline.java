@@ -949,6 +949,10 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    /**
+     * 下发channel的输出缓冲区可写状态变更的事件
+     * @return
+     */
     @Override
     public final ChannelPipeline fireChannelWritabilityChanged() {
         AbstractChannelHandlerContext.invokeChannelWritabilityChanged(head);
@@ -1050,6 +1054,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return tail.writeAndFlush(msg, promise);
     }
 
+    /**
+     * 向channel写入数据
+     * @param msg 写入的数据对象
+     * @return
+     */
     @Override
     public final ChannelFuture writeAndFlush(Object msg) {
         return tail.writeAndFlush(msg);
@@ -1365,8 +1374,14 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             ctx.fireUserEventTriggered(evt);
         }
 
+        /**
+         * 执行channel的输出缓冲区可写状态变更的方法
+         * @param ctx channelhandlerContext对象
+         * @throws Exception
+         */
         @Override
         public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+            //交给channelhandlerContext进行处理
             ctx.fireChannelWritabilityChanged();
         }
     }

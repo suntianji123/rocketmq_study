@@ -70,7 +70,15 @@ public class DefaultChannelConfig implements ChannelConfig {
     @SuppressWarnings("FieldMayBeFinal")
     private volatile int autoRead = 1;
     private volatile boolean autoClose = true;
+
+    /**
+     * 可向channel的输出缓冲区写入的最大字节数 64M
+     */
     private volatile int writeBufferHighWaterMark = 64 * 1024;
+
+    /**
+     * 可向channel的输出缓冲区写入的最小字节数
+     */
     private volatile int writeBufferLowWaterMark = 32 * 1024;
     private volatile boolean pinEventExecutor = true;
 
