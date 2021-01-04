@@ -244,6 +244,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * Create a new {@link Channel} and bind it.
      */
     public ChannelFuture bind() {
+        //校验group和channelFactory
         validate();
         SocketAddress localAddress = this.localAddress;
         if (localAddress == null) {
@@ -284,20 +285,29 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         return doBind(localAddress);
     }
 
+    /**
+     * 绑定端口方法
+     * @param localAddress 本地地址
+     * @return
+     */
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        //初始化并且注册
         final ChannelFuture regFuture = initAndRegister();
+
+
         final Channel channel = regFuture.channel();
-        if (regFuture.cause() != null) {
+        if (regFuture.cause() != null) {//如果注册channel到eventloop的异步操作失败 直接返回异步操作
             return regFuture;
         }
 
-        if (regFuture.isDone()) {
-            // At this point we know that the registration was complete and successful.
+        if (regFuture.isDone()) {//如果注册的异步操作完成
+            //实例化一个绑定端口的异步操作对象
             ChannelPromise promise = channel.newPromise();
             doBind0(regFuture, channel, localAddress, promise);
             return promise;
-        } else {
+        } else {//如果注册的异步操作没有完成 添加一个回调
             // Registration future is almost always fulfilled already, but just in case it's not.
+            //实例化一个异步操作对象
             final PendingRegistrationPromise promise = new PendingRegistrationPromise(channel);
             regFuture.addListener(new ChannelFutureListener() {
                 @Override
@@ -310,8 +320,10 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
                     } else {
                         // Registration was successful, so set the correct executor to use.
                         // See https://github.com/netty/netty/issues/2586
+                        //设置绑定的异步操作的执行器为channel的执行器
                         promise.executor = channel.eventLoop();
 
+                        //执行绑定
                         doBind0(regFuture, channel, localAddress, promise);
                     }
                 }
@@ -366,18 +378,23 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     abstract void init(Channel channel) throws Exception;
 
+    /**
+     * 绑定端口
+     * @param regFuture 注册的异步操作
+     * @param channel 需要被绑定的channel对象
+     * @param localAddress 本地地址
+     * @param promise 绑定端口的异步操作对象
+     */
     private static void doBind0(
             final ChannelFuture regFuture, final Channel channel,
             final SocketAddress localAddress, final ChannelPromise promise) {
 
-        // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
-        // the pipeline in its channelRegistered() implementation.
         channel.eventLoop().execute(new Runnable() {
             @Override
             public void run() {
-                if (regFuture.isSuccess()) {
+                if (regFuture.isSuccess()) {//如果注册的异步操作成功 给channel的执行器添加一个绑定任务
                     channel.bind(localAddress, promise).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
-                } else {
+                } else {//注册的异步操作失败 绑定的异步操作失败的原因为注册的异步操作失败的原因
                     promise.setFailure(regFuture.cause());
                 }
             }

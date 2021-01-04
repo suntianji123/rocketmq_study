@@ -220,8 +220,15 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return this;
     }
 
+    /**
+     * 绑定端口
+     * @param localAddress 本地地址
+     * @param promise 绑定端口的异步操作对象
+     * @return
+     */
     @Override
     public ChannelFuture bind(SocketAddress localAddress, ChannelPromise promise) {
+        //调用的pipeline的bind方法
         return pipeline.bind(localAddress, promise);
     }
 
@@ -535,10 +542,16 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        /**
+         * 绑定端口
+         * @param localAddress 端口地址
+         * @param promise 绑定端口的异步操作对象
+         */
         @Override
         public final void bind(final SocketAddress localAddress, final ChannelPromise promise) {
             assertEventLoop();
 
+            //channel必须打开 绑定端口的异步操作设置不能取消
             if (!promise.setUncancellable() || !ensureOpen(promise)) {
                 return;
             }
@@ -556,15 +569,20 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         "address (" + localAddress + ") anyway as requested.");
             }
 
+            //channel的激活状天天
             boolean wasActive = isActive();
             try {
+                //执行绑定
                 doBind(localAddress);
             } catch (Throwable t) {
+                //设置异步操作失败
                 safeSetFailure(promise, t);
+                //关闭 channel
                 closeIfClosed();
                 return;
             }
 
+            //之前channel没有激活 现在激活了 下发channel激活是哪
             if (!wasActive && isActive()) {
                 invokeLater(new Runnable() {
                     @Override
@@ -574,6 +592,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 });
             }
 
+            //设置绑定端口的异步操作成功
             safeSetSuccess(promise);
         }
 

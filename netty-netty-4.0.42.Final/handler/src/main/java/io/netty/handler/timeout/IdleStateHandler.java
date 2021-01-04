@@ -294,16 +294,24 @@ public class IdleStateHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (readerIdleTimeNanos > 0 || allIdleTimeNanos > 0) {
-            reading = true;
+            reading = true;//设置正在读
+            //设置两个标志
             firstReaderIdleEvent = firstAllIdleEvent = true;
         }
         ctx.fireChannelRead(msg);
     }
 
+    /**
+     * channel读取数据完成后
+     * @param ctx channnelhandlerContext
+     * @throws Exception
+     */
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
         if ((readerIdleTimeNanos > 0 || allIdleTimeNanos > 0) && reading) {
+            //更新handler上一次读取数据时间
             lastReadTime = System.nanoTime();
+            //设置正在读取channel数据标志位false
             reading = false;
         }
         ctx.fireChannelReadComplete();

@@ -24,10 +24,11 @@ import java.net.SocketAddress;
 public class ChannelOutboundHandlerAdapter extends ChannelHandlerAdapter implements ChannelOutboundHandler {
 
     /**
-     * Calls {@link ChannelHandlerContext#bind(SocketAddress, ChannelPromise)} to forward
-     * to the next {@link ChannelOutboundHandler} in the {@link ChannelPipeline}.
-     *
-     * Sub-classes may override this method to change behavior.
+     * 绑定端口
+     * @param ctx           channelhandlerContext对象
+     * @param localAddress  端口对象
+     * @param promise       绑定端口的异步操作对象
+     * @throws Exception
      */
     @Override
     public void bind(ChannelHandlerContext ctx, SocketAddress localAddress,

@@ -995,8 +995,15 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    /**
+     * 绑定端口
+     * @param localAddress 端口地址
+     * @param promise 绑定的异步操作对象
+     * @return
+     */
     @Override
     public final ChannelFuture bind(SocketAddress localAddress, ChannelPromise promise) {
+        //调用尾部节点的bind方法
         return tail.bind(localAddress, promise);
     }
 
@@ -1208,6 +1215,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception { }
 
+
+
+
+
+
+        
         @Override
         public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception { }
 
@@ -1264,6 +1277,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             // NOOP
         }
 
+        /**
+         * channel绑定端口
+         * @param ctx           channelhandlerContext对象
+         * @param localAddress  端口地址
+         * @param promise       绑定端口的异步操作对象
+         * @throws Exception
+         */
         @Override
         public void bind(
                 ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise)

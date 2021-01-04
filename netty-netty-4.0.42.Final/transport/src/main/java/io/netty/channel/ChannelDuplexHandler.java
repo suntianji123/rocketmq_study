@@ -27,10 +27,11 @@ import java.net.SocketAddress;
 public class ChannelDuplexHandler extends ChannelInboundHandlerAdapter implements ChannelOutboundHandler {
 
     /**
-     * Calls {@link ChannelHandlerContext#bind(SocketAddress, ChannelPromise)} to forward
-     * to the next {@link ChannelOutboundHandler} in the {@link ChannelPipeline}.
-     *
-     * Sub-classes may override this method to change behavior.
+     * channel绑定端口方法
+     * @param ctx           ChannelhandlerContext
+     * @param localAddress  端口地址
+     * @param promise       绑定端口的异步操作对象
+     * @throws Exception
      */
     @Override
     public void bind(ChannelHandlerContext ctx, SocketAddress localAddress,

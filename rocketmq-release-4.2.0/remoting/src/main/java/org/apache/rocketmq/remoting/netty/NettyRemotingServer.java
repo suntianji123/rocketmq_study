@@ -228,13 +228,13 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                     public void initChannel(SocketChannel ch) throws Exception {
                         ch.pipeline()
                             .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME,
-                                new HandshakeHandler(TlsSystemConfig.tlsMode))
+                                new HandshakeHandler(TlsSystemConfig.tlsMode))//in
                             .addLast(defaultEventExecutorGroup,
-                                new NettyEncoder(),
-                                new NettyDecoder(),
-                                new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),
-                                new NettyConnectManageHandler(),
-                                new NettyServerHandler()
+                                new NettyEncoder(),//out
+                                new NettyDecoder(),//将ByteBuf 转为 RemotingCmd对象
+                                new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),//in out
+                                new NettyConnectManageHandler(),//in out
+                                new NettyServerHandler()//in
                             );
                     }
                 });
@@ -374,19 +374,29 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         private final TlsMode tlsMode;
 
+        /**
+         * 握手标志字节
+         */
         private static final byte HANDSHAKE_MAGIC_CODE = 0x16;
 
         HandshakeHandler(TlsMode tlsMode) {
             this.tlsMode = tlsMode;
         }
 
+        /**
+         * 子类处理消息
+         * @param ctx          ChannelHandlerContext对象
+         *                      belongs to
+         * @param msg           消息对象
+         * @throws Exception
+         */
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
 
-            // mark the current position so that we can peek the first byte to determine if the content is starting with
-            // TLS handshake
+            //标记一下readerIndex的值
             msg.markReaderIndex();
 
+            //获取第0个字节
             byte b = msg.getByte(0);
 
             if (b == HANDSHAKE_MAGIC_CODE) {
@@ -417,17 +427,17 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 log.warn("Clients intend to establish an insecure connection while this server is running in SSL enforcing mode");
             }
 
-            // reset the reader index so that handshake negotiation may proceed as normal.
+            //重置readerIndex
             msg.resetReaderIndex();
 
             try {
-                // Remove this handler
+                //删除当前handler
                 ctx.pipeline().remove(this);
             } catch (NoSuchElementException e) {
                 log.error("Error while removing HandshakeHandler", e);
             }
 
-            // Hand over this message to the next .
+            // 下发channelReader
             ctx.fireChannelRead(msg.retain());
         }
     }

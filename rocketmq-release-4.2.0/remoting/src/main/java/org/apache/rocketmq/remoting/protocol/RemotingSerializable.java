@@ -50,11 +50,25 @@ public abstract class RemotingSerializable {
         return JSON.toJSONString(obj,prettyFormat);
     }
 
+    /**
+     * 将json格式的字节数组 反序列化为对象
+     * @param data json格式的字节数组
+     * @param classOfT 反序列化的对象的类型
+     * @param <T> 对象的类型
+     * @return
+     */
     public static <T> T decode(final byte[] data, Class<T> classOfT) {
         final String json = new String(data, CHARSET_UTF8);
         return fromJson(json, classOfT);
     }
 
+    /**
+     * json字符串反序列化为对象
+     * @param json json字符串
+     * @param classOfT 反序列化生成的对象类型
+     * @param <T>
+     * @return
+     */
     public static <T> T fromJson(String json, Class<T> classOfT) {
         return JSON.parseObject(json, classOfT);
     }

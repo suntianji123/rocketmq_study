@@ -95,11 +95,18 @@ public abstract class SimpleChannelInboundHandler<I> extends ChannelInboundHandl
         return matcher.match(msg);
     }
 
+    /**
+     * 读取channel数据处理
+     * @param ctx ChannelHandlerContext对象
+     * @param msg ByteBuf数据对象
+     * @throws Exception
+     */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         boolean release = true;
         try {
-            if (acceptInboundMessage(msg)) {
+            if (acceptInboundMessage(msg)) {//msg必须是泛型I的类型
+                //强制转换msg
                 @SuppressWarnings("unchecked")
                 I imsg = (I) msg;
                 channelRead0(ctx, imsg);
@@ -108,7 +115,7 @@ public abstract class SimpleChannelInboundHandler<I> extends ChannelInboundHandl
                 ctx.fireChannelRead(msg);
             }
         } finally {
-            if (autoRelease && release) {
+            if (autoRelease && release) {//释放ByteBuf对象
                 ReferenceCountUtil.release(msg);
             }
         }

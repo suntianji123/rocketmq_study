@@ -129,10 +129,17 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
         }
     };
 
+    /**
+     * 解码后 组合的ByteBuf对象
+     */
     ByteBuf cumulation;
     private Cumulator cumulator = MERGE_CUMULATOR;
     private boolean singleDecode;
     private boolean decodeWasNull;
+
+    /**
+     * 是否为第一次解码消息
+     */
     private boolean first;
     private int discardAfterReads = 16;
     private int numReads;
@@ -233,18 +240,28 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
      */
     protected void handlerRemoved0(ChannelHandlerContext ctx) throws Exception { }
 
+    /**
+     * 读取channel数据处理
+     * @param ctx channelhandlerContext对象
+     * @param msg 消息对象
+     * @throws Exception
+     */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (msg instanceof ByteBuf) {
+        if (msg instanceof ByteBuf) {//ByteBuf类型
+            //获取一个CodecOutputList实例
             CodecOutputList out = CodecOutputList.newInstance();
             try {
+                //将msg转为ByteBuf类型
                 ByteBuf data = (ByteBuf) msg;
                 first = cumulation == null;
-                if (first) {
+                if (first) {//如果是第一次解码
                     cumulation = data;
-                } else {
+                } else {//多次解码 将ByteBuf添加到组合的ByteBuf
                     cumulation = cumulator.cumulate(ctx.alloc(), cumulation, data);
                 }
+
+                //解码消息 将解码后的对象添加codecoutput列表
                 callDecode(ctx, cumulation, out);
             } catch (DecoderException e) {
                 throw e;
@@ -268,6 +285,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                 out.recycle();
             }
         } else {
+            //交给其他handler进行处理
             ctx.fireChannelRead(msg);
         }
     }
@@ -286,7 +304,10 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
     }
 
     /**
-     * Get {@code numElements} out of the {@link CodecOutputList} and forward these through the pipeline.
+     * 下发读取到的数据
+     * @param ctx channelhandlerContext
+     * @param msgs
+     * @param numElements
      */
     static void fireChannelRead(ChannelHandlerContext ctx, CodecOutputList msgs, int numElements) {
         for (int i = 0; i < numElements; i ++) {
@@ -389,11 +410,15 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
      */
     protected void callDecode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
         try {
-            while (in.isReadable()) {
+            while (in.isReadable()) {//判断ByteBuf是否可读
+
+                //获取解码后的out的大小
                 int outSize = out.size();
 
-                if (outSize > 0) {
+                //如果out有已经解码的ByteBuf对象
+                if (outSize > 0) {//下发channelRead事件
                     fireChannelRead(ctx, out, outSize);
+                    //清理解码的输出列表
                     out.clear();
 
                     // Check if this handler was removed before continuing with decoding.
@@ -407,7 +432,9 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     outSize = 0;
                 }
 
+                //获取可读字节数
                 int oldInputLength = in.readableBytes();
+                //解码
                 decode(ctx, in, out);
 
                 // Check if this handler was removed before continuing the loop.
@@ -418,7 +445,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     break;
                 }
 
-                if (outSize == out.size()) {
+                if (outSize == out.size()) {//没有解码到对象
                     if (oldInputLength == in.readableBytes()) {
                         break;
                     } else {

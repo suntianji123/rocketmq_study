@@ -185,33 +185,63 @@ public class RemotingCommand {
         return decode(byteBuffer);
     }
 
+    /**
+     * 解码ByteBuf为RemotingCommand对象
+     * @param byteBuffer 需要解码的ByteBuf对象
+     * @return
+     */
     public static RemotingCommand decode(final ByteBuffer byteBuffer) {
+        //获取消息的长度
         int length = byteBuffer.limit();
+
+        //获取头部长度 第4个字节为序列化方式json or rocketmq 前面三个字节表示请求头的长度
         int oriHeaderLen = byteBuffer.getInt();
+
+        //获取请求投的长度
         int headerLength = getHeaderLength(oriHeaderLen);
 
+        //初始化一个长度为请求头长度的字节数组
         byte[] headerData = new byte[headerLength];
+
+        //将请求头数据写入headerData数组
         byteBuffer.get(headerData);
 
+        //反序列化出请求头 生产远程命令行对象
         RemotingCommand cmd = headerDecode(headerData, getProtocolType(oriHeaderLen));
 
+        //获取消息体的长度
         int bodyLength = length - 4 - headerLength;
         byte[] bodyData = null;
-        if (bodyLength > 0) {
+        if (bodyLength > 0) {//x消息体长度大于0
             bodyData = new byte[bodyLength];
+            //从byteBuffer中读出消息
             byteBuffer.get(bodyData);
         }
+
+        //设置命令行的消息体
         cmd.body = bodyData;
 
+        //返回命令行对象
         return cmd;
     }
 
+    /**
+     * 获取请求头长度
+     * @param length
+     * @return
+     */
     public static int getHeaderLength(int length) {
         return length & 0xFFFFFF;
     }
 
+    /**
+     * 反序列化请求头数据
+     * @param headerData 请求头字节数组
+     * @param type 序列化类型
+     * @return 返回远程命令行对象
+     */
     private static RemotingCommand headerDecode(byte[] headerData, SerializeType type) {
-        switch (type) {
+        switch (type) {//如果序列化方式为json
             case JSON:
                 RemotingCommand resultJson = RemotingSerializable.decode(headerData, RemotingCommand.class);
                 resultJson.setSerializeTypeCurrentRPC(type);
@@ -227,6 +257,11 @@ public class RemotingCommand {
         return null;
     }
 
+    /**
+     * 获取序列化协议方式
+     * @param source 请求头整数的高8位
+     * @return
+     */
     public static SerializeType getProtocolType(int source) {
         return SerializeType.valueOf((byte) ((source >> 24) & 0xFF));
     }

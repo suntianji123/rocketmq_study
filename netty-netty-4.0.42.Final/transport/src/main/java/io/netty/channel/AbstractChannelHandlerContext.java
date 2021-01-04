@@ -524,17 +524,28 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         return deregister(newPromise());
     }
 
+    /**
+     * 绑定端口
+     * @param localAddress 端口地址
+     * @param promise 绑定的异步操作对象
+     * @return
+     */
     @Override
     public ChannelFuture bind(final SocketAddress localAddress, final ChannelPromise promise) {
-        if (localAddress == null) {
+        if (localAddress == null) {//本地服务器地址为null
             throw new NullPointerException("localAddress");
         }
+
+        //验证promise的合理性
         if (!validatePromise(promise, false)) {
-            // cancelled
+            // 取消操作
             return promise;
         }
 
+        //查找channelhandlerContext下一个输出的channelhandlercontext对象
         final AbstractChannelHandlerContext next = findContextOutbound();
+
+        //获取执行器对象
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
             next.invokeBind(localAddress, promise);
@@ -549,9 +560,15 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap impleme
         return promise;
     }
 
+    /**
+     * 执行绑定方法
+     * @param localAddress 端口地址
+     * @param promise 绑定端口的异步操作对象
+     */
     private void invokeBind(SocketAddress localAddress, ChannelPromise promise) {
-        if (invokeHandler()) {
+        if (invokeHandler()) {//channel必须可用
             try {
+                //调用channelhandlercontext的handler的bind方法
                 ((ChannelOutboundHandler) handler()).bind(this, localAddress, promise);
             } catch (Throwable t) {
                 notifyOutboundHandlerException(t, promise);

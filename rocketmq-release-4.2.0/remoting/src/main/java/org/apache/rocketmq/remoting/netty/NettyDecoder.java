@@ -32,27 +32,40 @@ public class NettyDecoder extends LengthFieldBasedFrameDecoder {
     private static final int FRAME_MAX_LENGTH =
         Integer.parseInt(System.getProperty("com.rocketmq.remoting.frameMaxLength", "16777216"));
 
+    /**
+     * 实例化一个NettyDecoder对象
+     */
     public NettyDecoder() {
         super(FRAME_MAX_LENGTH, 0, 4, 0, 4);
     }
 
+    /**
+     * 解码Channel中的ByteBuf对象
+     * @param   ctx            ChannelHandlerContext对象
+     * @param   in              ByteBuf对象
+     * @return
+     * @throws Exception
+     */
     @Override
     public Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
         ByteBuf frame = null;
         try {
+            //获取实际的消息体 不包括消息长度的4个字节
             frame = (ByteBuf) super.decode(ctx, in);
             if (null == frame) {
                 return null;
             }
 
+            //获取Bytebuffer对象
             ByteBuffer byteBuffer = frame.nioBuffer();
 
+            //解码生产
             return RemotingCommand.decode(byteBuffer);
         } catch (Exception e) {
             log.error("decode exception, " + RemotingHelper.parseChannelRemoteAddr(ctx.channel()), e);
             RemotingUtil.closeChannel(ctx.channel());
         } finally {
-            if (null != frame) {
+            if (null != frame) {//如果消息体的ByteBuf不为空 需要手动释放
                 frame.release();
             }
         }
