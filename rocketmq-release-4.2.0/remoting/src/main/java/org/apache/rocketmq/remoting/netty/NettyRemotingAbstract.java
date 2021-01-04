@@ -150,11 +150,14 @@ public abstract class NettyRemotingAbstract {
      * @param cmd request command.
      */
     public void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand cmd) {
+        //获取cmd对应的处理器和执行器的pair
         final Pair<NettyRequestProcessor, ExecutorService> matched = this.processorTable.get(cmd.getCode());
+        //如果处理器和执行器的pair为null 使用默认的处理器和执行器
         final Pair<NettyRequestProcessor, ExecutorService> pair = null == matched ? this.defaultRequestProcessor : matched;
+        //获取requestId
         final int opaque = cmd.getOpaque();
 
-        if (pair != null) {
+        if (pair != null) {//pair不等于null
             Runnable run = new Runnable() {
                 @Override
                 public void run() {
@@ -164,12 +167,13 @@ public abstract class NettyRemotingAbstract {
                             rpcHook.doBeforeRequest(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd);
                         }
 
+                        //获取处理器 处理请求
                         final RemotingCommand response = pair.getObject1().processRequest(ctx, cmd);
                         if (rpcHook != null) {
                             rpcHook.doAfterResponse(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd, response);
                         }
 
-                        if (!cmd.isOnewayRPC()) {
+                        if (!cmd.isOnewayRPC()) {//如果rpc请求不是单程的rpc请求 flag的第二位为0
                             if (response != null) {
                                 response.setOpaque(opaque);
                                 response.markResponseType();

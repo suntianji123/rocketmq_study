@@ -98,13 +98,16 @@ public class NamesrvController {
         return true;
     }
 
+    /**
+     * 注册处理逻辑的处理器和执行器
+     */
     private void registerProcessor() {
         if (namesrvConfig.isClusterTest()) {
 
             this.remotingServer.registerDefaultProcessor(new ClusterTestRequestProcessor(this, namesrvConfig.getProductEnvName()),
                 this.remotingExecutor);
         } else {
-
+            //注册默认的处理器和执行器 当某个请求的cmd值找不到对应的Pair时 使用这个Pair进行处理
             this.remotingServer.registerDefaultProcessor(new DefaultRequestProcessor(this), this.remotingExecutor);
         }
     }

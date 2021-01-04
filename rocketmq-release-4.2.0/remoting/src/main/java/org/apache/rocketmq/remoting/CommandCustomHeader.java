@@ -19,5 +19,9 @@ package org.apache.rocketmq.remoting;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
 public interface CommandCustomHeader {
+    /**
+     * 检测字段的值 当通过反射设置了字段的值后 会调用
+     * @throws RemotingCommandException
+     */
     void checkFields() throws RemotingCommandException;
 }

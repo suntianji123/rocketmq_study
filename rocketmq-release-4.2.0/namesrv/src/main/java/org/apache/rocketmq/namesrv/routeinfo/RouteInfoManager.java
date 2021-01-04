@@ -49,7 +49,15 @@ public class RouteInfoManager {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final static long BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    /**
+     * 主题队列表
+     */
     private final HashMap<String/* topic */, List<QueueData>> topicQueueTable;
+
+    /**
+     * 广播站列表 广播站名：广播站数据
+     */
     private final HashMap<String/* brokerName */, BrokerData> brokerAddrTable;
     private final HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
     private final HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
@@ -349,46 +357,74 @@ public class RouteInfoManager {
         }
     }
 
+    /**
+     * 获取某个topic主题的发布路径信息
+     * @param topic 主题
+     * @return
+     */
     public TopicRouteData pickupTopicRouteData(final String topic) {
+        //实例化一个主题路径对象
         TopicRouteData topicRouteData = new TopicRouteData();
+        //是否寻找到主题对应的队列数据列表
         boolean foundQueueData = false;
+
+        //是否寻找到了广播站数据
         boolean foundBrokerData = false;
         Set<String> brokerNameSet = new HashSet<String>();
+        //实例化广播站数据列表
         List<BrokerData> brokerDataList = new LinkedList<BrokerData>();
+        //实例化广播站数据列表
         topicRouteData.setBrokerDatas(brokerDataList);
 
+        //实例化一个过滤的服务器列表
         HashMap<String, List<String>> filterServerMap = new HashMap<String, List<String>>();
+        //设置过滤的服务器列表
         topicRouteData.setFilterServerTable(filterServerMap);
 
         try {
             try {
+                //加读锁
                 this.lock.readLock().lockInterruptibly();
+                //从主题队列中获取获取队列列表
                 List<QueueData> queueDataList = this.topicQueueTable.get(topic);
-                if (queueDataList != null) {
+                if (queueDataList != null) {//主题队列标不能空
+                    //设置主题的路径数据对应的队列数据列表
                     topicRouteData.setQueueDatas(queueDataList);
+                    //设置寻找到了主题对应的队列数据列表
                     foundQueueData = true;
 
+                    //遍历队列数据列表
                     Iterator<QueueData> it = queueDataList.iterator();
                     while (it.hasNext()) {
+                        //获取队列数据
                         QueueData qd = it.next();
+                        //将广播站的名字 添加到广播站集合
                         brokerNameSet.add(qd.getBrokerName());
                     }
 
-                    for (String brokerName : brokerNameSet) {
+                    for (String brokerName : brokerNameSet) {//遍历广播站的名字集合
+                        //根据广播站名 从广播站地址集合中获取广播站数据
                         BrokerData brokerData = this.brokerAddrTable.get(brokerName);
-                        if (null != brokerData) {
+                        if (null != brokerData) {//广播站数据不为空
+                            //克隆广播站数据对象
                             BrokerData brokerDataClone = new BrokerData(brokerData.getCluster(), brokerData.getBrokerName(), (HashMap<Long, String>) brokerData
                                 .getBrokerAddrs().clone());
+                            //将广播站数据添加到广播站列表
                             brokerDataList.add(brokerDataClone);
+                            //设置寻找到广播站数据的标志位true
                             foundBrokerData = true;
+                            //遍历广播站数据对象列表
                             for (final String brokerAddr : brokerDataClone.getBrokerAddrs().values()) {
+                                //从被过滤的服务器集合中 寻找当前广播站被过滤掉的服务器列表
                                 List<String> filterServerList = this.filterServerTable.get(brokerAddr);
+                                //将被过滤掉的广播站列表 添加到过滤集合
                                 filterServerMap.put(brokerAddr, filterServerList);
                             }
                         }
                     }
                 }
             } finally {
+                //释放读锁
                 this.lock.readLock().unlock();
             }
         } catch (Exception e) {
