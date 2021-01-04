@@ -27,25 +27,19 @@ import io.netty.util.internal.TypeParameterMatcher;
 
 
 /**
- * {@link ChannelOutboundHandlerAdapter} which encodes message in a stream-like fashion from one message to an
- * {@link ByteBuf}.
- *
- *
- * Example implementation which encodes {@link Integer}s to a {@link ByteBuf}.
- *
- * <pre>
- *     public class IntegerEncoder extends {@link MessageToByteEncoder}&lt;{@link Integer}&gt; {
- *         {@code @Override}
- *         public void encode({@link ChannelHandlerContext} ctx, {@link Integer} msg, {@link ByteBuf} out)
- *                 throws {@link Exception} {
- *             out.writeInt(msg);
- *         }
- *     }
- * </pre>
+ * 消息对象I 转为ByteBuf对象
+ * @param <I> 消息类型
  */
 public abstract class MessageToByteEncoder<I> extends ChannelOutboundHandlerAdapter {
 
+    /**
+     * I类型匹配器
+     */
     private final TypeParameterMatcher matcher;
+
+    /**
+     * 是否优先使用堆外内存空间分配缓冲区
+     */
     private final boolean preferDirect;
 
     /**
@@ -95,24 +89,39 @@ public abstract class MessageToByteEncoder<I> extends ChannelOutboundHandlerAdap
         return matcher.match(msg);
     }
 
+    /**
+     * 向channel的输出缓冲区写入数据对象
+     * @param ctx channelhandlerContext对象
+     * @param msg 数据对象
+     * @param promise 写入的异步操作对象
+     * @throws Exception
+     */
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        //定义一个ByteBuf对象
         ByteBuf buf = null;
         try {
-            if (acceptOutboundMessage(msg)) {
+            if (acceptOutboundMessage(msg)) {//判断msg是否为泛型I指定的类型
+                //将msg转为指定泛型I的类型
                 @SuppressWarnings("unchecked")
                 I cast = (I) msg;
+                //使用堆外内存分配一个缓冲区对象
                 buf = allocateBuffer(ctx, cast, preferDirect);
                 try {
+                    //编码 将msg转为字节数组 写入ByteBuf对象
                     encode(ctx, cast, buf);
                 } finally {
+                    //释放当前线程对消息对象的引用
                     ReferenceCountUtil.release(cast);
                 }
 
-                if (buf.isReadable()) {
+                if (buf.isReadable()) {//如果分配的ByteBuf可读
+                    //向channel写入ByteBuf对象
                     ctx.write(buf, promise);
                 } else {
+                    //释放ByteBuf
                     buf.release();
+                    //向channel中写入空的ByteBuffewr
                     ctx.write(Unpooled.EMPTY_BUFFER, promise);
                 }
                 buf = null;
@@ -124,7 +133,7 @@ public abstract class MessageToByteEncoder<I> extends ChannelOutboundHandlerAdap
         } catch (Throwable e) {
             throw new EncoderException(e);
         } finally {
-            if (buf != null) {
+            if (buf != null) {//释放ByteBuf
                 buf.release();
             }
         }

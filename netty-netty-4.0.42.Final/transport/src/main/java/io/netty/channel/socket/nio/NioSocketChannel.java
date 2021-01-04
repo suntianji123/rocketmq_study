@@ -295,9 +295,17 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
         return byteBuf.writeBytes(javaChannel(), byteBuf.writableBytes());
     }
 
+    /**
+     * 读出ByteBuf的字节数 并且将它写入到channel
+     * @param buf           需要读出字节的ByteBuf对象
+     * @return
+     * @throws Exception
+     */
     @Override
     protected int doWriteBytes(ByteBuf buf) throws Exception {
+        //获取可读字节数
         final int expectedWrittenBytes = buf.readableBytes();
+        //将ByteBuf的字节读出 写入到jdk底层的SocketChannel
         return buf.readBytes(javaChannel(), expectedWrittenBytes);
     }
 
@@ -307,44 +315,63 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
         return region.transferTo(javaChannel(), position);
     }
 
+    /**
+     * 向channel中写入数据
+     * @param in 输出缓冲区
+     * @throws Exception
+     */
     @Override
     protected void doWrite(ChannelOutboundBuffer in) throws Exception {
         for (;;) {
+            //获取等待写入的entry数量
             int size = in.size();
             if (size == 0) {
-                // All written so clear OP_WRITE
+                // 设置通道不可写入
                 clearOpWrite();
                 break;
             }
+            //已经写入到channel的字节数
             long writtenBytes = 0;
             boolean done = false;
             boolean setOpWrite = false;
 
-            // Ensure the pending writes are made of ByteBufs only.
+            // 将输出缓冲区中所有等待刷新的entry的msg的底层的ByteBuffer对象写入线程上下文变量NIO_BYTEBUFFER数组并且返回
             ByteBuffer[] nioBuffers = in.nioBuffers();
+
+            //获取输出缓冲区对象的实际ByteBuffer对象的数量
             int nioBufferCnt = in.nioBufferCount();
+
+            //获取输出缓冲区对象的所有ByteBuffer对象总的字节数
             long expectedWrittenBytes = in.nioBufferSize();
+
+            //获取jdk低层的channel
             SocketChannel ch = javaChannel();
 
             // Always us nioBuffers() to workaround data-corruption.
             // See https://github.com/netty/netty/issues/2761
             switch (nioBufferCnt) {
                 case 0:
-                    // We have something else beside ByteBuffers to write so fallback to normal writes.
+                    // 没有bytebuffer对象
                     super.doWrite(in);
                     return;
                 case 1:
-                    // Only one ByteBuf so use non-gathering write
+                    // 获取第一个ByteBuffer对象
                     ByteBuffer nioBuffer = nioBuffers[0];
                     for (int i = config().getWriteSpinCount() - 1; i >= 0; i --) {
+                        //向channel底层的SocketChannel写入字节 返回写入的字节数
                         final int localWrittenBytes = ch.write(nioBuffer);
                         if (localWrittenBytes == 0) {
+                            //需要添加channel的可写
                             setOpWrite = true;
                             break;
                         }
+
+                        //减少剩下等待写入的字节数
                         expectedWrittenBytes -= localWrittenBytes;
+
+                        //增加已经写入到channel的字节数
                         writtenBytes += localWrittenBytes;
-                        if (expectedWrittenBytes == 0) {
+                        if (expectedWrittenBytes == 0) {//如果等待写入的字节数为0 表示已经完成
                             done = true;
                             break;
                         }
@@ -352,6 +379,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
                     break;
                 default:
                     for (int i = config().getWriteSpinCount() - 1; i >= 0; i --) {
+                        //将ByteBuffer数组中的nioBufferCnt个ByteBuffer对象写入chnanel
                         final long localWrittenBytes = ch.write(nioBuffers, 0, nioBufferCnt);
                         if (localWrittenBytes == 0) {
                             setOpWrite = true;
@@ -370,7 +398,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
             // Release the fully written buffers, and update the indexes of the partially written buffer.
             in.removeBytes(writtenBytes);
 
-            if (!done) {
+            if (!done) {//如果没有完成 继续调用flush方法进入写入
                 // Did not write all buffers completely.
                 incompleteWrite(setOpWrite);
                 break;

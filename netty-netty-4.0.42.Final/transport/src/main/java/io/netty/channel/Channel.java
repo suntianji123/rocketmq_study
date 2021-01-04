@@ -498,7 +498,13 @@ public interface Channel extends AttributeMap, Comparable<Channel> {
         /**
          * Schedules a write operation.
          */
-        void write(Object msg, ChannelPromise promise);
+        void
+
+
+        /**
+         * 向channel写入消息
+         */
+        write(Object msg, ChannelPromise promise);
 
         /**
          * Flush out all write operations scheduled via {@link #write(Object, ChannelPromise)}.

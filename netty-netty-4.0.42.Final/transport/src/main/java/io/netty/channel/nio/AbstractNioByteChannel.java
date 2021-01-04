@@ -174,31 +174,40 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         }
     }
 
+    /**
+     * 将输出缓冲区的已经刷新过的entry链表数据写入到channel
+     * @param in 输出缓冲区
+     * @throws Exception
+     */
     @Override
     protected void doWrite(ChannelOutboundBuffer in) throws Exception {
         int writeSpinCount = -1;
 
         boolean setOpWrite = false;
         for (;;) {
+            //获取当前entry的消息对象
             Object msg = in.current();
-            if (msg == null) {
-                // Wrote all messages.
+            if (msg == null) {//消息不存在
+                //设置channel低层的selectionkey 不可写
                 clearOpWrite();
                 // Directly return here so incompleteWrite(...) is not called.
                 return;
             }
 
-            if (msg instanceof ByteBuf) {
+            if (msg instanceof ByteBuf) {//消息如果是byteBuf类型
                 ByteBuf buf = (ByteBuf) msg;
+                //获取可读字节数
                 int readableBytes = buf.readableBytes();
-                if (readableBytes == 0) {
+                if (readableBytes == 0) {//如果可读字节数为0
+                    //删除当前等待刷新的entry
                     in.remove();
                     continue;
                 }
 
+                //是否写入完成
                 boolean done = false;
                 long flushedAmount = 0;
-                if (writeSpinCount == -1) {
+                if (writeSpinCount == -1) {//获取读取次数 默认为16
                     writeSpinCount = config().getWriteSpinCount();
                 }
                 for (int i = writeSpinCount - 1; i >= 0; i --) {
@@ -215,6 +224,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                     }
                 }
 
+                //设置进度值
                 in.progress(flushedAmount);
 
                 if (done) {
@@ -264,21 +274,28 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         incompleteWrite(setOpWrite);
     }
 
+    /**
+     * 过滤消息对象
+     * @param msg 消息对象
+     * @return
+     */
     @Override
     protected final Object filterOutboundMessage(Object msg) {
-        if (msg instanceof ByteBuf) {
+        if (msg instanceof ByteBuf) {//如果msg是ByteBuf类型
             ByteBuf buf = (ByteBuf) msg;
-            if (buf.isDirect()) {
+            if (buf.isDirect()) {//使用堆外内存
                 return msg;
             }
 
+            //将堆内的ByteBuf转为堆外的ByteBuf
             return newDirectBuffer(buf);
         }
 
-        if (msg instanceof FileRegion) {
+        if (msg instanceof FileRegion) {//如果是文件类型 直接返回
             return msg;
         }
 
+        //其他类型 不支持 抛出异常
         throw new UnsupportedOperationException(
                 "unsupported message type: " + StringUtil.simpleClassName(msg) + EXPECTED_TYPES);
     }

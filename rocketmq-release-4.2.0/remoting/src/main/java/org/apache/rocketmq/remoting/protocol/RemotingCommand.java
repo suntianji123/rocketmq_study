@@ -97,12 +97,16 @@ public class RemotingCommand {
     private int opaque = requestId.getAndIncrement();
     private int flag = 0;
     private String remark;
+    /**
+     * 扩展字段
+     */
     private HashMap<String, String> extFields;
-    //请求头
+    //请求头 不会被序列化
     private transient CommandCustomHeader customHeader;
 
     private SerializeType serializeTypeCurrentRPC = serializeTypeConfigInThisServer;
 
+    //不会被序列化
     private transient byte[] body;
 
     protected RemotingCommand() {
@@ -248,10 +252,19 @@ public class RemotingCommand {
         return true;
     }
 
+    /**
+     * 序列化请求头长度
+     * @param source 请求头长度
+     * @param type 序列化类型
+     * @return
+     */
     public static byte[] markProtocolType(int source, SerializeType type) {
         byte[] result = new byte[4];
 
+        //第0个字节表示序列化类型json or rocketmq
         result[0] = type.getCode();
+
+        //1-4个字节表示消息头长度
         result[1] = (byte) ((source >> 16) & 0xFF);
         result[2] = (byte) ((source >> 8) & 0xFF);
         result[3] = (byte) (source & 0xFF);
@@ -399,34 +412,49 @@ public class RemotingCommand {
         return result;
     }
 
+    /**
+     * 将远程命令的头部编码为字节数组
+     * @return
+     */
     private byte[] headerEncode() {
+        //将customerHeader中的所有字段值放入extFields集合
         this.makeCustomHeaderToNet();
         if (SerializeType.ROCKETMQ == serializeTypeCurrentRPC) {
             return RocketMQSerializable.rocketMQProtocolEncode(this);
         } else {
+            //将整个对象以json格式序列化为字节数组
             return RemotingSerializable.encode(this);
         }
     }
 
+
+    /**
+     * 将自定义的customerheader中的所有字段值放入extFields集合
+     */
     public void makeCustomHeaderToNet() {
-        if (this.customHeader != null) {
+        if (this.customHeader != null) {//自定义的消息头不为空
+            //获取自定义消息头的所有的字段
             Field[] fields = getClazzFields(customHeader.getClass());
             if (null == this.extFields) {
                 this.extFields = new HashMap<String, String>();
             }
 
+            //遍历用户自定义消息头的所有字段
             for (Field field : fields) {
-                if (!Modifier.isStatic(field.getModifiers())) {
+                if (!Modifier.isStatic(field.getModifiers())) {//过滤掉静态字段
                     String name = field.getName();
-                    if (!name.startsWith("this")) {
+                    if (!name.startsWith("this")) {//过滤掉this字段
                         Object value = null;
                         try {
+                            //设置字段可以访问
                             field.setAccessible(true);
+                            //获取字段的值
                             value = field.get(this.customHeader);
                         } catch (Exception e) {
                             log.error("Failed to access field [{}]", name, e);
                         }
 
+                        //将值放入扩展字段集合
                         if (value != null) {
                             this.extFields.put(name, value.toString());
                         }
@@ -436,34 +464,47 @@ public class RemotingCommand {
         }
     }
 
+    /**
+     * 编码远程命令的请求头
+     * @return
+     */
     public ByteBuffer encodeHeader() {
         return encodeHeader(this.body != null ? this.body.length : 0);
     }
 
+    /**
+     * 编码消息头
+     * @param bodyLength 消息体的长度
+     * @return
+     */
     public ByteBuffer encodeHeader(final int bodyLength) {
         // 1> header length size
-        int length = 4;
+        int length = 4;//保留消息的总长度值
 
         // 2> header data length
         byte[] headerData;
+        //将customerheader中的字段值放入extFields集合后  将整个对象是哟红json序列化字节数组返回
         headerData = this.headerEncode();
 
+        //消息的总长度
         length += headerData.length;
 
-        // 3> body data length
+        // 加上消息体的长度
         length += bodyLength;
 
+        //分配一个堆内缓冲区 0-3字节 消息的总长度 4 表示序列化类型 5-7表示请求头长度
         ByteBuffer result = ByteBuffer.allocate(4 + length - bodyLength);
 
-        // length
+        // 写入总长度 0-3
         result.putInt(length);
 
-        // header length
+        // 写入序列化类型 请求头长度4-7
         result.put(markProtocolType(headerData.length, serializeTypeCurrentRPC));
 
-        // header data
+        // 写入请求头字节数组
         result.put(headerData);
 
+        //重置position的值
         result.flip();
 
         return result;

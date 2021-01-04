@@ -97,11 +97,15 @@ import java.util.concurrent.TimeUnit;
 public class IdleStateHandler extends ChannelDuplexHandler {
     private static final long MIN_TIMEOUT_NANOS = TimeUnit.MILLISECONDS.toNanos(1);
 
-    // Not create a new ChannelFutureListener per write operation to reduce GC pressure.
+    /**
+     * 向channel的输出缓冲区写入数据后 执行的回调方法
+     */
     private final ChannelFutureListener writeListener = new ChannelFutureListener() {
         @Override
         public void operationComplete(ChannelFuture future) throws Exception {
+            //更新最后一次向channel写入数据的时间戳
             lastWriteTime = System.nanoTime();
+            //设置idle标志 等待下一channel没有发生io时候 去更新
             firstWriterIdleEvent = firstAllIdleEvent = true;
         }
     };
@@ -123,7 +127,7 @@ public class IdleStateHandler extends ChannelDuplexHandler {
 
     private ScheduledFuture<?> readerIdleTimeout;
     /**
-     * 上一次读时间（时间戳）
+     * 最后一次从channel读取数据的时间戳
      */
     private long lastReadTime;
 
@@ -135,7 +139,7 @@ public class IdleStateHandler extends ChannelDuplexHandler {
     private ScheduledFuture<?> writerIdleTimeout;
 
     /**
-     * 上一次写时间 （时间戳）
+     * 最后一次向channel写入数据的时间戳
      */
     private long lastWriteTime;
 
@@ -305,10 +309,18 @@ public class IdleStateHandler extends ChannelDuplexHandler {
         ctx.fireChannelReadComplete();
     }
 
+    /**
+     *  向channel的输出缓冲区写入数据的方法
+     * @param ctx channelhandlerContext对象
+     * @param msg 消息数据对象
+     * @param promise 向channel写入数据的异步操作对象
+     * @throws Exception
+     */
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         // Allow writing with void promise if handler is only configured for read timeout events.
-        if (writerIdleTimeNanos > 0 || allIdleTimeNanos > 0) {
+        if (writerIdleTimeNanos > 0 || allIdleTimeNanos > 0) {//如果写的超时心跳时间 如果所有空闲的超时心跳时间大于0
+            //向写的异步操作添加一个回调 等待写完成之后 执行回调方法
             promise.addListener(writeListener);
         }
         ctx.write(msg, promise);

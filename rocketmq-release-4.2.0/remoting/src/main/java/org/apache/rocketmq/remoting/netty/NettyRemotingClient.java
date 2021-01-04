@@ -248,11 +248,11 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                     //向pipeline添加handler处理链
                     pipeline.addLast(
                         defaultEventExecutorGroup,
-                        new NettyEncoder(),
-                        new NettyDecoder(),
-                        new IdleStateHandler(0, 0, nettyClientConfig.getClientChannelMaxIdleTimeSeconds()),
-                        new NettyConnectManageHandler(),
-                        new NettyClientHandler());
+                        new NettyEncoder(),//out
+                        new NettyDecoder(),//in
+                        new IdleStateHandler(0, 0, nettyClientConfig.getClientChannelMaxIdleTimeSeconds()),//in out
+                        new NettyConnectManageHandler(),//in out
+                        new NettyClientHandler());//in
                 }
             });
 

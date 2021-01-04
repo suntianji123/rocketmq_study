@@ -29,14 +29,27 @@ import org.slf4j.LoggerFactory;
 public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {
     private static final Logger log = LoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
+    /**
+     * 编码 将RemotingCommand转为字节写入到指定的ByteBuf对象
+     * @param ctx          ChannnelHandlerContext对象
+     * @param remotingCommand 消息对象
+     * @param out           消息对象转为字节 将要存放的ByteBuf对象
+     * @throws Exception
+     */
     @Override
     public void encode(ChannelHandlerContext ctx, RemotingCommand remotingCommand, ByteBuf out)
         throws Exception {
         try {
+
+            //编码命令头
             ByteBuffer header = remotingCommand.encodeHeader();
+            //写入命令头
             out.writeBytes(header);
+
+            //获取命令体
             byte[] body = remotingCommand.getBody();
             if (body != null) {
+                //写入命令体
                 out.writeBytes(body);
             }
         } catch (Exception e) {

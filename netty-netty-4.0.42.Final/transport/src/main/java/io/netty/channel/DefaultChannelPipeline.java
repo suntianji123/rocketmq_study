@@ -1308,6 +1308,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             unsafe.beginRead();
         }
 
+        /**
+         * 向channel中写入数据
+         * @param ctx              ChannelHandlerContext
+         * @param msg               消息对象
+         * @param promise           写入数据的异步操作对象
+         * @throws Exception
+         */
         @Override
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
             unsafe.write(msg, promise);

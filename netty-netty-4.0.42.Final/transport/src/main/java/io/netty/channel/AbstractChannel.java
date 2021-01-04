@@ -403,6 +403,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     protected abstract class AbstractUnsafe implements Unsafe {
 
         private volatile ChannelOutboundBuffer outboundBuffer = new ChannelOutboundBuffer(AbstractChannel.this);
+
+        /**
+         * 是否正在刷新输出缓冲区
+         */
         private boolean inFlush0;
 
         /**
@@ -781,25 +785,37 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        /**
+         * 向channel中写入数据
+         * @param msg 消息对象
+         * @param promise 写入的异步操作
+         */
         @Override
         public final void write(Object msg, ChannelPromise promise) {
             assertEventLoop();
 
+            //获取输出缓冲区对象
             ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
-            if (outboundBuffer == null) {
+            if (outboundBuffer == null) {//输出缓冲区为空
                 // If the outboundBuffer is null we know the channel was closed and so
                 // need to fail the future right away. If it is not null the handling of the rest
                 // will be done in flush0()
                 // See https://github.com/netty/netty/issues/2362
+                //设置向channel写入数据的异步操作结果为失败
                 safeSetFailure(promise, WRITE_CLOSED_CHANNEL_EXCEPTION);
                 // release message now to prevent resource-leak
+                //释放消息
                 ReferenceCountUtil.release(msg);
                 return;
             }
 
+            //消息的大小
             int size;
             try {
+                //过滤到不是ByteBuf类型的消息 并且如果msg 不是堆外ByteBuf 将数据复制到堆外ByteBuf返回
                 msg = filterOutboundMessage(msg);
+
+                //计算消息的大小
                 size = pipeline.estimatorHandle().size(msg);
                 if (size < 0) {
                     size = 0;
@@ -810,39 +826,50 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            //向channel的输出缓冲区添加一个消息
             outboundBuffer.addMessage(msg, size, promise);
         }
 
+        /**
+         * 刷新channel的输出缓冲区
+         */
         @Override
         public final void flush() {
             assertEventLoop();
 
+            //获取channel输出缓冲区对象
             ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
-            if (outboundBuffer == null) {
+            if (outboundBuffer == null) {//输出缓冲区为null  直接返回
                 return;
             }
 
+            //执行输出缓冲区的刷新操作 将entry添加到刷新链表
             outboundBuffer.addFlush();
             flush0();
         }
 
+        /**
+         * 刷新输出缓冲区
+         */
         protected void flush0() {
-            if (inFlush0) {
+            if (inFlush0) {//如果channel正在刷新输出缓冲区 直接返回
                 // Avoid re-entrance
                 return;
             }
 
+            //获取输出缓冲区
             final ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
-            if (outboundBuffer == null || outboundBuffer.isEmpty()) {
+            if (outboundBuffer == null || outboundBuffer.isEmpty()) {//如果刷出缓冲区没有需要刷新的数据
                 return;
             }
 
+            //设置channel正在刷新输出缓冲区
             inFlush0 = true;
 
             // Mark all pending write requests as failure if the channel is inactive.
-            if (!isActive()) {
+            if (!isActive()) {//如通channel没有激活
                 try {
-                    if (isOpen()) {
+                    if (isOpen()) {//channel打开了
                         outboundBuffer.failFlushed(FLUSH0_NOT_YET_CONNECTED_EXCEPTION, true);
                     } else {
                         // Do not trigger channelWritabilityChanged because the channel is closed already.
@@ -854,7 +881,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            //channel已经激活
             try {
+                //开始写入数据
                 doWrite(outboundBuffer);
             } catch (Throwable t) {
                 if (t instanceof IOException && config().isAutoClose()) {

@@ -20,18 +20,34 @@ import com.alibaba.fastjson.JSON;
 import java.nio.charset.Charset;
 
 public abstract class RemotingSerializable {
+    /**
+     * utf8字符集对象
+     */
     private final static Charset CHARSET_UTF8 = Charset.forName("UTF-8");
 
+    /**
+     * 使用json进行编码
+     * @param obj 需要编码的对象
+     * @return
+     */
     public static byte[] encode(final Object obj) {
+        //将对象序列化为json格式 不适用漂亮的格式
         final String json = toJson(obj, false);
         if (json != null) {
+            //使用utf8字符集 将json字符串转为字节数组
             return json.getBytes(CHARSET_UTF8);
         }
         return null;
     }
 
+    /**
+     * 将对象转为json格式
+     * @param obj 需要序列化的对象
+     * @param prettyFormat 是否使用漂亮的格式
+     * @return
+     */
     public static String toJson(final Object obj, boolean prettyFormat) {
-        return JSON.toJSONString(obj, prettyFormat);
+        return JSON.toJSONString(obj,prettyFormat);
     }
 
     public static <T> T decode(final byte[] data, Class<T> classOfT) {
