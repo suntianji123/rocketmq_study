@@ -72,6 +72,10 @@ public class BrokerConfig {
     private boolean brokerTopicEnable = true;
     @ImportantField
     private boolean autoCreateSubscriptionGroup = true;
+
+    /**
+     * 消息存储插件名
+     */
     private String messageStorePlugIn = "";
 
     /**

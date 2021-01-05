@@ -260,28 +260,38 @@ public class BrokerController {
      * @throws CloneNotSupportedException
      */
     public boolean initialize() throws CloneNotSupportedException {
+        //意外宕机 从topics.json文件中加载出上一次广播站运行时 主题配置的数据进行恢复
         //加载C:\Users\Administrator\store\config\topics.json文件 反序列化 获取其中的主题配置列表 设置到topicConfigManager的主题配置列表
         boolean result = this.topicConfigManager.load();
 
+        //意外宕机 从consummerOffset.json文件中加载出上一次广播站运行时 消息者偏移量的数据进行恢复
         //加载C:\Users\Administrator\store\config\consumerOffset.json文件 反序列化 设置ConsumerOffsetManager的offsetTable
         result = result && this.consumerOffsetManager.load();
 
+        //意外宕机 从subscriptionGroup.json文件中加载出上一次广播站运行时 消费者订阅的数据进行恢复
         //加载C:\Users\Administrator\store\config\subscriptionGroup.json文件 反序列化 设置subscriptionGroupManager的SubscriptionGroupTable
         result = result && this.subscriptionGroupManager.load();
 
+        //意外宕机 从consumerFilter.json文件中加载出上一次广播站运行时 主题过滤的消费者的数据进行恢复
         //加载C:\Users\Administrator\store\config\consumerFilter.json文件 反序列化 设置SsubscriptionGroupTable
         result = result && this.consumerFilterManager.load();
 
-        if (result) {//加载配置管理对象完成
+        if (result) {//加载上一次广播站意外宕机序列化到磁盘的相关文件成功
             try {
-                //设置消息存储库对象
+                //设置控制器的信息存储对象为 默认的信息存储对象
                 this.messageStore =
                     new DefaultMessageStore(this.messageStoreConfig, this.brokerStatsManager, this.messageArrivingListener,
                         this.brokerConfig);//默认的消息存储库对象
+
+                //设置广播站统计对象 引用消息存储对象
                 this.brokerStats = new BrokerStats((DefaultMessageStore) this.messageStore);
-                //load plugin
+                //实例化消息存储插件上下文对象
                 MessageStorePluginContext context = new MessageStorePluginContext(messageStoreConfig, brokerStatsManager, messageArrivingListener, brokerConfig);
+
+                //构建消息存储对象 将context中的brokercofig中的messagestorePlugin中的class类的属性设置到messageStore
                 this.messageStore = MessageStoreFactory.build(context, this.messageStore);
+
+                //获取消息存储的分发器列表 添加一个计算过滤器位图的map
                 this.messageStore.getDispatcherList().addFirst(new CommitLogDispatcherCalcBitMap(this.brokerConfig, this.consumerFilterManager));
             } catch (IOException e) {
                 result = false;
@@ -289,6 +299,7 @@ public class BrokerController {
             }
         }
 
+        // 调用messgeStore的load方法 继续加载上一次广播站宕机时 留在磁盘的序列化文件
         result = result && this.messageStore.load();
 
         if (result) {

@@ -40,7 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Store all metadata downtime for recovery, data protection reliability
+ * 恢复所有停机时的元数据
  */
 public class CommitLog {
     // Message's MAGIC CODE daa320a7

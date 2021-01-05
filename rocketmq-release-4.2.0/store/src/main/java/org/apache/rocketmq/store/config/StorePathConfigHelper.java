@@ -36,6 +36,11 @@ public class StorePathConfigHelper {
         return rootDir + File.separator + "checkpoint";
     }
 
+    /**
+     * 获取C:\Users\Administrator\store\abort
+     * @param rootDir
+     * @return
+     */
     public static String getAbortFile(final String rootDir) {
         return rootDir + File.separator + "abort";
     }
@@ -44,6 +49,11 @@ public class StorePathConfigHelper {
         return rootDir + File.separator + "lock";
     }
 
+    /**
+     * 获取C:\Users\Administrator\store\config\delayOffset.json文件
+     * @param rootDir
+     * @return
+     */
     public static String getDelayOffsetStorePath(final String rootDir) {
         return rootDir + File.separator + "config" + File.separator + "delayOffset.json";
     }

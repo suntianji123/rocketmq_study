@@ -43,6 +43,9 @@ import org.apache.rocketmq.store.config.StorePathConfigHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 定时消息服务类
+ */
 public class ScheduleMessageService extends ConfigManager {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
@@ -51,19 +54,38 @@ public class ScheduleMessageService extends ConfigManager {
     private static final long DELAY_FOR_A_WHILE = 100L;
     private static final long DELAY_FOR_A_PERIOD = 10000L;
 
+    /**
+     * 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
+     * 级别对应的毫秒值列表
+     * 1 1000 | 2 5000 。。。
+     */
     private final ConcurrentMap<Integer /* level */, Long/* delay timeMillis */> delayLevelTable =
         new ConcurrentHashMap<Integer, Long>(32);
 
+    /**
+     * 偏移表
+     */
     private final ConcurrentMap<Integer /* level */, Long/* offset */> offsetTable =
         new ConcurrentHashMap<Integer, Long>(32);
 
     private final Timer timer = new Timer("ScheduleMessageTimerThread", true);
 
+    /**
+     * 消息存储对象
+     */
     private final DefaultMessageStore defaultMessageStore;
 
+    /**
+     * 最大延时级别
+     */
     private int maxDelayLevel;
 
+    /**
+     * 实例化一个定时消息服务对象
+     * @param defaultMessageStore 消息存储对象
+     */
     public ScheduleMessageService(final DefaultMessageStore defaultMessageStore) {
+        //设置消息存储对象
         this.defaultMessageStore = defaultMessageStore;
     }
 
@@ -141,8 +163,14 @@ public class ScheduleMessageService extends ConfigManager {
         return this.encode(false);
     }
 
+    /**
+     * 加载定时消息服务
+     * @return
+     */
     public boolean load() {
+        //加载上一次广播站宕机时 运行时的delayoffset相关的配置 delayoffset.json中的级别对应的毫秒值设置到delayoffsettable
         boolean result = super.load();
+        //将本次广播站运行时的delayoffset 级别对应的毫秒值设置到delayoffsettable
         result = result && this.parseDelayLevel();
         return result;
     }
@@ -170,27 +198,41 @@ public class ScheduleMessageService extends ConfigManager {
         return delayOffsetSerializeWrapper.toJson(prettyFormat);
     }
 
+    /**
+     * 解析延时级别
+     * @return
+     */
     public boolean parseDelayLevel() {
+        //实例化时间对应的毫秒值表
         HashMap<String, Long> timeUnitTable = new HashMap<String, Long>();
         timeUnitTable.put("s", 1000L);
         timeUnitTable.put("m", 1000L * 60);
         timeUnitTable.put("h", 1000L * 60 * 60);
         timeUnitTable.put("d", 1000L * 60 * 60 * 24);
 
+        //获取消息延时级别1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
         String levelString = this.defaultMessageStore.getMessageStoreConfig().getMessageDelayLevel();
         try {
+            //获取级别数组
             String[] levelArray = levelString.split(" ");
-            for (int i = 0; i < levelArray.length; i++) {
-                String value = levelArray[i];
+            for (int i = 0; i < levelArray.length; i++) {//遍历每一个级别
+                String value = levelArray[i];//获取value值
+                //获取时间单位
                 String ch = value.substring(value.length() - 1);
+                //获取事件单位对应的毫秒值
                 Long tu = timeUnitTable.get(ch);
 
-                int level = i + 1;
-                if (level > this.maxDelayLevel) {
-                    this.maxDelayLevel = level;
+                int level = i + 1;//级别
+                if (level > this.maxDelayLevel) {//级别超过最大级别
+                    this.maxDelayLevel = level;//最大级别设置为level
                 }
+
+                //获取级别值
                 long num = Long.parseLong(value.substring(0, value.length() - 1));
+                //获取级别值转为的毫秒值
                 long delayTimeMillis = tu * num;
+
+                //向延时列表中放入级别对应的毫秒值
                 this.delayLevelTable.put(level, delayTimeMillis);
             }
         } catch (Exception e) {

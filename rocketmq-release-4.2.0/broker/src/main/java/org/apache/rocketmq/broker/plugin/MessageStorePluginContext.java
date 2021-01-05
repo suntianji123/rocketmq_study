@@ -22,19 +22,51 @@ import org.apache.rocketmq.store.MessageArrivingListener;
 import org.apache.rocketmq.store.config.MessageStoreConfig;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
+/**
+ * 消息存储插件上下文类
+ */
 public class MessageStorePluginContext {
+    /**
+     * 消息存储配置
+     */
     private MessageStoreConfig messageStoreConfig;
+    /**
+     * 消息统计管理器
+     */
     private BrokerStatsManager brokerStatsManager;
+
+    /**
+     * 消息到达之后的监听器
+     */
     private MessageArrivingListener messageArrivingListener;
+
+    /**
+     * 广播站配置
+     */
     private BrokerConfig brokerConfig;
 
+    /**
+     * 实例化一个消息存储上下文对象
+     * @param messageStoreConfig 消息存储配置
+     * @param brokerStatsManager 消息统计管理器
+     * @param messageArrivingListener 消息到达之后的监听器
+     * @param brokerConfig 广播站配置对象
+     */
     public MessageStorePluginContext(MessageStoreConfig messageStoreConfig,
         BrokerStatsManager brokerStatsManager, MessageArrivingListener messageArrivingListener,
         BrokerConfig brokerConfig) {
         super();
+
+        //设置消息存储配置爱对象
         this.messageStoreConfig = messageStoreConfig;
+
+        //设置消息统计管理器
         this.brokerStatsManager = brokerStatsManager;
+
+        //设置消息到达之后的监听器
         this.messageArrivingListener = messageArrivingListener;
+
+        //设置消息配置
         this.brokerConfig = brokerConfig;
     }
 

@@ -21,9 +21,15 @@ import org.apache.rocketmq.store.DefaultMessageStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 广播站统计类
+ */
 public class BrokerStats {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
+    /**
+     * 广播站存储对象
+     */
     private final DefaultMessageStore defaultMessageStore;
 
     private volatile long msgPutTotalYesterdayMorning;
@@ -34,6 +40,10 @@ public class BrokerStats {
 
     private volatile long msgGetTotalTodayMorning;
 
+    /**
+     * 实例化一个广播站统计对象
+     * @param defaultMessageStore 广播站存储对象
+     */
     public BrokerStats(DefaultMessageStore defaultMessageStore) {
         this.defaultMessageStore = defaultMessageStore;
     }

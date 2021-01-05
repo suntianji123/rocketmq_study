@@ -70,7 +70,10 @@ public class DefaultMessageStore implements MessageStore {
      * 消息存储配置
      */
     private final MessageStoreConfig messageStoreConfig;
-    // CommitLog
+
+    /**
+     * 提交日志
+     */
     private final CommitLog commitLog;
 
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
@@ -89,6 +92,9 @@ public class DefaultMessageStore implements MessageStore {
 
     private final HAService haService;
 
+    /**
+     * 定时消息服务
+     */
     private final ScheduleMessageService scheduleMessageService;
 
     private final StoreStatsService storeStatsService;
@@ -122,6 +128,9 @@ public class DefaultMessageStore implements MessageStore {
 
     private AtomicLong printTimes = new AtomicLong(0);
 
+    /**
+     * 消息存储的分发器列表
+     */
     private final LinkedList<CommitLogDispatcher> dispatcherList;
 
     private RandomAccessFile lockFile;
@@ -166,6 +175,7 @@ public class DefaultMessageStore implements MessageStore {
 
         this.reputMessageService = new ReputMessageService();
 
+        //实例化一个定时消息服务
         this.scheduleMessageService = new ScheduleMessageService(this);
 
         this.transientStorePool = new TransientStorePool(messageStoreConfig);
@@ -198,16 +208,21 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     /**
+     * 加载上一次广播站宕机时 序列化到磁盘的文件
      * @throws IOException
      */
     public boolean load() {
         boolean result = true;
 
         try {
+            //C:\Users\Administrator\store\abort文件夹不存在
             boolean lastExitOK = !this.isTempFileExist();
             log.info("last shutdown {}", lastExitOK ? "normally" : "abnormally");
 
-            if (null != scheduleMessageService) {
+            if (null != scheduleMessageService) {//定时消息服务不为空
+                //加载上一次广播站宕机时 序列化到磁盘的延时级别对应的时间表
+                // 加载C:\Users\Administrator\store\cofing\delayiOffset.json设置offsettable
+                //将本地广播站运行时的延时级别对应的时时间写入delayoffset表
                 result = result && this.scheduleMessageService.load();
             }
 
@@ -1267,9 +1282,16 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 判断temp文件是否存在
+     * @return
+     */
     private boolean isTempFileExist() {
+        //获取C:\Users\Administrator\store\abort文件夹
         String fileName = StorePathConfigHelper.getAbortFile(this.messageStoreConfig.getStorePathRootDir());
+        //创建文件
         File file = new File(fileName);
+        //返回文件夹是否存在
         return file.exists();
     }
 
