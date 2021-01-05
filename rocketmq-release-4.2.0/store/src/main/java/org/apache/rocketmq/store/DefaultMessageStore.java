@@ -60,9 +60,15 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.rocketmq.store.config.BrokerRole.SLAVE;
 
+/**
+ * 消息存储对象
+ */
 public class DefaultMessageStore implements MessageStore {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    /**
+     * 消息存储配置
+     */
     private final MessageStoreConfig messageStoreConfig;
     // CommitLog
     private final CommitLog commitLog;
@@ -94,8 +100,20 @@ public class DefaultMessageStore implements MessageStore {
 
     private final ScheduledExecutorService scheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("StoreScheduledThread"));
+
+    /**
+     * 广播站统计管理器
+     */
     private final BrokerStatsManager brokerStatsManager;
+
+    /**
+     * 消息到达之后的监听器
+     */
     private final MessageArrivingListener messageArrivingListener;
+
+    /**
+     * 广播站配置
+     */
     private final BrokerConfig brokerConfig;
 
     private volatile boolean shutdown = true;
@@ -112,12 +130,29 @@ public class DefaultMessageStore implements MessageStore {
 
     boolean shutDownNormal = false;
 
+    /**
+     * 默认的消息存储库对象
+     * @param messageStoreConfig 消息存储配置对象
+     * @param brokerStatsManager 广播站统计数据管理对象
+     * @param messageArrivingListener 消息到达之后的监听对象
+     * @param brokerConfig 广播站配置
+     * @throws IOException
+     */
     public DefaultMessageStore(final MessageStoreConfig messageStoreConfig, final BrokerStatsManager brokerStatsManager,
         final MessageArrivingListener messageArrivingListener, final BrokerConfig brokerConfig) throws IOException {
+        //设置消息到达之后的监听器
         this.messageArrivingListener = messageArrivingListener;
+
+        //设置广播站配置
         this.brokerConfig = brokerConfig;
+
+        //设置消息存储配置化
         this.messageStoreConfig = messageStoreConfig;
+
+        //设置广播站统计管理器
         this.brokerStatsManager = brokerStatsManager;
+
+
         this.allocateMappedFileService = new AllocateMappedFileService(this);
         this.commitLog = new CommitLog(this);
         this.consumeQueueTable = new ConcurrentHashMap<>(32);

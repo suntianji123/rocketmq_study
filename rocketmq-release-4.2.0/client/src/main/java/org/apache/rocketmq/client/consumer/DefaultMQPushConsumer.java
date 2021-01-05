@@ -40,118 +40,63 @@ import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
- * In most scenarios, this is the mostly recommended class to consume messages.
- * </p>
- *
- * Technically speaking, this push client is virtually a wrapper of the underlying pull service. Specifically, on
- * arrival of messages pulled from brokers, it roughly invokes the registered callback handler to feed the messages.
- * </p>
- *
- * See quickstart/Consumer in the example module for a typical usage.
- * </p>
- *
- * <p>
- * <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
- * </p>
+ * 默认的消费者类
  */
 public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsumer {
 
     /**
-     * Internal implementation. Most of the functions herein are delegated to it.
+     * 消息者实现
      */
     protected final transient DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
 
     /**
-     * Consumers of the same role is required to have exactly same subscriptions and consumerGroup to correctly achieve
-     * load balance. It's required and needs to be globally unique.
-     * </p>
-     *
-     * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
+     * 消费者组名
      */
     private String consumerGroup;
 
     /**
-     * Message model defines the way how messages are delivered to each consumer clients.
-     * </p>
-     *
-     * RocketMQ supports two message models: clustering and broadcasting. If clustering is set, consumer clients with
-     * the same {@link #consumerGroup} would only consume shards of the messages subscribed, which achieves load
-     * balances; Conversely, if the broadcasting is set, each consumer client will consume all subscribed messages
-     * separately.
-     * </p>
-     *
-     * This field defaults to clustering.
+     * 订阅的消息类型
      */
     private MessageModel messageModel = MessageModel.CLUSTERING;
 
     /**
-     * Consuming point on consumer booting.
-     * </p>
-     *
-     * There are three consuming points:
-     * <ul>
-     * <li>
-     * <code>CONSUME_FROM_LAST_OFFSET</code>: consumer clients pick up where it stopped previously.
-     * If it were a newly booting up consumer client, according aging of the consumer group, there are two
-     * cases:
-     * <ol>
-     * <li>
-     * if the consumer group is created so recently that the earliest message being subscribed has yet
-     * expired, which means the consumer group represents a lately launched business, consuming will
-     * start from the very beginning;
-     * </li>
-     * <li>
-     * if the earliest message being subscribed has expired, consuming will start from the latest
-     * messages, meaning messages born prior to the booting timestamp would be ignored.
-     * </li>
-     * </ol>
-     * </li>
-     * <li>
-     * <code>CONSUME_FROM_FIRST_OFFSET</code>: Consumer client will start from earliest messages available.
-     * </li>
-     * <li>
-     * <code>CONSUME_FROM_TIMESTAMP</code>: Consumer client will start from specified timestamp, which means
-     * messages born prior to {@link #consumeTimestamp} will be ignored
-     * </li>
-     * </ul>
+     * 什么时候开始消费 默认为最后一次偏移开始消费
      */
     private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET;
 
     /**
-     * Backtracking consumption time with second precision. Time format is
-     * 20131223171201<br>
-     * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
-     * Default backtracking consumption time Half an hour ago.
+     * 消费时间戳 当前时间 - 30分钟
      */
     private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));
 
     /**
-     * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
+     * 分配消息队列策略 默认使用平均分配消息队列的策略
      */
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
     /**
-     * Subscription relationship
+     * 消息者订阅的主题列表
+     * 订阅关系：某个主题下的子主题
      */
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 
     /**
-     * Message listener
+     * 收到消息的监听器
      */
     private MessageListener messageListener;
 
     /**
-     * Offset Storage
+     * 远程存储实施对象
      */
     private OffsetStore offsetStore;
 
     /**
-     * Minimum consumer thread number
+     * 消费消息的最小线程数
      */
     private int consumeThreadMin = 20;
 
     /**
-     * Max consumer thread number
+     * 消费消息的最大线程数
      */
     private int consumeThreadMax = 64;
 
@@ -161,20 +106,17 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private long adjustThreadPoolNumsThreshold = 100000;
 
     /**
-     * Concurrently max span offset.it has no effect on sequential consumption
+     * 同事的最大偏移
      */
     private int consumeConcurrentlyMaxSpan = 2000;
 
     /**
-     * Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
-     * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
+     * 每个消息队列最多可以缓存的消息数量
      */
     private int pullThresholdForQueue = 1000;
 
     /**
-     * Limit the cached message size on queue level, each message queue will cache at most 100 MiB messages by default,
-     * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
-     *
+     *每个消息队列最多可以缓存的消息总的大小值 默认100M
      * <p>
      * The size of a message only measured by message body, so it's not accurate
      */
@@ -192,18 +134,12 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private int pullThresholdForTopic = -1;
 
     /**
-     * Limit the cached message size on topic level, default value is -1 MiB(Unlimited)
-     * <p>
-     * The value of {@code pullThresholdSizeForQueue} will be overwrote and calculated based on
-     * {@code pullThresholdSizeForTopic} if it is't unlimited
-     * <p>
-     * For example, if the value of pullThresholdSizeForTopic is 1000 MiB and 10 message queues are
-     * assigned to this consumer, then pullThresholdSizeForQueue will be set to 100 MiB
+     * 一个主题对应的消息队列的总的消息大小的阀值
      */
     private int pullThresholdSizeForTopic = -1;
 
     /**
-     * Message pull Interval
+     * 信息提取间隔值
      */
     private long pullInterval = 0;
 
@@ -242,7 +178,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private long suspendCurrentQueueTimeMillis = 1000;
 
     /**
-     * Maximum amount of time in minutes a message may block the consuming thread.
+     * 消费消息的服务消费消息超时时间
      */
     private long consumeTimeout = 15;
 
@@ -254,16 +190,16 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Constructor specifying consumer group, RPC hook and message queue allocating algorithm.
-     *
-     * @param consumerGroup Consume queue.
-     * @param rpcHook RPC hook to execute before each remoting command.
-     * @param allocateMessageQueueStrategy message queue allocating algorithm.
+     * 实例化一个默认的消费者
+     * @param consumerGroup 消费者组名
+     * @param rpcHook
+     * @param allocateMessageQueueStrategy 分配消息队列策略对象
      */
     public DefaultMQPushConsumer(final String consumerGroup, RPCHook rpcHook,
         AllocateMessageQueueStrategy allocateMessageQueueStrategy) {
         this.consumerGroup = consumerGroup;
         this.allocateMessageQueueStrategy = allocateMessageQueueStrategy;
+
         defaultMQPushConsumerImpl = new DefaultMQPushConsumerImpl(this, rpcHook);
     }
 
@@ -277,11 +213,11 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Constructor specifying consumer group.
-     *
-     * @param consumerGroup Consumer group.
+     * 实力哈一个消费者
+     * @param consumerGroup 消费者组名
      */
     public DefaultMQPushConsumer(final String consumerGroup) {
+        //使用平均分配消息队列的策略
         this(consumerGroup, null, new AllocateMessageQueueAveragely());
     }
 
@@ -511,9 +447,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * This method gets internal infrastructure readily to serve. Instances must call this method after configuration.
-     *
-     * @throws MQClientException if there is any client error.
+     * 启动消费者服务
+     * @throws MQClientException
      */
     @Override
     public void start() throws MQClientException {
@@ -536,13 +471,14 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Register a callback to execute on message arrival for concurrent consuming.
-     *
-     * @param messageListener message handling callback.
+     * 注册接收到消息的监听器
+     * @param messageListener 监听器对象
      */
     @Override
     public void registerMessageListener(MessageListenerConcurrently messageListener) {
+        //设置收到消息的监听器对象
         this.messageListener = messageListener;
+        //莫得消费者实现注册消息监听器
         this.defaultMQPushConsumerImpl.registerMessageListener(messageListener);
     }
 
@@ -558,12 +494,11 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Subscribe a topic to consuming subscription.
-     *
-     * @param topic topic to subscribe.
-     * @param subExpression subscription expression.it only support or operation such as "tag1 || tag2 || tag3" <br>
-     * if null or * expression,meaning subscribe all
-     * @throws MQClientException if there is any client error.
+     * 消费者订阅主题
+     * @param topic 主题
+     * @param subExpression 子主题正则表达式
+     * null or * expression,meaning subscribe
+     * @throws MQClientException
      */
     @Override
     public void subscribe(String topic, String subExpression) throws MQClientException {
@@ -635,6 +570,10 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
         return offsetStore;
     }
 
+    /**
+     * 设置消费者远程存储实施对象
+     * @param offsetStore 远程存储实施读写
+     */
     public void setOffsetStore(OffsetStore offsetStore) {
         this.offsetStore = offsetStore;
     }

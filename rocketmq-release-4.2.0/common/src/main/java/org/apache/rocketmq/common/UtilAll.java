@@ -176,8 +176,15 @@ public class UtilAll {
             cal.get(Calendar.MILLISECOND));
     }
 
+    /**
+     * 时间戳转为字符串格式
+     * @param t 指定时间戳 比如System.currents
+     * @return 20210105102230
+     */
     public static String timeMillisToHumanString3(final long t) {
+        //获取日历对象
         Calendar cal = Calendar.getInstance();
+        //设置时间戳
         cal.setTimeInMillis(t);
         return String.format("%04d%02d%02d%02d%02d%02d",
             cal.get(Calendar.YEAR),

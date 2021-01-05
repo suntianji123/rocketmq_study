@@ -49,9 +49,20 @@ import org.apache.rocketmq.common.sysflag.PullSysFlag;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.slf4j.Logger;
 
+/**
+ * 拉取消息的api包装类
+ */
 public class PullAPIWrapper {
     private final Logger log = ClientLogger.getLog();
+
+    /**
+     * 访问远程服务器的mqclientinstance对象
+     */
     private final MQClientInstance mQClientFactory;
+
+    /**
+     * 消费者组名
+     */
     private final String consumerGroup;
     private final boolean unitMode;
     private ConcurrentMap<MessageQueue, AtomicLong/* brokerId */> pullFromWhichNodeTable =
@@ -61,6 +72,12 @@ public class PullAPIWrapper {
     private Random random = new Random(System.currentTimeMillis());
     private ArrayList<FilterMessageHook> filterMessageHookList = new ArrayList<FilterMessageHook>();
 
+    /**
+     * 实例化一个拉取消息的包装对象
+     * @param mQClientFactory 访问远程服务器的mqclient对象
+     * @param consumerGroup 消费者组名
+     * @param unitMode
+     */
     public PullAPIWrapper(MQClientInstance mQClientFactory, String consumerGroup, boolean unitMode) {
         this.mQClientFactory = mQClientFactory;
         this.consumerGroup = consumerGroup;

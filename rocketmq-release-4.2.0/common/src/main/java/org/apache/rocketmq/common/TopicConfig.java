@@ -18,13 +18,32 @@ package org.apache.rocketmq.common;
 
 import org.apache.rocketmq.common.constant.PermName;
 
+/**
+ * 主题配置类
+ */
 public class TopicConfig {
     private static final String SEPARATOR = " ";
     public static int defaultReadQueueNums = 16;
     public static int defaultWriteQueueNums = 16;
+
+    /**
+     * 主题名
+     */
     private String topicName;
+
+    /**
+     * 读队列的数量
+     */
     private int readQueueNums = defaultReadQueueNums;
+
+    /**
+     * 写队列的数量
+     */
     private int writeQueueNums = defaultWriteQueueNums;
+
+    /**
+     * 设置主题的权限 可写 可读 可心跳
+     */
     private int perm = PermName.PERM_READ | PermName.PERM_WRITE;
     private TopicFilterType topicFilterType = TopicFilterType.SINGLE_TAG;
     private int topicSysFlag = 0;
@@ -33,6 +52,10 @@ public class TopicConfig {
     public TopicConfig() {
     }
 
+    /**
+     * 实例化一个主题配置对象
+     * @param topicName 主题名
+     */
     public TopicConfig(String topicName) {
         this.topicName = topicName;
     }

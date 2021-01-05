@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Filter factory: support other filter to register.
+ *过滤器工厂类
  */
 public class FilterFactory {
 

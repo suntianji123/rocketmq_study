@@ -56,8 +56,15 @@ public class MixAll {
     public static final String WS_DOMAIN_NAME = System.getProperty("rocketmq.namesrv.domain", DEFAULT_NAMESRV_ADDR_LOOKUP);
     public static final String WS_DOMAIN_SUBGROUP = System.getProperty("rocketmq.namesrv.domain.subgroup", "nsaddr");
     //http://jmenv.tbsite.net:8080/rocketmq/nsaddr
-    //public static final String WS_ADDR = "http://" + WS_DOMAIN_NAME + ":8080/rocketmq/" + WS_DOMAIN_SUBGROUP;
+
+    /**
+     * 默认主题
+     */
     public static final String DEFAULT_TOPIC = "TBW102";
+
+    /**
+     * 基本主题
+     */
     public static final String BENCHMARK_TOPIC = "BenchmarkTest";
     public static final String DEFAULT_PRODUCER_GROUP = "DEFAULT_PRODUCER";
     public static final String DEFAULT_CONSUMER_GROUP = "DEFAULT_CONSUMER";
@@ -78,6 +85,10 @@ public class MixAll {
     public static final List<String> LOCAL_INET_ADDRESS = getLocalInetAddress();
     public static final String LOCALHOST = localhost();
     public static final String DEFAULT_CHARSET = "UTF-8";
+
+    /**
+     * 如果广播站角色为主站 则默认的主站的id为0
+     */
     public static final long MASTER_ID = 0L;
     public static final long CURRENT_JVM_PID = getPID();
 
@@ -103,6 +114,11 @@ public class MixAll {
         return wsAddr;
     }
 
+    /**
+     * 根据某个消费者的组名 返回retry的组名
+     * @param consumerGroup 消费者组名
+     * @return
+     */
     public static String getRetryTopic(final String consumerGroup) {
         return RETRY_GROUP_TOPIC_PREFIX + consumerGroup;
     }
@@ -180,28 +196,54 @@ public class MixAll {
         }
     }
 
+    /**
+     * 将文件中的内容转为字符串
+     * @param fileName 文件路径
+     * @return
+     * @throws IOException
+     */
     public static String file2String(final String fileName) throws IOException {
+        //根据文件名实例化一个文件对象
         File file = new File(fileName);
         return file2String(file);
     }
 
+    /**
+     * 获取文件中的内容 以字符串的形式返回
+     * @param file 文件对象
+     * @return
+     * @throws IOException
+     */
     public static String file2String(final File file) throws IOException {
-        if (file.exists()) {
+        if (file.exists()) {//如果文件存在
+            //实例化一个文件长度的字节数组
             byte[] data = new byte[(int) file.length()];
+
+            //是否获取字符串
             boolean result;
 
+            //定义一个文件输入流对象
             FileInputStream inputStream = null;
             try {
+
+                //实例化输入流
                 inputStream = new FileInputStream(file);
+
+                //加载输入流到字节数组
                 int len = inputStream.read(data);
+
+                //完成转换的标志是字节数组的长度 等于读出的字节长度
                 result = len == data.length;
             } finally {
-                if (inputStream != null) {
+                if (inputStream != null) {//如果输入流不为空
+                    //关闭输入流
                     inputStream.close();
                 }
             }
 
-            if (result) {
+            if (result) {//如果成功获取到字节
+
+                //将字节数组转为字符串
                 return new String(data);
             }
         }

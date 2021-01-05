@@ -27,14 +27,33 @@ import org.apache.rocketmq.filter.util.BloomFilterData;
 import java.util.Collections;
 
 /**
- * Filter data of consumer.
+ * 消费者过滤类
  */
 public class ConsumerFilterData {
 
+    /**
+     * 被过滤的消费者组名
+     */
     private String consumerGroup;
+
+    /**
+     * 过滤消费的主题
+     */
     private String topic;
+
+    /**
+     * 过滤表达式
+     */
     private String expression;
+
+    /**
+     * 过滤表达式类型
+     */
     private String expressionType;
+
+    /**
+     * 被表达式类型编译之后的过滤表达式
+     */
     private transient Expression compiledExpression;
     private long bornTime;
     private long deadTime = 0;

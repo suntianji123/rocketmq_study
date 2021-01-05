@@ -41,20 +41,47 @@ import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 import org.slf4j.Logger;
 
 /**
- * Base class for rebalance algorithm
+ * 重新平衡算法的基类
  */
 public abstract class RebalanceImpl {
     protected static final Logger log = ClientLogger.getLog();
     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable =
         new ConcurrentHashMap<String, Set<MessageQueue>>();
+
+    /**
+     *平衡算法持有的主题 及订阅数据对象的集合
+     */
     protected final ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner =
         new ConcurrentHashMap<String, SubscriptionData>();
+
+    /**
+     * 平衡算法所平衡的消费者的组名
+     */
     protected String consumerGroup;
+
+    /**
+     * 平衡算法所平衡的消息队列的消息类型
+     */
     protected MessageModel messageModel;
+
+    /**
+     * 平衡算法分配消息队列的策略
+     */
     protected AllocateMessageQueueStrategy allocateMessageQueueStrategy;
+
+    /**
+     * 连接远程服务器的mqclient对象
+     */
     protected MQClientInstance mQClientFactory;
 
+    /**
+     * 实例化一个平衡算法对象
+     * @param consumerGroup 平衡算法所平衡的消费者组名
+     * @param messageModel 平衡算法所平衡的消息的类型
+     * @param allocateMessageQueueStrategy 平衡算法分配消息队列消息的策略
+     * @param mQClientFactory 连接远程服务器的mqclient对象
+     */
     public RebalanceImpl(String consumerGroup, MessageModel messageModel,
         AllocateMessageQueueStrategy allocateMessageQueueStrategy,
         MQClientInstance mQClientFactory) {
@@ -234,6 +261,10 @@ public abstract class RebalanceImpl {
         this.truncateMessageQueueNotMyTopic();
     }
 
+    /**
+     * 火球主题平衡算法持有的主题对应的订阅数据集合
+     * @return
+     */
     public ConcurrentMap<String, SubscriptionData> getSubscriptionInner() {
         return subscriptionInner;
     }

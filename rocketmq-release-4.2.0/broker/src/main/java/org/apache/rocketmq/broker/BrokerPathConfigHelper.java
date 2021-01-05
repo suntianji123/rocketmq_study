@@ -20,6 +20,7 @@ package org.apache.rocketmq.broker;
 import java.io.File;
 
 public class BrokerPathConfigHelper {
+    //配置文件地址
     private static String brokerConfigPath = System.getProperty("user.home") + File.separator + "store"
         + File.separator + "config" + File.separator + "broker.properties";
 
@@ -31,18 +32,42 @@ public class BrokerPathConfigHelper {
         brokerConfigPath = path;
     }
 
+    /**
+     * 根目录默认为C:\Users\Administrator\store\config\topics.json
+     * 获取主题配置文件路径 根目录/config/topics.json
+     * @param rootDir 指定的根目录
+     * @return
+     */
     public static String getTopicConfigPath(final String rootDir) {
         return rootDir + File.separator + "config" + File.separator + "topics.json";
     }
 
+    /**
+     * 根目录默认为C:\Users\Administrator\store\config\consumerOffset.json
+     * 获取主题配置文件路径 根目录/config/topics.json
+     * @param rootDir 消费偏移文件路径
+     * @return
+     */
     public static String getConsumerOffsetPath(final String rootDir) {
         return rootDir + File.separator + "config" + File.separator + "consumerOffset.json";
     }
 
+    /**
+     * 根目录默认为C:\Users\Administrator\store\config\subscriptionGroup.json
+     * 获取主题配置文件路径 根目录/config/topics.json
+     * @param rootDir 订阅组
+     * @return
+     */
     public static String getSubscriptionGroupPath(final String rootDir) {
         return rootDir + File.separator + "config" + File.separator + "subscriptionGroup.json";
     }
 
+    /**
+     * 根目录默认为C:\Users\Administrator\store\config\consumerFilter.json
+     * 获取主题配置文件路径 根目录/config/topics.json
+     * @param rootDir 消费过滤
+     * @return
+     */
     public static String getConsumerFilterPath(final String rootDir) {
         return rootDir + File.separator + "config" + File.separator + "consumerFilter.json";
     }

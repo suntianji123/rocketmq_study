@@ -49,8 +49,8 @@ public class Consumer {
          * </pre>
          */
 
-        /*
-         * Specify where to start in case the specified consumer group is a brand new one.
+        /**
+         *设置消费者从第一次偏移开始消费
          */
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
 
@@ -59,11 +59,12 @@ public class Consumer {
          */
         consumer.subscribe("TopicTest", "*");
 
-        /*
-         *  Register callback to execute on arrival of messages fetched from brokers.
+        /**
+         * 注册接收到消息的处理
          */
         consumer.registerMessageListener(new MessageListenerConcurrently() {
 
+            //实例化一个监听器 处理消息的方法体
             @Override
             public ConsumeConcurrentlyStatus consumeMessage(List<MessageExt> msgs,
                 ConsumeConcurrentlyContext context) {
@@ -73,7 +74,7 @@ public class Consumer {
         });
 
         /*
-         *  Launch the consumer instance.
+         *  启动消费者
          */
         consumer.start();
 

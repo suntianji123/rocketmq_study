@@ -37,17 +37,32 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.slf4j.Logger;
 
 /**
- * Remote storage implementation
+ * 远程存储实施类
  */
 public class RemoteBrokerOffsetStore implements OffsetStore {
     private final static Logger log = ClientLogger.getLog();
+
+    /**
+     * 访问远程服务的对象
+     */
     private final MQClientInstance mQClientFactory;
+
+    /**
+     * 消费者组名
+     */
     private final String groupName;
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();
 
+    /**
+     * 实例化一个远程存储实施对象
+     * @param mQClientFactory 访问远程服务器的对象
+     * @param groupName 消费者组名
+     */
     public RemoteBrokerOffsetStore(MQClientInstance mQClientFactory, String groupName) {
+        //设置访问远程服务器的对象
         this.mQClientFactory = mQClientFactory;
+        //设置组名
         this.groupName = groupName;
     }
 

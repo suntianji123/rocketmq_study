@@ -26,6 +26,9 @@ import org.slf4j.LoggerFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+/**
+ * 广播站配置累
+ */
 public class BrokerConfig {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
 
@@ -37,17 +40,35 @@ public class BrokerConfig {
     private String brokerIP2 = RemotingUtil.getLocalAddress();
     @ImportantField
     private String brokerName = localHostName();
+
+    /**
+     * 广播站集群的群名
+     */
     @ImportantField
     private String brokerClusterName = "DefaultCluster";
+
+    /**
+     * 广播站的id 如果为从站 必须设置id大于0
+     */
     @ImportantField
     private long brokerId = MixAll.MASTER_ID;
     private int brokerPermission = PermName.PERM_READ | PermName.PERM_WRITE;
+
+    /**
+     * 主题对应的队列的数量
+     */
     private int defaultTopicQueueNums = 8;
     @ImportantField
     private boolean autoCreateTopicEnable = true;
 
+    /**
+     * 集群主题是否启用
+     */
     private boolean clusterTopicEnable = true;
 
+    /**
+     * 广播站名主题是否启动
+     */
     private boolean brokerTopicEnable = true;
     @ImportantField
     private boolean autoCreateSubscriptionGroup = true;

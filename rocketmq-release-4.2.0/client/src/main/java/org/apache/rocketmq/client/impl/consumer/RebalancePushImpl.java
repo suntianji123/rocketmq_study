@@ -32,14 +32,29 @@ import org.apache.rocketmq.common.protocol.heartbeat.ConsumeType;
 import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 
+/**
+ * 重新平衡类
+ */
 public class RebalancePushImpl extends RebalanceImpl {
     private final static long UNLOCK_DELAY_TIME_MILLS = Long.parseLong(System.getProperty("rocketmq.client.unlockDelayTimeMills", "20000"));
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
 
+    /**
+     * 实例化一个平衡算法对象
+     * @param defaultMQPushConsumerImpl 默认的消费者实现对象
+     */
     public RebalancePushImpl(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl) {
         this(null, null, null, null, defaultMQPushConsumerImpl);
     }
 
+    /**
+     * 实例化一个平衡算法对象
+     * @param consumerGroup 消费者组名
+     * @param messageModel 消息模型
+     * @param allocateMessageQueueStrategy 分配消息队列策略类
+     * @param mQClientFactory 消费者工厂
+     * @param defaultMQPushConsumerImpl s
+     */
     public RebalancePushImpl(String consumerGroup, MessageModel messageModel,
         AllocateMessageQueueStrategy allocateMessageQueueStrategy,
         MQClientInstance mQClientFactory, DefaultMQPushConsumerImpl defaultMQPushConsumerImpl) {

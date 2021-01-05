@@ -27,19 +27,30 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.slf4j.Logger;
 
+/**
+ * 综合的配置类
+ */
 public class Configuration {
 
     private final Logger log;
 
+    /**
+     * 配置对象列表
+     */
     private List<Object> configObjectList = new ArrayList<Object>(4);
+
+    /**
+     * 配置文件路径
+     */
     private String storePath;
     private boolean storePathFromConfig = false;
     private Object storePathObject;
     private Field storePathField;
     private DataVersion dataVersion = new DataVersion();
     private ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
     /**
-     * All properties include configs in object and extend properties.
+     * 所以的配置属性
      */
     private Properties allConfigs = new Properties();
 
@@ -47,38 +58,62 @@ public class Configuration {
         this.log = log;
     }
 
+    /**
+     * 实例化一个配置对象
+     * @param log 日志对象
+     * @param configObjects 配置对象
+     */
     public Configuration(Logger log, Object... configObjects) {
+        //设置日志对象
         this.log = log;
+
+        //配置对象
         if (configObjects == null || configObjects.length == 0) {
             return;
         }
+
+        //注册配置对象到configobjectlist列表 并且将属性值 添加到所有的属性值property对象
         for (Object configObject : configObjects) {
             registerConfig(configObject);
         }
     }
 
+    /**
+     * 实例化一个综合的配置对象
+     * @param log 日志对象
+     * @param storePath 配置文件路径
+     * @param configObjects 配置对象
+     */
     public Configuration(Logger log, String storePath, Object... configObjects) {
         this(log, configObjects);
+
+        //设置配置文件路径
         this.storePath = storePath;
     }
 
     /**
-     * register config object
-     *
-     * @return the current Configuration object
+     * 给配置对象注册配置对象
+     * @param configObject 配置对象
+     * @return
      */
     public Configuration registerConfig(Object configObject) {
         try {
+
+            //打开写锁
             readWriteLock.writeLock().lockInterruptibly();
 
             try {
 
+                //获取属性对象
                 Properties registerProps = MixAll.object2Properties(configObject);
 
+                //将属性添加到总的属性值
                 merge(registerProps, this.allConfigs);
 
+                //属性对象中添加配置对象
                 configObjectList.add(configObject);
             } finally {
+                //关闭写锁
                 readWriteLock.writeLock().unlock();
             }
         } catch (InterruptedException e) {

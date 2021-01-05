@@ -36,22 +36,37 @@ public class FilterAPI {
         return simple;
     }
 
+    /**
+     * 根据消费者组 主题 子主题表达式构造一个订阅对象
+     * 子主题表达式解析出多个标签 设置到标签集合 将每一个标签的hash值 放入哈希值集合
+     * @param consumerGroup 消费者组名
+     * @param topic 主题
+     * @param subString 子主题表达式
+     * @return
+     * @throws Exception
+     */
     public static SubscriptionData buildSubscriptionData(final String consumerGroup, String topic,
         String subString) throws Exception {
+        //实例化一个订阅数据对象
         SubscriptionData subscriptionData = new SubscriptionData();
+        //设置订阅数据对象的主题
         subscriptionData.setTopic(topic);
+        //设置订阅数据对象的子主题表达式
         subscriptionData.setSubString(subString);
 
-        if (null == subString || subString.equals(SubscriptionData.SUB_ALL) || subString.length() == 0) {
+        if (null == subString || subString.equals(SubscriptionData.SUB_ALL) || subString.length() == 0) {//设置订阅所有的主题
             subscriptionData.setSubString(SubscriptionData.SUB_ALL);
         } else {
+            //分割子主题表达式 返回多个子主题表达式
             String[] tags = subString.split("\\|\\|");
-            if (tags.length > 0) {
-                for (String tag : tags) {
-                    if (tag.length() > 0) {
-                        String trimString = tag.trim();
-                        if (trimString.length() > 0) {
+            if (tags.length > 0) {//子主题表达式的长度大于0
+                for (String tag : tags) {//遍历子主题
+                    if (tag.length() > 0) {//如果长度大于0
+                        String trimString = tag.trim();//去除空格
+                        if (trimString.length() > 0) {//出去空格之后的长度大有0
+                            //设置订阅的标签
                             subscriptionData.getTagsSet().add(trimString);
+                            //设置订阅标签的hashcode值集合
                             subscriptionData.getCodeSet().add(trimString.hashCode());
                         }
                     }
@@ -61,6 +76,7 @@ public class FilterAPI {
             }
         }
 
+        //返回订阅data
         return subscriptionData;
     }
 

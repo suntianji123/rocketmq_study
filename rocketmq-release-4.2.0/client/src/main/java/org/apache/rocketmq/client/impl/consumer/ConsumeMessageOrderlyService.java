@@ -48,29 +48,73 @@ import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.slf4j.Logger;
 
+/**
+ * 顺序消费消息的服务类
+ */
 public class ConsumeMessageOrderlyService implements ConsumeMessageService {
     private static final Logger log = ClientLogger.getLog();
     private final static long MAX_TIME_CONSUME_CONTINUOUSLY =
         Long.parseLong(System.getProperty("rocketmq.client.maxTimeConsumeContinuously", "60000"));
+
+    /**
+     * 消费者实现对象
+     */
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
+
+    /**
+     * 消费者对象
+     */
     private final DefaultMQPushConsumer defaultMQPushConsumer;
+
+    /**
+     * 顺序的消息监听器对象
+     */
     private final MessageListenerOrderly messageListener;
+
+    /**
+     * 消费的任务列队
+     */
     private final BlockingQueue<Runnable> consumeRequestQueue;
+
+    /**
+     * 设置任务的执行器对象
+     */
     private final ThreadPoolExecutor consumeExecutor;
+
+    /**
+     * 消费者组名
+     */
     private final String consumerGroup;
     private final MessageQueueLock messageQueueLock = new MessageQueueLock();
+
+    /**
+     * 定时任务执行器
+     */
     private final ScheduledExecutorService scheduledExecutorService;
     private volatile boolean stopped = false;
 
+    /**
+     * 实例化一个顺序消费消息的服务对象
+     * @param defaultMQPushConsumerImpl 默认的消费者实现对象
+     * @param messageListener 顺序的消息监听器对象
+     */
     public ConsumeMessageOrderlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl,
         MessageListenerOrderly messageListener) {
+        //设置默认的消费者实现
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
+        //设置消息监听器对象
         this.messageListener = messageListener;
 
+        //设置消费者对象
         this.defaultMQPushConsumer = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer();
+
+        //奢姿消费者组名
         this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
+
+        //设置消费任务的队列
         this.consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
 
+        //设置任务的执行器对象 最小线程的数量 最大线程数量 当线程池中的线程数量超过了最小线程数量时 如果有空闲线程超过了60秒不能工作 则会被销毁
         this.consumeExecutor = new ThreadPoolExecutor(
             this.defaultMQPushConsumer.getConsumeThreadMin(),
             this.defaultMQPushConsumer.getConsumeThreadMax(),
@@ -79,6 +123,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
             this.consumeRequestQueue,
             new ThreadFactoryImpl("ConsumeMessageThread_"));
 
+        //设置定时任务执行器未单线程池的执行器
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
     }
 

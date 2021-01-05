@@ -40,14 +40,25 @@ public class ServerUtil {
         return options;
     }
 
+    /**
+     * 解析启动应用程序的命令行
+     * @param appName 应用程序名
+     * @param args 启动命令行传入的参数
+     * @param options 选项
+     * @param parser 解析器
+     * @return
+     */
     public static CommandLine parseCmdLine(final String appName, String[] args, Options options,
         CommandLineParser parser) {
+        //实例化一个help格式化
         HelpFormatter hf = new HelpFormatter();
+        //设置宽度
         hf.setWidth(110);
         CommandLine commandLine = null;
         try {
+            //解析选项和传入参数
             commandLine = parser.parse(options, args);
-            if (commandLine.hasOption('h')) {
+            if (commandLine.hasOption('h')) {//如果有h 打印帮助
                 hf.printHelp(appName, options, true);
                 return null;
             }

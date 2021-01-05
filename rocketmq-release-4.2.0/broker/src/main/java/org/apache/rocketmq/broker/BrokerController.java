@@ -92,10 +92,30 @@ public class BrokerController {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final Logger LOG_PROTECTION = LoggerFactory.getLogger(LoggerName.PROTECTION_LOGGER_NAME);
     private static final Logger LOG_WATER_MARK = LoggerFactory.getLogger(LoggerName.WATER_MARK_LOGGER_NAME);
+
+    /**
+     * 广播站的配置
+     */
     private final BrokerConfig brokerConfig;
+
+    /**
+     * netty 服务端的配置
+     */
     private final NettyServerConfig nettyServerConfig;
+
+    /**
+     * netty 客户端的配置
+     */
     private final NettyClientConfig nettyClientConfig;
+
+    /**
+     * 消息存储配置
+     */
     private final MessageStoreConfig messageStoreConfig;
+
+    /**
+     * 消费者偏移管理器
+     */
     private final ConsumerOffsetManager consumerOffsetManager;
     private final ConsumerManager consumerManager;
     private final ConsumerFilterManager consumerFilterManager;
@@ -105,6 +125,10 @@ public class BrokerController {
     private final PullRequestHoldService pullRequestHoldService;
     private final MessageArrivingListener messageArrivingListener;
     private final Broker2Client broker2Client;
+
+    /**
+     * 消费者订阅管理器
+     */
     private final SubscriptionGroupManager subscriptionGroupManager;
     private final ConsumerIdsChangeListener consumerIdsChangeListener;
     private final RebalanceLockManager rebalanceLockManager = new RebalanceLockManager();
@@ -121,6 +145,10 @@ public class BrokerController {
     private final BrokerStatsManager brokerStatsManager;
     private final List<SendMessageHook> sendMessageHookList = new ArrayList<SendMessageHook>();
     private final List<ConsumeMessageHook> consumeMessageHookList = new ArrayList<ConsumeMessageHook>();
+
+    /**
+     * 消息存储库
+     */
     private MessageStore messageStore;
     private RemotingServer remotingServer;
     private RemotingServer fastRemotingServer;
@@ -132,32 +160,59 @@ public class BrokerController {
     private ExecutorService clientManageExecutor;
     private ExecutorService consumerManageExecutor;
     private boolean updateMasterHAServerAddrPeriodically = false;
+
+
     private BrokerStats brokerStats;
     private InetSocketAddress storeHost;
     private BrokerFastFailure brokerFastFailure;
     private Configuration configuration;
 
+    /**
+     * 实例化一个广播站控制器
+     * @param brokerConfig 广播站配置
+     * @param nettyServerConfig netty 服务端配置
+     * @param nettyClientConfig netty 客户端配置
+     * @param messageStoreConfig 消息存储配置
+     */
     public BrokerController(
         final BrokerConfig brokerConfig,
         final NettyServerConfig nettyServerConfig,
         final NettyClientConfig nettyClientConfig,
         final MessageStoreConfig messageStoreConfig
     ) {
+
+        //设置广播站配置
         this.brokerConfig = brokerConfig;
+
+        //设置netty 服务端配置
         this.nettyServerConfig = nettyServerConfig;
+
+        //设置netty 客户端配置
         this.nettyClientConfig = nettyClientConfig;
+
+        //设置消息存储配置
         this.messageStoreConfig = messageStoreConfig;
+
+        //实例化一个消费者偏移管理器
         this.consumerOffsetManager = new ConsumerOffsetManager(this);
+
+        //实例画一个主题配置管理器
         this.topicConfigManager = new TopicConfigManager(this);
         this.pullMessageProcessor = new PullMessageProcessor(this);
         this.pullRequestHoldService = new PullRequestHoldService(this);
         this.messageArrivingListener = new NotifyMessageArrivingListener(this.pullRequestHoldService);
         this.consumerIdsChangeListener = new DefaultConsumerIdsChangeListener(this);
         this.consumerManager = new ConsumerManager(this.consumerIdsChangeListener);
+
+        //消费者过滤主题管理器
         this.consumerFilterManager = new ConsumerFilterManager(this);
         this.producerManager = new ProducerManager();
         this.clientHousekeepingService = new ClientHousekeepingService(this);
         this.broker2Client = new Broker2Client(this);
+
+        /**
+         * 实例化一个消费者订阅管理器
+         */
         this.subscriptionGroupManager = new SubscriptionGroupManager(this);
         this.brokerOuterAPI = new BrokerOuterAPI(nettyClientConfig);
         this.filterServerManager = new FilterServerManager(this);
@@ -174,6 +229,8 @@ public class BrokerController {
         this.setStoreHost(new InetSocketAddress(this.getBrokerConfig().getBrokerIP1(), this.getNettyServerConfig().getListenPort()));
 
         this.brokerFastFailure = new BrokerFastFailure(this);
+
+        //实例化一个配置对象
         this.configuration = new Configuration(
             log,
             BrokerPathConfigHelper.getBrokerConfigPath(),
@@ -197,18 +254,30 @@ public class BrokerController {
         return queryThreadPoolQueue;
     }
 
+    /**
+     * 初始化控制器
+     * @return
+     * @throws CloneNotSupportedException
+     */
     public boolean initialize() throws CloneNotSupportedException {
+        //加载C:\Users\Administrator\store\config\topics.json文件 反序列化 获取其中的主题配置列表 设置到topicConfigManager的主题配置列表
         boolean result = this.topicConfigManager.load();
 
+        //加载C:\Users\Administrator\store\config\consumerOffset.json文件 反序列化 设置ConsumerOffsetManager的offsetTable
         result = result && this.consumerOffsetManager.load();
+
+        //加载C:\Users\Administrator\store\config\subscriptionGroup.json文件 反序列化 设置subscriptionGroupManager的SubscriptionGroupTable
         result = result && this.subscriptionGroupManager.load();
+
+        //加载C:\Users\Administrator\store\config\consumerFilter.json文件 反序列化 设置SsubscriptionGroupTable
         result = result && this.consumerFilterManager.load();
 
-        if (result) {
+        if (result) {//加载配置管理对象完成
             try {
+                //设置消息存储库对象
                 this.messageStore =
                     new DefaultMessageStore(this.messageStoreConfig, this.brokerStatsManager, this.messageArrivingListener,
-                        this.brokerConfig);
+                        this.brokerConfig);//默认的消息存储库对象
                 this.brokerStats = new BrokerStats((DefaultMessageStore) this.messageStore);
                 //load plugin
                 MessageStorePluginContext context = new MessageStorePluginContext(messageStoreConfig, brokerStatsManager, messageArrivingListener, brokerConfig);

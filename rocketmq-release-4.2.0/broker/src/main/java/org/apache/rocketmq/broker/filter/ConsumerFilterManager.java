@@ -38,7 +38,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Consumer filter data manager.Just manage the consumers use expression filter.
+ * 主题需要过滤哪些消费者管理器
+ * 消费者过滤器数据管理器。只需使用表达式过滤器管理消费者即可。
  */
 public class ConsumerFilterManager extends ConfigManager {
 
@@ -46,6 +47,9 @@ public class ConsumerFilterManager extends ConfigManager {
 
     private static final long MS_24_HOUR = 24 * 3600 * 1000;
 
+    /**
+     * 主题过滤对象列表
+     */
     private ConcurrentMap<String/*Topic*/, FilterDataMapByTopic>
         filterDataByTopic = new ConcurrentHashMap<String/*consumer group*/, FilterDataMapByTopic>(256);
 
@@ -225,19 +229,26 @@ public class ConsumerFilterManager extends ConfigManager {
         return BrokerPathConfigHelper.getConsumerFilterPath("./unit_test");
     }
 
+    /**
+     * 解码json字符串
+     * @param jsonString json字符串
+     */
     @Override
     public void decode(final String jsonString) {
+        //反序列化为ConsumerFilterManger对象
         ConsumerFilterManager load = RemotingSerializable.fromJson(jsonString, ConsumerFilterManager.class);
         if (load != null && load.filterDataByTopic != null) {
             boolean bloomChanged = false;
-            for (String topic : load.filterDataByTopic.keySet()) {
+            for (String topic : load.filterDataByTopic.keySet()) {//遍历主图过滤集合
+                //获取过滤对象
                 FilterDataMapByTopic dataMapByTopic = load.filterDataByTopic.get(topic);
                 if (dataMapByTopic == null) {
                     continue;
                 }
 
-                for (String group : dataMapByTopic.getGroupFilterData().keySet()) {
+                for (String group : dataMapByTopic.getGroupFilterData().keySet()) {//遍历过滤数据对象过滤组数据集合
 
+                    //获取消费者过滤数据对象
                     ConsumerFilterData filterData = dataMapByTopic.getGroupFilterData().get(group);
 
                     if (filterData == null) {
@@ -245,6 +256,7 @@ public class ConsumerFilterManager extends ConfigManager {
                     }
 
                     try {
+                        //设置编译过后的表达式类型
                         filterData.setCompiledExpression(
                             FilterFactory.INSTANCE.get(filterData.getExpressionType()).compile(filterData.getExpression())
                         );
@@ -320,11 +332,20 @@ public class ConsumerFilterManager extends ConfigManager {
         this.filterDataByTopic = filterDataByTopic;
     }
 
+    /**
+     * 主题过滤的消息者对象
+     */
     public static class FilterDataMapByTopic {
 
+        /**
+         * 消费者组 与消息者过滤数据集合
+         */
         private ConcurrentMap<String/*consumer group*/, ConsumerFilterData>
             groupFilterData = new ConcurrentHashMap<String, ConsumerFilterData>();
 
+        /**
+         * 主题
+         */
         private String topic;
 
         public FilterDataMapByTopic() {

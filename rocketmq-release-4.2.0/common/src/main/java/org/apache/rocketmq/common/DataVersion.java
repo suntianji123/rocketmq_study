@@ -19,12 +19,24 @@ package org.apache.rocketmq.common;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+/**
+ * 数据版本对象
+ */
 public class DataVersion extends RemotingSerializable {
+    /**
+     *版本时间
+     */
     private long timestamp = System.currentTimeMillis();
+
+    /**
+     * 版本数
+     */
     private AtomicLong counter = new AtomicLong(0);
 
     public void assignNewOne(final DataVersion dataVersion) {
+        //设置版本时间
         this.timestamp = dataVersion.timestamp;
+        //设置版本数
         this.counter.set(dataVersion.counter.get());
     }
 

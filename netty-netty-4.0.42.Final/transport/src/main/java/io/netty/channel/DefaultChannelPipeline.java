@@ -1212,6 +1212,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception { }
 
+
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception { }
 
@@ -1220,7 +1221,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
 
 
-        
+
         @Override
         public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception { }
 

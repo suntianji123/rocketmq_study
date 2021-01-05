@@ -24,12 +24,34 @@ import com.alibaba.fastjson.annotation.JSONField;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * 订阅数据类
+ */
 public class SubscriptionData implements Comparable<SubscriptionData> {
+
+    /**
+     * 订阅主题中所有的主题的子主题表达式
+     */
     public final static String SUB_ALL = "*";
     private boolean classFilterMode = false;
+    /**
+     * 订阅的主题
+     */
     private String topic;
+
+    /**
+     * 子主题表达式
+     */
     private String subString;
+
+    /**
+     * 根据子主题表达式解析出的标签
+     */
     private Set<String> tagsSet = new HashSet<String>();
+
+    /**
+     * 根据子主题表达式解析的标签的hash值
+     */
     private Set<Integer> codeSet = new HashSet<Integer>();
     private long subVersion = System.currentTimeMillis();
     private String expressionType;

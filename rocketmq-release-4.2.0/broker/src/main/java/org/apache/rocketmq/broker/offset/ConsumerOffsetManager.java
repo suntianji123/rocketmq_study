@@ -33,18 +33,31 @@ import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 消费者偏移类
+ */
 public class ConsumerOffsetManager extends ConfigManager {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final String TOPIC_GROUP_SEPARATOR = "@";
 
+    /**
+     * 消费主题偏移列表
+     */
     private ConcurrentMap<String/* topic@group */, ConcurrentMap<Integer, Long>> offsetTable =
         new ConcurrentHashMap<String, ConcurrentMap<Integer, Long>>(512);
 
+    /**
+     * 广播站控制器对象
+     */
     private transient BrokerController brokerController;
 
     public ConsumerOffsetManager() {
     }
 
+    /**
+     * 实例化一个消息费偏移管理对象
+     * @param brokerController 广播站控制器对象
+     */
     public ConsumerOffsetManager(BrokerController brokerController) {
         this.brokerController = brokerController;
     }
@@ -156,11 +169,19 @@ public class ConsumerOffsetManager extends ConfigManager {
         return this.encode(false);
     }
 
+    /**
+     * 虎丘配置文件路径
+     * @return
+     */
     @Override
     public String configFilePath() {
         return BrokerPathConfigHelper.getConsumerOffsetPath(this.brokerController.getMessageStoreConfig().getStorePathRootDir());
     }
 
+    /**
+     * 解码json文件中的内容 设置偏移列表
+     * @param jsonString
+     */
     @Override
     public void decode(String jsonString) {
         if (jsonString != null) {
