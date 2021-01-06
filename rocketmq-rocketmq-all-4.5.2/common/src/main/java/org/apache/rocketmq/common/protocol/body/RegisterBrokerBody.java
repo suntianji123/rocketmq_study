@@ -38,10 +38,19 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+/**
+ * 注册广播站请求的请求体类
+ */
 public class RegisterBrokerBody extends RemotingSerializable {
 
     private static final InternalLogger LOGGER = InternalLoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
+
+    /**
+     * 设置配置列表对象
+     */
     private TopicConfigSerializeWrapper topicConfigSerializeWrapper = new TopicConfigSerializeWrapper();
+
+    //过滤服务器列表
     private List<String> filterServerList = new ArrayList<String>();
 
     public byte[] encode(boolean compress) {
@@ -95,8 +104,15 @@ public class RegisterBrokerBody extends RemotingSerializable {
         return null;
     }
 
+    /**
+     * 解码广播站命令体
+     * @param data 字节数组
+     * @param compressed 字节数组是否压缩
+     * @return
+     * @throws IOException
+     */
     public static RegisterBrokerBody decode(byte[] data, boolean compressed) throws IOException {
-        if (!compressed) {
+        if (!compressed) {//不是压缩 json反序列化
             return RegisterBrokerBody.decode(data, RegisterBrokerBody.class);
         }
         long start = System.currentTimeMillis();

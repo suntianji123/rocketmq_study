@@ -21,9 +21,20 @@ import org.apache.rocketmq.remoting.CommandCustomHeader;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 向中心服务器注册广播站注册广播站信息的响应的命令头
+ */
 public class RegisterBrokerResponseHeader implements CommandCustomHeader {
+
+    /**
+     * 广播站高可用服务器地址
+     */
     @CFNullable
     private String haServerAddr;
+
+    /**
+     * 广播站主站服务器地址
+     */
     @CFNullable
     private String masterAddr;
 

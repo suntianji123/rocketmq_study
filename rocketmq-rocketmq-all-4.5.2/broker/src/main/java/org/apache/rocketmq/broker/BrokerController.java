@@ -904,21 +904,34 @@ public class BrokerController {
         doRegisterBrokerAll(true, false, topicConfigSerializeWrapper);
     }
 
+    /**
+     * 注册当前广播站导致中心服务器
+     * @param checkOrderConfig 是否检查顺序配置
+     * @param oneway 是否为单程
+     * @param forceRegister  是否强制注册
+     */
     public synchronized void registerBrokerAll(final boolean checkOrderConfig, boolean oneway, boolean forceRegister) {
+        //获取主题配置包装对象
         TopicConfigSerializeWrapper topicConfigWrapper = this.getTopicConfigManager().buildTopicConfigSerializeWrapper();
 
         if (!PermName.isWriteable(this.getBrokerConfig().getBrokerPermission())
-            || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {
+            || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {//如果广播站没有读消息权限 或者写消息权限
+
+            //实例化一个主题配置列表
             ConcurrentHashMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<String, TopicConfig>();
-            for (TopicConfig topicConfig : topicConfigWrapper.getTopicConfigTable().values()) {
+            for (TopicConfig topicConfig : topicConfigWrapper.getTopicConfigTable().values()) {//遍历原始主题配置列表
+
+                //实例化一个主题配置对象
                 TopicConfig tmp =
                     new TopicConfig(topicConfig.getTopicName(), topicConfig.getReadQueueNums(), topicConfig.getWriteQueueNums(),
                         this.brokerConfig.getBrokerPermission());
+                //将主题配置对象放入新的列表
                 topicConfigTable.put(topicConfig.getTopicName(), tmp);
             }
             topicConfigWrapper.setTopicConfigTable(topicConfigTable);
         }
 
+        //如果强制注册
         if (forceRegister || needRegister(this.brokerConfig.getBrokerClusterName(),
             this.getBrokerAddr(),
             this.brokerConfig.getBrokerName(),
@@ -928,8 +941,16 @@ public class BrokerController {
         }
     }
 
+    /**
+     * 注册广播站信息到中心服务器
+     * @param checkOrderConfig 是否需要检查顺序配置
+     * @param oneway 请求注册中心是否不需要应答
+     * @param topicConfigWrapper 主题配置包装对象
+     */
     private void doRegisterBrokerAll(boolean checkOrderConfig, boolean oneway,
         TopicConfigSerializeWrapper topicConfigWrapper) {
+
+        //向每个中心服务器注册广播站信息
         List<RegisterBrokerResult> registerBrokerResultList = this.brokerOuterAPI.registerBrokerAll(
             this.brokerConfig.getBrokerClusterName(),
             this.getBrokerAddr(),
@@ -942,7 +963,8 @@ public class BrokerController {
             this.brokerConfig.getRegisterBrokerTimeoutMills(),
             this.brokerConfig.isCompressedRegister());
 
-        if (registerBrokerResultList.size() > 0) {
+        if (registerBrokerResultList.size() > 0) {//向中心服务器注册广播站结果列表不为空
+            //获取第0个注册结果
             RegisterBrokerResult registerBrokerResult = registerBrokerResultList.get(0);
             if (registerBrokerResult != null) {
                 if (this.updateMasterHAServerAddrPeriodically && registerBrokerResult.getHaServerAddr() != null) {
@@ -951,7 +973,7 @@ public class BrokerController {
 
                 this.slaveSynchronize.setMasterAddr(registerBrokerResult.getMasterAddr());
 
-                if (checkOrderConfig) {
+                if (checkOrderConfig) {//检查配置
                     this.getTopicConfigManager().updateOrderTopicConfig(registerBrokerResult.getKvTable());
                 }
             }

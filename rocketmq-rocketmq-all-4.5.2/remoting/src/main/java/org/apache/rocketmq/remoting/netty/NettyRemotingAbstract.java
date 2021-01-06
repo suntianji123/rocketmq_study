@@ -69,7 +69,7 @@ public abstract class NettyRemotingAbstract {
     protected final Semaphore semaphoreAsync;
 
     /**
-     * This map caches all on-going requests.
+     * 执行远程命令等待响应的异步操作列表集合
      */
     protected final ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable =
         new ConcurrentHashMap<Integer, ResponseFuture>(256);
@@ -97,7 +97,7 @@ public abstract class NettyRemotingAbstract {
     protected volatile SslContext sslContext;
 
     /**
-     * custom rpc hooks
+     * 自定义的rpchooks
      */
     protected List<RPCHook> rpcHooks = new ArrayList<RPCHook>();
 
@@ -199,15 +199,20 @@ public abstract class NettyRemotingAbstract {
                 @Override
                 public void run() {
                     try {
+                        //处理器响应的前期处理
                         doBeforeRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd);
                         final RemotingCommand response = pair.getObject1().processRequest(ctx, cmd);
+                        //获取响应结果的后期处理
                         doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd, response);
 
-                        if (!cmd.isOnewayRPC()) {
+                        if (!cmd.isOnewayRPC()) {//不是不需要回复的请求
                             if (response != null) {
+                                //设置请求id
                                 response.setOpaque(opaque);
+                                //标记为响应
                                 response.markResponseType();
                                 try {
+                                    //向客户端发送响应结果
                                     ctx.writeAndFlush(response);
                                 } catch (Throwable e) {
                                     log.error("process request over, but response failed", e);
@@ -241,7 +246,9 @@ public abstract class NettyRemotingAbstract {
             }
 
             try {
+                //创建一个任务
                 final RequestTask requestTask = new RequestTask(run, ctx.channel(), cmd);
+                //提交给执行器执行
                 pair.getObject2().submit(requestTask);
             } catch (RejectedExecutionException e) {
                 if ((System.currentTimeMillis() % 10000) == 0) {
@@ -394,44 +401,71 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     * 向远程服务器发送一个远程命令
+     * @param channel 与远程服务器建立的channel对象
+     * @param request 远程命令对象
+     * @param timeoutMillis 执行命令超时时间
+     * @return
+     * @throws InterruptedException
+     * @throws RemotingSendRequestException
+     * @throws RemotingTimeoutException
+     */
     public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request,
         final long timeoutMillis)
         throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+
+        //获取请求id
         final int opaque = request.getOpaque();
 
         try {
+            //实例化一个响应的异步操作对象
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
+
+            //将响应添加到等待响应列表
             this.responseTable.put(opaque, responseFuture);
+
+            //获取channel的远程服务器地址
             final SocketAddress addr = channel.remoteAddress();
+
+            //向channel写入远程命令对象 并添加回调
             channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture f) throws Exception {
-                    if (f.isSuccess()) {
+                    if (f.isSuccess()) {//如果向channel写入数据的操作成功
+                        //设置等待响应的异步操作的发送请求成功的标志为true
                         responseFuture.setSendRequestOK(true);
                         return;
                     } else {
+                        //向channel写入远程命令数据对象失败 设置等待响应的异步操作对象的发送请求成功为false
                         responseFuture.setSendRequestOK(false);
                     }
 
+                    //从等待响应的列表中删除这个等待响应的异步操作
                     responseTable.remove(opaque);
+                    //设置失败原因
                     responseFuture.setCause(f.cause());
+                    //设置响应的命令行对象为nulll
                     responseFuture.putResponse(null);
                     log.warn("send a request command to channel <" + addr + "> failed.");
                 }
             });
 
+            //阻塞当前线程 等待获取远程服务器返回的远程命令行结果
             RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
-            if (null == responseCommand) {
-                if (responseFuture.isSendRequestOK()) {
+            if (null == responseCommand) {//没有收到响应
+                if (responseFuture.isSendRequestOK()) {//发送成功 抛出异常
                     throw new RemotingTimeoutException(RemotingHelper.parseSocketAddressAddr(addr), timeoutMillis,
                         responseFuture.getCause());
-                } else {
+                } else {//发送失败
                     throw new RemotingSendRequestException(RemotingHelper.parseSocketAddressAddr(addr), responseFuture.getCause());
                 }
             }
 
+            //返回命令行对象
             return responseCommand;
         } finally {
+            //从等待响应的列表中删除这个等待响应的异步操作对象
             this.responseTable.remove(opaque);
         }
     }

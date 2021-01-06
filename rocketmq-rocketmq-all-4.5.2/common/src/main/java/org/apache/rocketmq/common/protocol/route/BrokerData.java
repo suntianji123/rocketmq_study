@@ -23,17 +23,39 @@ import java.util.List;
 import java.util.Random;
 import org.apache.rocketmq.common.MixAll;
 
+/**
+ * 广播站数据类
+ */
 public class BrokerData implements Comparable<BrokerData> {
+    /**
+     * 集群名
+     */
     private String cluster;
+    /**
+     * 广播站名
+     */
     private String brokerName;
+
+    /**
+     * 广播站id与广播站地址对应的列表
+     */
     private HashMap<Long/* brokerId */, String/* broker address */> brokerAddrs;
 
+    /**
+     * 随机对象
+     */
     private final Random random = new Random();
 
     public BrokerData() {
 
     }
 
+    /**
+     * 实例化一个广播站数据对象
+     * @param cluster 广播站集群名
+     * @param brokerName 广播站名
+     * @param brokerAddrs 广播站id与广播站地址对应的列表
+     */
     public BrokerData(String cluster, String brokerName, HashMap<Long, String> brokerAddrs) {
         this.cluster = cluster;
         this.brokerName = brokerName;

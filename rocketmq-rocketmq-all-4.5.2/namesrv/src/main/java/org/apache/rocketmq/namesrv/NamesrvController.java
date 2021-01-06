@@ -55,6 +55,9 @@ public class NamesrvController {
 
     private BrokerHousekeepingService brokerHousekeepingService;
 
+    /**
+     * 远程执行器 处理客户端请求逻辑层的执行器
+     */
     private ExecutorService remotingExecutor;
 
     private Configuration configuration;
@@ -79,6 +82,9 @@ public class NamesrvController {
 
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
+        /**
+         * 远程执行器
+         */
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 

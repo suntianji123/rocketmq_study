@@ -57,9 +57,15 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * 默认的请求处理器 提供给中心服务器使用
+ */
 public class DefaultRequestProcessor implements NettyRequestProcessor {
     private static InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
+    /**
+     * 中心服务器控制器
+     */
     protected final NamesrvController namesrvController;
 
     public DefaultRequestProcessor(NamesrvController namesrvController) {
@@ -87,9 +93,10 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
                 return this.deleteKVConfig(ctx, request);
             case RequestCode.QUERY_DATA_VERSION:
                 return queryBrokerTopicConfig(ctx, request);
-            case RequestCode.REGISTER_BROKER:
+            case RequestCode.REGISTER_BROKER://向中心服务器注册广播站
+                //获取rocketmq版本
                 Version brokerVersion = MQVersion.value2Version(request.getVersion());
-                if (brokerVersion.ordinal() >= MQVersion.Version.V3_0_11.ordinal()) {
+                if (brokerVersion.ordinal() >= MQVersion.Version.V3_0_11.ordinal()) {//3_0_11之后的版本
                     return this.registerBrokerWithFilterServer(ctx, request);
                 } else {
                     return this.registerBroker(ctx, request);
@@ -190,23 +197,39 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * 向中心服务器注册广播站信息
+     * @param ctx 与广播站建立的channel连接
+     * @param request 广播站发送过来的注册广播站信息的命令行对象
+     * @return
+     * @throws RemotingCommandException
+     */
     public RemotingCommand registerBrokerWithFilterServer(ChannelHandlerContext ctx, RemotingCommand request)
         throws RemotingCommandException {
+
+        //创建响应的命令行对象
         final RemotingCommand response = RemotingCommand.createResponseCommand(RegisterBrokerResponseHeader.class);
+
+        //获取响应头
         final RegisterBrokerResponseHeader responseHeader = (RegisterBrokerResponseHeader) response.readCustomHeader();
+
+        //解码请求头
         final RegisterBrokerRequestHeader requestHeader =
             (RegisterBrokerRequestHeader) request.decodeCommandCustomHeader(RegisterBrokerRequestHeader.class);
 
-        if (!checksum(ctx, request, requestHeader)) {
+        //检查请求头的crc32值
+        if (!checksum(ctx, request, requestHeader)) {//如果crc32值不相等 返回错误
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark("crc32 not match");
             return response;
         }
 
+        //实例化一个注册广播站命令体对象
         RegisterBrokerBody registerBrokerBody = new RegisterBrokerBody();
 
         if (request.getBody() != null) {
             try {
+                //解码请求头的广播站命令体
                 registerBrokerBody = RegisterBrokerBody.decode(request.getBody(), requestHeader.isCompressed());
             } catch (Exception e) {
                 throw new RemotingCommandException("Failed to decode RegisterBrokerBody", e);
@@ -216,6 +239,7 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
             registerBrokerBody.getTopicConfigSerializeWrapper().getDataVersion().setTimestamp(0);
         }
 
+        //向中心服务器注册广播站的主题信息
         RegisterBrokerResult result = this.namesrvController.getRouteInfoManager().registerBroker(
             requestHeader.getClusterName(),
             requestHeader.getBrokerAddr(),
@@ -226,22 +250,36 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
             registerBrokerBody.getFilterServerList(),
             ctx.channel());
 
+        //设置响应头高可用服务器服务器地址
         responseHeader.setHaServerAddr(result.getHaServerAddr());
+        //设置响应头主站地址
         responseHeader.setMasterAddr(result.getMasterAddr());
 
         byte[] jsonValue = this.namesrvController.getKvConfigManager().getKVListByNamespace(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG);
+
+        //设置响应体
         response.setBody(jsonValue);
 
+        //设置响应码成功
         response.setCode(ResponseCode.SUCCESS);
+        //清楚附加标记
         response.setRemark(null);
+        //返回响应对象
         return response;
     }
 
+    /**
+     * 检查crc32值
+     * @param ctx
+     * @param request
+     * @param requestHeader
+     * @return
+     */
     private boolean checksum(ChannelHandlerContext ctx, RemotingCommand request,
         RegisterBrokerRequestHeader requestHeader) {
-        if (requestHeader.getBodyCrc32() != 0) {
-            final int crc32 = UtilAll.crc32(request.getBody());
-            if (crc32 != requestHeader.getBodyCrc32()) {
+        if (requestHeader.getBodyCrc32() != 0) {//获取crc32值
+            final int crc32 = UtilAll.crc32(request.getBody());//计算请求体的crc32值
+            if (crc32 != requestHeader.getBodyCrc32()) {//crc32值必须相等
                 log.warn(String.format("receive registerBroker request,crc32 not match,from %s",
                     RemotingHelper.parseChannelRemoteAddr(ctx.channel())));
                 return false;

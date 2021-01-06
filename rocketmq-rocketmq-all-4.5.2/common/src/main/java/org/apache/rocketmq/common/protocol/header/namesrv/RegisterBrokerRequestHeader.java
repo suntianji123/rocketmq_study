@@ -24,20 +24,48 @@ import org.apache.rocketmq.remoting.CommandCustomHeader;
 import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 注册广播站的请求头类
+ */
 public class RegisterBrokerRequestHeader implements CommandCustomHeader {
+    /**
+     * 广播站名
+     */
     @CFNotNull
     private String brokerName;
+
+    /**
+     * 广播站地址
+     */
     @CFNotNull
     private String brokerAddr;
+
+    /**
+     * 集群名
+     */
     @CFNotNull
     private String clusterName;
+
+    /**
+     * 高可用服务器地址
+     */
     @CFNotNull
     private String haServerAddr;
+
+    /**
+     * 广播站id
+     */
     @CFNotNull
     private Long brokerId;
 
+    /**
+     * 是否为压缩注册
+     */
     private boolean compressed;
 
+    /**
+     * 循环冗余校验值
+     */
     private Integer bodyCrc32 = 0;
 
     public void checkFields() throws RemotingCommandException {

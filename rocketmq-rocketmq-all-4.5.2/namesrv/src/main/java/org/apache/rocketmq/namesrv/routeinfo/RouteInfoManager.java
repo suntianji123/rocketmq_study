@@ -48,11 +48,35 @@ import org.apache.rocketmq.remoting.common.RemotingUtil;
 public class RouteInfoManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final static long BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
+
+    /**
+     * 访问RountInfoManager的锁对象
+     */
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    /**
+     * 同一个主题 不同的广播站对该主题的不同的队列配置列表
+     */
     private final HashMap<String/* topic */, List<QueueData>> topicQueueTable;
+
+    /**
+     * 广播站名与广播站信息数据的列表
+     */
     private final HashMap<String/* brokerName */, BrokerData> brokerAddrTable;
+
+    /**
+     * 广播站集群下所有的广播站列表
+     */
     private final HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
+
+    /**
+     * 所有激活的广播站列表 广播站地址|广播站存活对象
+     */
     private final HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
+
+    /**
+     * 广播站过滤的服务器列表
+     */
     private final HashMap<String/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
 
     public RouteInfoManager() {
@@ -99,6 +123,18 @@ public class RouteInfoManager {
         return topicList.encode();
     }
 
+    /**
+     * 向中心服务器注册广播站信息
+     * @param clusterName 广播站集群名
+     * @param brokerAddr 广播站地址
+     * @param brokerName 广播站名
+     * @param brokerId 广播站id
+     * @param haServerAddr 广播站高可用服务器地址
+     * @param topicConfigWrapper 广播站主题配置列表包装对象
+     * @param filterServerList 广播站过滤服务器列表
+     * @param channel 中心服务器与广播站服务器建立的channel连接
+     * @return
+     */
     public RegisterBrokerResult registerBroker(
         final String clusterName,
         final String brokerAddr,
@@ -111,97 +147,138 @@ public class RouteInfoManager {
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             try {
+                //将写锁打开
                 this.lock.writeLock().lockInterruptibly();
 
+                //根据广播站集群名获取它下面的广播站名列表
                 Set<String> brokerNames = this.clusterAddrTable.get(clusterName);
-                if (null == brokerNames) {
+                if (null == brokerNames) {//之前没有添加过这个集群的广播站
+                    //实例化一个广播站名集合
                     brokerNames = new HashSet<String>();
+                    //向广播站集群表中注册集合
                     this.clusterAddrTable.put(clusterName, brokerNames);
                 }
+
+                //将广播站名注册到这个广播站集群名的集合
                 brokerNames.add(brokerName);
 
+                //是否第一次注册广播站
                 boolean registerFirst = false;
 
+                //从广播站信息列表获取之前注册过的广播站信息数据对象
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
-                if (null == brokerData) {
+                if (null == brokerData) {//第一次注册
                     registerFirst = true;
+                    //实例化一个广播站信息数据 对象
                     brokerData = new BrokerData(clusterName, brokerName, new HashMap<Long, String>());
+                    //将广播站信息数据对象放入信息数据列表哦
                     this.brokerAddrTable.put(brokerName, brokerData);
                 }
+
+                //获取广播站id与地址列表
                 Map<Long, String> brokerAddrsMap = brokerData.getBrokerAddrs();
                 //Switch slave to master: first remove <1, IP:PORT> in namesrv, then add <0, IP:PORT>
                 //The same IP:PORT must only have one record in brokerAddrTable
                 Iterator<Entry<Long, String>> it = brokerAddrsMap.entrySet().iterator();
                 while (it.hasNext()) {
                     Entry<Long, String> item = it.next();
+                    //地址相同 id不同 说明服务有可能由从变为主 需要移除之前的注册
                     if (null != brokerAddr && brokerAddr.equals(item.getValue()) && brokerId != item.getKey()) {
                         it.remove();
                     }
                 }
 
+                //向广播站数据对象中添加广播站id与地址到id地址列表
                 String oldAddr = brokerData.getBrokerAddrs().put(brokerId, brokerAddr);
+                //第一次注册
                 registerFirst = registerFirst || (null == oldAddr);
 
+                //如果广播站主题配置列表不为null并且注册的为主站
                 if (null != topicConfigWrapper
-                    && MixAll.MASTER_ID == brokerId) {
+                    && MixAll.MASTER_ID == brokerId) {//需要变更广播站配置信息
                     if (this.isBrokerTopicConfigChanged(brokerAddr, topicConfigWrapper.getDataVersion())
                         || registerFirst) {
                         ConcurrentMap<String, TopicConfig> tcTable =
-                            topicConfigWrapper.getTopicConfigTable();
+                            topicConfigWrapper.getTopicConfigTable();//获取新的广播站配置信息列表
                         if (tcTable != null) {
-                            for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {
+                            for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {//遍历所有的主题配置
+                                //更新指定广播站对遍历的主题的队列的配置数据
                                 this.createAndUpdateQueueData(brokerName, entry.getValue());
                             }
                         }
                     }
                 }
 
+                //向活着的广播站列表中 添加注册的广播站
                 BrokerLiveInfo prevBrokerLiveInfo = this.brokerLiveTable.put(brokerAddr,
                     new BrokerLiveInfo(
                         System.currentTimeMillis(),
                         topicConfigWrapper.getDataVersion(),
                         channel,
                         haServerAddr));
-                if (null == prevBrokerLiveInfo) {
+                if (null == prevBrokerLiveInfo) {//新的注册
                     log.info("new broker registered, {} HAServer: {}", brokerAddr, haServerAddr);
                 }
 
-                if (filterServerList != null) {
-                    if (filterServerList.isEmpty()) {
+                if (filterServerList != null) {//过滤服务器列表不为空
+                    if (filterServerList.isEmpty()) {//如果是空
+                        //移除广播站之前注册的过滤的服务器列表
                         this.filterServerTable.remove(brokerAddr);
                     } else {
+                        //将广播站新的过滤服务器列表添加到注册中心
                         this.filterServerTable.put(brokerAddr, filterServerList);
                     }
                 }
 
-                if (MixAll.MASTER_ID != brokerId) {
+                if (MixAll.MASTER_ID != brokerId) {//如果注册的是从站
+                    //获取主站的地址
                     String masterAddr = brokerData.getBrokerAddrs().get(MixAll.MASTER_ID);
-                    if (masterAddr != null) {
+                    if (masterAddr != null) {//存在主站
+                        //获取主站存活信息
                         BrokerLiveInfo brokerLiveInfo = this.brokerLiveTable.get(masterAddr);
                         if (brokerLiveInfo != null) {
+                            //设置高可用服务器地址
                             result.setHaServerAddr(brokerLiveInfo.getHaServerAddr());
+                            //谁知主站地址
                             result.setMasterAddr(masterAddr);
                         }
                     }
                 }
             } finally {
+                //释放写锁
                 this.lock.writeLock().unlock();
             }
         } catch (Exception e) {
             log.error("registerBroker Exception", e);
         }
 
+        //返回注册结果
         return result;
     }
 
+    /**
+     * 判断某个广播站的主题配置是否发生变更
+     * @param brokerAddr 广播站地址
+     * @param dataVersion 主题配置数据版本
+     * @return
+     */
     public boolean isBrokerTopicConfigChanged(final String brokerAddr, final DataVersion dataVersion) {
         DataVersion prev = queryBrokerTopicConfig(brokerAddr);
+
+        //之前的版本 与当前版本不一样 需要变更
         return null == prev || !prev.equals(dataVersion);
     }
 
+    /**
+     * 查询某个广播站配置版本
+     * @param brokerAddr 广播站地址
+     * @return
+     */
     public DataVersion queryBrokerTopicConfig(final String brokerAddr) {
+        //从存活的广播站列表获取这个地址的广播站信息对象
         BrokerLiveInfo prev = this.brokerLiveTable.get(brokerAddr);
-        if (prev != null) {
+        if (prev != null) {//不为null
+            //获取版本对象
             return prev.getDataVersion();
         }
         return null;
@@ -214,16 +291,33 @@ public class RouteInfoManager {
         }
     }
 
+    /**
+     * 更新某个广播站对某个主题的队列配置
+     * @param brokerName 指定的广播站名
+     * @param topicConfig 广播站配置对象
+     */
     private void createAndUpdateQueueData(final String brokerName, final TopicConfig topicConfig) {
+        //实例化一个队列数据对象
         QueueData queueData = new QueueData();
+
+        //设置广播站名
         queueData.setBrokerName(brokerName);
+
+        //设置写队列的数量
         queueData.setWriteQueueNums(topicConfig.getWriteQueueNums());
+
+        //设置对队列的数量
         queueData.setReadQueueNums(topicConfig.getReadQueueNums());
+
+        //设置权限
         queueData.setPerm(topicConfig.getPerm());
+
+        //设置主题同步标志
         queueData.setTopicSynFlag(topicConfig.getTopicSysFlag());
 
+        //获取这个主题下所有的广播站的队列配置对象
         List<QueueData> queueDataList = this.topicQueueTable.get(topicConfig.getTopicName());
-        if (null == queueDataList) {
+        if (null == queueDataList) {//之前不存在这个主题
             queueDataList = new LinkedList<QueueData>();
             queueDataList.add(queueData);
             this.topicQueueTable.put(topicConfig.getTopicName(), queueDataList);
@@ -234,18 +328,19 @@ public class RouteInfoManager {
             Iterator<QueueData> it = queueDataList.iterator();
             while (it.hasNext()) {
                 QueueData qd = it.next();
-                if (qd.getBrokerName().equals(brokerName)) {
+                if (qd.getBrokerName().equals(brokerName)) {//当队列配置对象的广播站与指定广播站名相等时
                     if (qd.equals(queueData)) {
                         addNewOne = false;
                     } else {
                         log.info("topic changed, {} OLD: {} NEW: {}", topicConfig.getTopicName(), qd,
                             queueData);
+                        //移除之前广播站对应这个主题的配置
                         it.remove();
                     }
                 }
             }
 
-            if (addNewOne) {
+            if (addNewOne) {//将新的队列配置添加到这个主题的队列配置列表
                 queueDataList.add(queueData);
             }
         }
@@ -752,10 +847,28 @@ public class RouteInfoManager {
     }
 }
 
+/**
+ * 活着的广播站信息类
+ */
 class BrokerLiveInfo {
+    /**
+     * 最后一次更新时间
+     */
     private long lastUpdateTimestamp;
+
+    /**
+     * 广播站版本
+     */
     private DataVersion dataVersion;
+
+    /**
+     * 与中心服务器建立的chanel对象
+     */
     private Channel channel;
+
+    /**
+     * 高可用服务器地址
+     */
     private String haServerAddr;
 
     public BrokerLiveInfo(long lastUpdateTimestamp, DataVersion dataVersion, Channel channel,

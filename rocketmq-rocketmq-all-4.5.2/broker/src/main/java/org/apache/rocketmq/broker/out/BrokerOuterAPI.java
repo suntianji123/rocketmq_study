@@ -58,11 +58,18 @@ import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * 广播站访问外部的api类
+ */
 public class BrokerOuterAPI {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private final RemotingClient remotingClient;
     private final TopAddressing topAddressing = new TopAddressing(MixAll.getWSAddr());
     private String nameSrvAddr = null;
+
+    /**
+     * 广播站访问外部的执行器 线程池中最少4个线程 最多10个线程 超过1分钟 线程没工作 从线程池中销毁 执行任务队列  生产线程的工厂累
+     */
     private BrokerFixedThreadPoolExecutor brokerOuterExecutor = new BrokerFixedThreadPoolExecutor(4, 10, 1, TimeUnit.MINUTES,
         new ArrayBlockingQueue<Runnable>(32), new ThreadFactoryImpl("brokerOutApi_thread_", true));
 
@@ -111,6 +118,20 @@ public class BrokerOuterAPI {
         this.remotingClient.updateNameServerAddressList(lst);
     }
 
+    /**
+     * 注册广播站信息到中心服务器
+     * @param clusterName 广播站集群名
+     * @param brokerAddr 广播站地址
+     * @param brokerName 广播站名
+     * @param brokerId 广播站id
+     * @param haServerAddr 高可用服务地址
+     * @param topicConfigWrapper 主题配置列表包装对象
+     * @param filterServerList 过滤服务器列表
+     * @param oneway 是否为单向
+     * @param timeoutMills 注册超时时间
+     * @param compressed 请求中心服务的数据是否为压缩过的
+     * @return
+     */
     public List<RegisterBrokerResult> registerBrokerAll(
         final String clusterName,
         final String brokerAddr,
@@ -123,26 +144,47 @@ public class BrokerOuterAPI {
         final int timeoutMills,
         final boolean compressed) {
 
+        //实例化一个注册结果list
         final List<RegisterBrokerResult> registerBrokerResultList = Lists.newArrayList();
+
+        //获取中心服务器地址列表
         List<String> nameServerAddressList = this.remotingClient.getNameServerAddressList();
         if (nameServerAddressList != null && nameServerAddressList.size() > 0) {
 
+            //实例化一个注册广播站的请求头
             final RegisterBrokerRequestHeader requestHeader = new RegisterBrokerRequestHeader();
+            //设置广播站地址
             requestHeader.setBrokerAddr(brokerAddr);
+            //设置广播站id
             requestHeader.setBrokerId(brokerId);
+            //设置广播站名
             requestHeader.setBrokerName(brokerName);
+            //设置集群名
             requestHeader.setClusterName(clusterName);
+            //设置高可用服务地址
             requestHeader.setHaServerAddr(haServerAddr);
+            //设置是否为压缩注册
             requestHeader.setCompressed(compressed);
 
+            //实例化一个注册广播站的请求体类
             RegisterBrokerBody requestBody = new RegisterBrokerBody();
+
+            //请求体设置主题配置列表包装类
             requestBody.setTopicConfigSerializeWrapper(topicConfigWrapper);
+
+            //设置过滤服务器列表
             requestBody.setFilterServerList(filterServerList);
+            //将请求体编码为字节数组
             final byte[] body = requestBody.encode(compressed);
+            //使用crc32过滤重复字节
             final int bodyCrc32 = UtilAll.crc32(body);
+            //设置重复校验的crc32值
             requestHeader.setBodyCrc32(bodyCrc32);
+
+            //实例化一个计数器锁
             final CountDownLatch countDownLatch = new CountDownLatch(nameServerAddressList.size());
             for (final String namesrvAddr : nameServerAddressList) {
+                //交给广播站访问外部的执行器来执行将广播站信息注册到中心服务器的方法
                 brokerOuterExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
@@ -156,6 +198,7 @@ public class BrokerOuterAPI {
                         } catch (Exception e) {
                             log.warn("registerBroker Exception, {}", namesrvAddr, e);
                         } finally {
+                            //计算器锁数量减1
                             countDownLatch.countDown();
                         }
                     }
@@ -163,14 +206,32 @@ public class BrokerOuterAPI {
             }
 
             try {
+
+                //等待执行器完成向所有的中心服务器注册当前广播站信息
                 countDownLatch.await(timeoutMills, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
             }
         }
 
+        //返回向多个中心服务器注册广播站的注册结果列表
         return registerBrokerResultList;
     }
 
+    /**
+     * 向某个中心服务器注册广播站信息
+     * @param namesrvAddr 中心服务器地址
+     * @param oneway 是否为单向
+     * @param timeoutMills 注册请求超时时间
+     * @param requestHeader 注册广播站的请求头对象
+     * @param body 注册广播站的请求体对象
+     * @return
+     * @throws RemotingCommandException
+     * @throws MQBrokerException
+     * @throws RemotingConnectException
+     * @throws RemotingSendRequestException
+     * @throws RemotingTimeoutException
+     * @throws InterruptedException
+     */
     private RegisterBrokerResult registerBroker(
         final String namesrvAddr,
         final boolean oneway,
@@ -179,10 +240,14 @@ public class BrokerOuterAPI {
         final byte[] body
     ) throws RemotingCommandException, MQBrokerException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException,
         InterruptedException {
+
+        //创建一个远程命令
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.REGISTER_BROKER, requestHeader);
+
+        //设置远程名利的请求体
         request.setBody(body);
 
-        if (oneway) {
+        if (oneway) {//如果是单向
             try {
                 this.remotingClient.invokeOneway(namesrvAddr, request, timeoutMills);
             } catch (RemotingTooMuchRequestException e) {
@@ -191,18 +256,26 @@ public class BrokerOuterAPI {
             return null;
         }
 
+        //不是单向请求  获取或者创建与远程服务器的连接 发送请求或者响应结果
         RemotingCommand response = this.remotingClient.invokeSync(namesrvAddr, request, timeoutMills);
         assert response != null;
         switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
+            case ResponseCode.SUCCESS: {//响应成功
+                //解码响应头 获取注册广播站响应头
                 RegisterBrokerResponseHeader responseHeader =
                     (RegisterBrokerResponseHeader) response.decodeCommandCustomHeader(RegisterBrokerResponseHeader.class);
+
+                //实例化一个注册广播站结果对象
                 RegisterBrokerResult result = new RegisterBrokerResult();
+                //设置主站地址
                 result.setMasterAddr(responseHeader.getMasterAddr());
+                //设置高可用服务器地址
                 result.setHaServerAddr(responseHeader.getHaServerAddr());
+
                 if (response.getBody() != null) {
                     result.setKvTable(KVTable.decode(response.getBody(), KVTable.class));
                 }
+                //返回注册结果
                 return result;
             }
             default:

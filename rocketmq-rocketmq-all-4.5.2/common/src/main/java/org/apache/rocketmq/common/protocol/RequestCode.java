@@ -84,6 +84,9 @@ public class RequestCode {
 
     public static final int DELETE_KV_CONFIG = 102;
 
+    /**
+     * 向中心服务器注册广播站的命令码
+     */
     public static final int REGISTER_BROKER = 103;
 
     public static final int UNREGISTER_BROKER = 104;
