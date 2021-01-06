@@ -232,7 +232,7 @@ public class BrokerStartup {
                     break;
             }
 
-            //设置消息存储配置的端口号
+            //设置从站高可用监听端口
             messageStoreConfig.setHaListenPort(nettyServerConfig.getListenPort() + 1);
 
             //重置日志路径

@@ -418,7 +418,7 @@ public class BrokerController {
                 }
             }, 1000 * 10, 1000 * 60, TimeUnit.MILLISECONDS);
 
-            if (this.brokerConfig.getNamesrvAddr() != null) {
+            if (this.brokerConfig.getNamesrvAddr() != null) {//广播站配置的注册中心服务器地址不为null
                 this.brokerOuterAPI.updateNameServerAddressList(this.brokerConfig.getNamesrvAddr());
                 log.info("Set user specified name server address: {}", this.brokerConfig.getNamesrvAddr());
             } else if (this.brokerConfig.isFetchNamesrvAddrByAddressServer()) {
@@ -781,29 +781,41 @@ public class BrokerController {
         }
     }
 
+    /**
+     * 将broker注册到注册中心服务器
+     * @param checkOrderConfig
+     * @param oneway
+     */
     public synchronized void registerBrokerAll(final boolean checkOrderConfig, boolean oneway) {
+        //构造主题配置序列化对象
         TopicConfigSerializeWrapper topicConfigWrapper = this.getTopicConfigManager().buildTopicConfigSerializeWrapper();
 
         if (!PermName.isWriteable(this.getBrokerConfig().getBrokerPermission())
-            || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {
+            || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {//如果广播站没有可读 或者可写权限中的一个
+
+            //实例化一个主题配置列表
             ConcurrentHashMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<String, TopicConfig>();
-            for (TopicConfig topicConfig : topicConfigWrapper.getTopicConfigTable().values()) {
+            for (TopicConfig topicConfig : topicConfigWrapper.getTopicConfigTable().values()) {//遍历TopicConfigManger中存放的主题配置列表
+                //实例化一个主题配置对象
                 TopicConfig tmp =
                     new TopicConfig(topicConfig.getTopicName(), topicConfig.getReadQueueNums(), topicConfig.getWriteQueueNums(),
                         this.brokerConfig.getBrokerPermission());
+                //将主题配置放入主题配置列表
                 topicConfigTable.put(topicConfig.getTopicName(), tmp);
             }
+
+            //重新设置序列化对象的主题配置列表为新实例化的主题配置列表
             topicConfigWrapper.setTopicConfigTable(topicConfigTable);
         }
 
         RegisterBrokerResult registerBrokerResult = this.brokerOuterAPI.registerBrokerAll(
-            this.brokerConfig.getBrokerClusterName(),
-            this.getBrokerAddr(),
-            this.brokerConfig.getBrokerName(),
-            this.brokerConfig.getBrokerId(),
-            this.getHAServerAddr(),
-            topicConfigWrapper,
-            this.filterServerManager.buildNewFilterServerList(),
+            this.brokerConfig.getBrokerClusterName(),//broker集群名
+            this.getBrokerAddr(),//广播主站地址
+            this.brokerConfig.getBrokerName(),//广播站名
+            this.brokerConfig.getBrokerId(),//广播站ID
+            this.getHAServerAddr(),//高可用站地址
+            topicConfigWrapper,//主题配置包装对象
+            this.filterServerManager.buildNewFilterServerList(),//过滤服务器列表
             oneway,
             this.brokerConfig.getRegisterBrokerTimeoutMills());
 

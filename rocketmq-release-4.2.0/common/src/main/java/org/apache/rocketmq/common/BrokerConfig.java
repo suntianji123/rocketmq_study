@@ -38,6 +38,10 @@ public class BrokerConfig {
     @ImportantField
     private String brokerIP1 = RemotingUtil.getLocalAddress();
     private String brokerIP2 = RemotingUtil.getLocalAddress();
+
+    /**
+     * 广播站名
+     */
     @ImportantField
     private String brokerName = localHostName();
 
@@ -124,6 +128,10 @@ public class BrokerConfig {
     private int maxDelayTime = 40;
 
     private String regionId = MixAll.DEFAULT_TRACE_REGION_ID;
+
+    /**
+     * 将广播站信息注册到注册中心服务器超时时间
+     */
     private int registerBrokerTimeoutMills = 6000;
 
     private boolean slaveReadEnable = false;

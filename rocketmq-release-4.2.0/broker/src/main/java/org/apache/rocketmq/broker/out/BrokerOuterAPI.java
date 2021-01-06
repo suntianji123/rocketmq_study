@@ -47,16 +47,32 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 广播站对外的api类
+ */
 public class BrokerOuterAPI {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
+
+    /**
+     * 远程client对象
+     */
     private final RemotingClient remotingClient;
     private final TopAddressing topAddressing = new TopAddressing(MixAll.getWSAddr());
     private String nameSrvAddr = null;
 
+    /**
+     * 实例化一个广播站对外的api对象
+     * @param nettyClientConfig netty配置
+     */
     public BrokerOuterAPI(final NettyClientConfig nettyClientConfig) {
         this(nettyClientConfig, null);
     }
 
+    /**
+     * 实例化一个广播站对外的api对象
+     * @param nettyClientConfig netty配置
+     * @param rpcHook
+     */
     public BrokerOuterAPI(final NettyClientConfig nettyClientConfig, RPCHook rpcHook) {
         this.remotingClient = new NettyRemotingClient(nettyClientConfig);
         this.remotingClient.registerRPCHook(rpcHook);
@@ -87,16 +103,34 @@ public class BrokerOuterAPI {
         return nameSrvAddr;
     }
 
+    /**
+     * 更新注册中心服务器地址列表
+     * @param addrs
+     */
     public void updateNameServerAddressList(final String addrs) {
         List<String> lst = new ArrayList<String>();
         String[] addrArray = addrs.split(";");
-        for (String addr : addrArray) {
+        for (String addr : addrArray) {//遍历地址
             lst.add(addr);
         }
 
+        //将地址添加到远程客户端的注册中心地址列表
         this.remotingClient.updateNameServerAddressList(lst);
     }
 
+    /**
+     *注册广播站到注册中心
+     * @param clusterName 集群名
+     * @param brokerAddr 广播站地址
+     * @param brokerName 广播站名
+     * @param brokerId 广播站id
+     * @param haServerAddr 高可用站地址
+     * @param topicConfigWrapper 主题配置包装对象
+     * @param filterServerList 过滤掉的服务器列表
+     * @param oneway 是否为单程
+     * @param timeoutMills 注册超时时间 默认为6秒
+     * @return
+     */
     public RegisterBrokerResult registerBrokerAll(
         final String clusterName,
         final String brokerAddr,
@@ -107,12 +141,16 @@ public class BrokerOuterAPI {
         final List<String> filterServerList,
         final boolean oneway,
         final int timeoutMills) {
+        //注册结果
         RegisterBrokerResult registerBrokerResult = null;
 
+        //获取注册中心服务器地址
         List<String> nameServerAddressList = this.remotingClient.getNameServerAddressList();
-        if (nameServerAddressList != null) {
-            for (String namesrvAddr : nameServerAddressList) {
+        if (nameServerAddressList != null) {//注册中心服务器地址不为null
+            for (String namesrvAddr : nameServerAddressList) {//遍历每一个注册中心服务器地址
                 try {
+
+                    //向每一个注册中心服务注册当前广播站的信息
                     RegisterBrokerResult result = this.registerBroker(namesrvAddr, clusterName, brokerAddr, brokerName, brokerId,
                         haServerAddr, topicConfigWrapper, filterServerList, oneway, timeoutMills);
                     if (result != null) {
@@ -129,6 +167,26 @@ public class BrokerOuterAPI {
         return registerBrokerResult;
     }
 
+    /**
+     * 向某个注册中心服务器注册当前广播站信息
+     * @param namesrvAddr 注册中心服务器地址
+     * @param clusterName 广播站集群名
+     * @param brokerAddr 广播站地址
+     * @param brokerName 广播站名
+     * @param brokerId 广播站id
+     * @param haServerAddr 高可用服务器地址
+     * @param topicConfigWrapper 主题配置包装对象
+     * @param filterServerList 过滤的服务器列表
+     * @param oneway 是否为单程
+     * @param timeoutMills 注册超时时间
+     * @return
+     * @throws RemotingCommandException
+     * @throws MQBrokerException
+     * @throws RemotingConnectException
+     * @throws RemotingSendRequestException
+     * @throws RemotingTimeoutException
+     * @throws InterruptedException
+     */
     private RegisterBrokerResult registerBroker(
         final String namesrvAddr,
         final String clusterName,

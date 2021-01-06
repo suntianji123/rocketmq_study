@@ -57,10 +57,20 @@ public class PermName {
         return sb.toString();
     }
 
+    /**
+     * 判断广播站是否有可读权限
+     * @param perm
+     * @return
+     */
     public static boolean isReadable(final int perm) {
         return (perm & PERM_READ) == PERM_READ;
     }
 
+    /**
+     * 判断广播站是否有可写权限
+     * @param perm
+     * @return
+     */
     public static boolean isWriteable(final int perm) {
         return (perm & PERM_WRITE) == PERM_WRITE;
     }

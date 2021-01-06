@@ -134,6 +134,10 @@ public class FilterServerManager {
         }
     }
 
+    /**
+     * 创建被过滤掉的服务器列表
+     * @return
+     */
     public List<String> buildNewFilterServerList() {
         List<String> addr = new ArrayList<>();
         Iterator<Entry<Channel, FilterServerInfo>> it = this.filterServerTable.entrySet().iterator();
@@ -144,8 +148,18 @@ public class FilterServerManager {
         return addr;
     }
 
+    /**
+     * 被过滤掉的服务器信息
+     */
     static class FilterServerInfo {
+        /**
+         * 被过滤掉的服务器地址
+         */
         private String filterServerAddr;
+
+        /**
+         * 最后一次更新时间
+         */
         private long lastUpdateTimestamp;
 
         public String getFilterServerAddr() {

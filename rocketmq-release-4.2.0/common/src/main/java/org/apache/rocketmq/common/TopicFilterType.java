@@ -16,8 +16,11 @@
  */
 package org.apache.rocketmq.common;
 
+/**
+ * 主题过滤枚举
+ */
 public enum TopicFilterType {
-    SINGLE_TAG,
-    MULTI_TAG
+    SINGLE_TAG,//单标签
+    MULTI_TAG//多标签
 
 }

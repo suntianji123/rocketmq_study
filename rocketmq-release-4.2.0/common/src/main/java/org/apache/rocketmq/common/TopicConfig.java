@@ -23,7 +23,15 @@ import org.apache.rocketmq.common.constant.PermName;
  */
 public class TopicConfig {
     private static final String SEPARATOR = " ";
+
+    /**
+     *存储这个主题的消息的默认读队列数
+     */
     public static int defaultReadQueueNums = 16;
+
+    /**
+     * 存储这个主题的消息的默认写队列数
+     */
     public static int defaultWriteQueueNums = 16;
 
     /**
@@ -32,12 +40,12 @@ public class TopicConfig {
     private String topicName;
 
     /**
-     * 读队列的数量
+     * 存储这个主题的消息的读队列数
      */
     private int readQueueNums = defaultReadQueueNums;
 
     /**
-     * 写队列的数量
+     * 存储这个主题的消息的写队列数
      */
     private int writeQueueNums = defaultWriteQueueNums;
 
@@ -45,8 +53,16 @@ public class TopicConfig {
      * 设置主题的权限 可写 可读 可心跳
      */
     private int perm = PermName.PERM_READ | PermName.PERM_WRITE;
+
+    /**
+     * 主题拦截类型默认为单标签
+     */
     private TopicFilterType topicFilterType = TopicFilterType.SINGLE_TAG;
     private int topicSysFlag = 0;
+
+    /**
+     * 主题消息是有序的 还是实时的 默认是实时的
+     */
     private boolean order = false;
 
     public TopicConfig() {
@@ -60,10 +76,21 @@ public class TopicConfig {
         this.topicName = topicName;
     }
 
+    /**
+     * 实例化一个主题配置对象
+     * @param topicName 主题名
+     * @param readQueueNums 存储主题消息读队列的数量
+     * @param writeQueueNums 存储主题消息写队列的数量
+     * @param perm 主题权限
+     */
     public TopicConfig(String topicName, int readQueueNums, int writeQueueNums, int perm) {
+        //设置主题名
         this.topicName = topicName;
+        //设置存储主题消息读队列的数量
         this.readQueueNums = readQueueNums;
+        //设置存储主题消息写队列的数量
         this.writeQueueNums = writeQueueNums;
+        //设置主题的权限值
         this.perm = perm;
     }
 
