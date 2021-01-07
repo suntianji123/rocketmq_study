@@ -87,9 +87,20 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.apache.rocketmq.remoting.exception.RemotingTimeoutException;
 import org.apache.rocketmq.remoting.exception.RemotingTooMuchRequestException;
 
+/**
+ * 默认的生产者实现类
+ */
 public class DefaultMQProducerImpl implements MQProducerInner {
     private final InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 随机对象
+     */
     private final Random random = new Random();
+
+    /**
+     * 默认的生产者
+     */
     private final DefaultMQProducer defaultMQProducer;
     private final ConcurrentMap<String/* topic */, TopicPublishInfo> topicPublishInfoTable =
         new ConcurrentHashMap<String, TopicPublishInfo>();
@@ -97,6 +108,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private final RPCHook rpcHook;
     protected BlockingQueue<Runnable> checkRequestQueue;
     protected ExecutorService checkExecutor;
+
+    /**
+     * 服务状态
+     */
     private ServiceState serviceState = ServiceState.CREATE_JUST;
     private MQClientInstance mQClientFactory;
     private ArrayList<CheckForbiddenHook> checkForbiddenHookList = new ArrayList<CheckForbiddenHook>();
@@ -104,7 +119,14 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private MQFaultStrategy mqFaultStrategy = new MQFaultStrategy();
 
+    /**
+     * 异步发送者任务队列
+     */
     private final BlockingQueue<Runnable> asyncSenderThreadPoolQueue;
+
+    /**
+     * 默认的异步发送者执行器
+     */
     private final ExecutorService defaultAsyncSenderExecutor;
     private ExecutorService asyncSenderExecutor;
 
@@ -112,18 +134,26 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this(defaultMQProducer, null);
     }
 
+    /**
+     * 默认的生产者实现
+     * @param defaultMQProducer 默认的生产者
+     * @param rpcHook
+     */
     public DefaultMQProducerImpl(final DefaultMQProducer defaultMQProducer, RPCHook rpcHook) {
         this.defaultMQProducer = defaultMQProducer;
         this.rpcHook = rpcHook;
 
+        //实例化一个异步发送线程任务队列
         this.asyncSenderThreadPoolQueue = new LinkedBlockingQueue<Runnable>(50000);
+
+        //异步发送者执行器
         this.defaultAsyncSenderExecutor = new ThreadPoolExecutor(
-            Runtime.getRuntime().availableProcessors(),
-            Runtime.getRuntime().availableProcessors(),
-            1000 * 60,
-            TimeUnit.MILLISECONDS,
-            this.asyncSenderThreadPoolQueue,
-            new ThreadFactory() {
+            Runtime.getRuntime().availableProcessors(),//线程池最小工作线程数量 cpu核数
+            Runtime.getRuntime().availableProcessors(),//线程池最大工作线程数量 cpu核数
+            1000 * 60,//当超过1分钟 线程没有工作时 将被线程池销毁
+            TimeUnit.MILLISECONDS, //时间单位
+            this.asyncSenderThreadPoolQueue,//任务对垒
+            new ThreadFactory() {//生产线程的工厂类
                 private AtomicInteger threadIndex = new AtomicInteger(0);
 
                 @Override
@@ -165,34 +195,51 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         log.info("register sendMessage Hook, {}", hook.hookName());
     }
 
+    /**
+     * 启动默认的生产者实现
+     * @throws MQClientException
+     */
     public void start() throws MQClientException {
         this.start(true);
     }
 
+    /**
+     * 启动默认的生产者实现
+     * @param startFactory 是否启动MQClientInstance对象
+     * @throws MQClientException
+     */
     public void start(final boolean startFactory) throws MQClientException {
-        switch (this.serviceState) {
-            case CREATE_JUST:
+        switch (this.serviceState) {//消费者服务者装填
+            case CREATE_JUST://只是创建
+                //设置服务状态为启动失败
                 this.serviceState = ServiceState.START_FAILED;
 
+                //检查配置 校验组名
                 this.checkConfig();
 
+                //组名不是内部名字 改变实例名
                 if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
+                    //更改消息费者的实例名为进程的pid值
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
 
+                //获取一个mqclientinstance对象
                 this.mQClientFactory = MQClientManager.getInstance().getAndCreateMQClientInstance(this.defaultMQProducer, rpcHook);
 
+                //将生产者注册到mqclientinstance维护的生产者列表
                 boolean registerOK = mQClientFactory.registerProducer(this.defaultMQProducer.getProducerGroup(), this);
-                if (!registerOK) {
+                if (!registerOK) {//注册失败
+                    //设置启动生产者服务的状态
                     this.serviceState = ServiceState.CREATE_JUST;
                     throw new MQClientException("The producer group[" + this.defaultMQProducer.getProducerGroup()
                         + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL),
                         null);
                 }
 
+                //主题发布信息列表中放入创建主题对应的主题发布信息
                 this.topicPublishInfoTable.put(this.defaultMQProducer.getCreateTopicKey(), new TopicPublishInfo());
 
-                if (startFactory) {
+                if (startFactory) {//启动mqclientinstance
                     mQClientFactory.start();
                 }
 
@@ -214,13 +261,21 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
     }
 
+    /**
+     * 检查配置
+     * @throws MQClientException
+     */
     private void checkConfig() throws MQClientException {
+
+        //校验组名
         Validators.checkGroup(this.defaultMQProducer.getProducerGroup());
 
+        //默认的生产者不能为空
         if (null == this.defaultMQProducer.getProducerGroup()) {
             throw new MQClientException("producerGroup is null", null);
         }
 
+        //组名不能为默认的组名
         if (this.defaultMQProducer.getProducerGroup().equals(MixAll.DEFAULT_PRODUCER_GROUP)) {
             throw new MQClientException("producerGroup can not equal " + MixAll.DEFAULT_PRODUCER_GROUP + ", please specify another one.",
                 null);

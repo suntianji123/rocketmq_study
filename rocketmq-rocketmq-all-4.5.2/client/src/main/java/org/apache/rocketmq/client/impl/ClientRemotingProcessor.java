@@ -49,11 +49,21 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
-
+/**
+ * 客户端收到远程服务器返回消息的处理器
+ */
 public class ClientRemotingProcessor implements NettyRequestProcessor {
     private final InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 持有mqclientinstance的引用
+     */
     private final MQClientInstance mqClientFactory;
 
+    /**
+     * 实例化一个客户端收到远程服务器返回消息的处理器对象
+     * @param mqClientFactory 持有mqlclientinstance的引用对象
+     */
     public ClientRemotingProcessor(final MQClientInstance mqClientFactory) {
         this.mqClientFactory = mqClientFactory;
     }

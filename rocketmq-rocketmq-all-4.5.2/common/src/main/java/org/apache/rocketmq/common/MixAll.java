@@ -110,10 +110,22 @@ public class MixAll {
         return RETRY_GROUP_TOPIC_PREFIX + consumerGroup;
     }
 
+    /**
+     * 以CID_RMQ_SYS_作为前缀 表示为系统组名
+     * 判断消费者组名是否为系统组名
+     * @param consumerGroup 消费者组名
+     * @return
+     */
     public static boolean isSysConsumerGroup(final String consumerGroup) {
         return consumerGroup.startsWith(CID_RMQ_SYS_PREFIX);
     }
 
+    /**
+     * 如果主题名以rmq_sys_作为前缀表示为系统主题
+     * 判断某个主题为系统内部主题
+     * @param topic 主题名
+     * @return
+     */
     public static boolean isSystemTopic(final String topic) {
         return topic.startsWith(SYSTEM_TOPIC_PREFIX);
     }

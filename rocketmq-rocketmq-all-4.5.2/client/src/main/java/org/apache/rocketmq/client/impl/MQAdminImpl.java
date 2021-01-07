@@ -56,12 +56,23 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.apache.rocketmq.remoting.netty.ResponseFuture;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * mqadmin实现类
+ */
 public class MQAdminImpl {
 
     private final InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * mqclientinstance对象
+     */
     private final MQClientInstance mQClientFactory;
     private long timeoutMillis = 6000;
 
+    /**
+     * 实例化一个mqadmin实现对象
+     * @param mQClientFactory mqclientinstance对象
+     */
     public MQAdminImpl(MQClientInstance mQClientFactory) {
         this.mQClientFactory = mQClientFactory;
     }

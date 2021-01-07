@@ -85,6 +85,9 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
     private final Timer timer = new Timer("ClientHouseKeepingService", true);
 
+    /**
+     * 中心服务器地址引用
+     */
     private final AtomicReference<List<String>> namesrvAddrList = new AtomicReference<List<String>>();
     private final AtomicReference<String> namesrvAddrChoosed = new AtomicReference<String>();
     private final AtomicInteger namesrvIndex = new AtomicInteger(initValueIndex());
@@ -223,6 +226,9 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             this.eventLoopGroupWorker.shutdownGracefully();
 
             if (this.nettyEventExecutor != null) {
+
+
+
                 this.nettyEventExecutor.shutdown();
             }
 
@@ -336,6 +342,10 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * 更新中心服务器地址
+     * @param addrs 中心服务器地址列表
+     */
     @Override
     public void updateNameServerAddressList(List<String> addrs) {
         List<String> old = this.namesrvAddrList.get();
@@ -611,10 +621,16 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * 注册某个命令行码对应的执行器及处理器的pair对象
+     * @param requestCode 命令行执行码
+     * @param processor 处理器
+     * @param executor 执行器
+     */
     @Override
     public void registerProcessor(int requestCode, NettyRequestProcessor processor, ExecutorService executor) {
         ExecutorService executorThis = executor;
-        if (null == executor) {
+        if (null == executor) {//没有指定执行器 使用公共执行器
             executorThis = this.publicExecutor;
         }
 

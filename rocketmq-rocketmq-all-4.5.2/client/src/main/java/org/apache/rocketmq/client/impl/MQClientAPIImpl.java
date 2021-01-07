@@ -163,6 +163,9 @@ import org.apache.rocketmq.remoting.protocol.LanguageCode;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+/**
+ * mqclientapi实现类
+ */
 public class MQClientAPIImpl {
 
     private final static InternalLogger log = ClientLogger.getLog();
@@ -173,21 +176,54 @@ public class MQClientAPIImpl {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
     }
 
+    /**
+     * 远程客户端
+     */
     private final RemotingClient remotingClient;
+
+    /**
+     * 寻找中心服务器地址的寻址对象
+     */
     private final TopAddressing topAddressing;
+
+    /**
+     * nettyremotingclient收到远程服务消息后的处理器对象
+     */
     private final ClientRemotingProcessor clientRemotingProcessor;
+
+    /**
+     * 中心服务器地址
+     */
     private String nameSrvAddr = null;
+
+    /**
+     * 客户端配置
+     */
     private ClientConfig clientConfig;
 
+    /**
+     * 实例化一个mqclientapi实现对象
+     * @param nettyClientConfig netty客户端配置
+     * @param clientRemotingProcessor nettyclientremoting收到远程服务器的消息后的处理器
+     * @param rpcHook
+     * @param clientConfig 客户端配置对象
+     */
     public MQClientAPIImpl(final NettyClientConfig nettyClientConfig,
         final ClientRemotingProcessor clientRemotingProcessor,
         RPCHook rpcHook, final ClientConfig clientConfig) {
+        //设置客户端配置对象
         this.clientConfig = clientConfig;
+        //设置寻找中心服务器地址的寻址对象
         topAddressing = new TopAddressing(MixAll.getWSAddr(), clientConfig.getUnitName());
+        //设置访问远程服务器的client的nettyremotingclient对象
         this.remotingClient = new NettyRemotingClient(nettyClientConfig, null);
+        //设置nettyremotingclient收到远程服务器的消息后的处理器对象
         this.clientRemotingProcessor = clientRemotingProcessor;
 
+        //注册收到客户端消息的前后处理钩子
         this.remotingClient.registerRPCHook(rpcHook);
+
+        //注册命令码对应的处理器
         this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, this.clientRemotingProcessor, null);
 
         this.remotingClient.registerProcessor(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, this.clientRemotingProcessor, null);
@@ -226,6 +262,10 @@ public class MQClientAPIImpl {
         return nameSrvAddr;
     }
 
+    /**
+     * 更新中心服务器地址
+     * @param addrs 中心服务器地址字符串
+     */
     public void updateNameServerAddressList(final String addrs) {
         String[] addrArray = addrs.split(";");
         List<String> list = Arrays.asList(addrArray);

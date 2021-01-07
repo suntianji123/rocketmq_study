@@ -85,12 +85,29 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * mqclientinstance类
+ */
 public class MQClientInstance {
     private final static long LOCK_TIMEOUT_MILLIS = 3000;
     private final InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 客户端配置对象
+     */
     private final ClientConfig clientConfig;
+
+    /**
+     * mqclientinstance 在factorytable中的喜爱博爱
+     */
     private final int instanceIndex;
+
+    /**
+     * id localhost@pid
+     */
     private final String clientId;
+
+
     private final long bootTimestamp = System.currentTimeMillis();
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
@@ -125,22 +142,44 @@ public class MQClientInstance {
         this(clientConfig, instanceIndex, clientId, null);
     }
 
+    /**
+     * 实例化一个mqclientinstance对象
+     * @param clientConfig 客户端配置
+     * @param instanceIndex 实例在factorytable中的下标
+     * @param clientId mqclientinstance的clientId
+     * @param rpcHook
+     */
     public MQClientInstance(ClientConfig clientConfig, int instanceIndex, String clientId, RPCHook rpcHook) {
+        //设置客户端配置
         this.clientConfig = clientConfig;
+
+        //设置mqclientinstance在factorytable中的下标
         this.instanceIndex = instanceIndex;
+
+        //实例化netty客户端配置对象
         this.nettyClientConfig = new NettyClientConfig();
+
+        //设置netty remoting client的publicExecutor的工作线程的数量
         this.nettyClientConfig.setClientCallbackExecutorThreads(clientConfig.getClientCallbackExecutorThreads());
+        //设置nettyRemotingClient访问远程nettyServer是否使用tls证书
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
+        //实例化一nettyRemotingClient处理服务器返回消息的处理器
         this.clientRemotingProcessor = new ClientRemotingProcessor(this);
+
+        //实例化一个mqclientapi实现对象
         this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, this.clientRemotingProcessor, rpcHook, clientConfig);
 
+        //如果用户设置了中心服务器地址
         if (this.clientConfig.getNamesrvAddr() != null) {
+            //更新中服务器地址
             this.mQClientAPIImpl.updateNameServerAddressList(this.clientConfig.getNamesrvAddr());
             log.info("user specified name server address: {}", this.clientConfig.getNamesrvAddr());
         }
 
+        //设置id
         this.clientId = clientId;
 
+        //设置mqadmin实现对象
         this.mQAdminImpl = new MQAdminImpl(this);
 
         this.pullMessageService = new PullMessageService(this);
@@ -933,11 +972,18 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 将某个生产者注册到mqclient维护的生产者列表
+     * @param group 生产者组名
+     * @param producer 生产者
+     * @return
+     */
     public boolean registerProducer(final String group, final DefaultMQProducerImpl producer) {
-        if (null == group || null == producer) {
+        if (null == group || null == producer) {//生产者或者组名不能为null
             return false;
         }
 
+        //之前存在生产者 则不能注册 防止重复注册
         MQProducerInner prev = this.producerTable.putIfAbsent(group, producer);
         if (prev != null) {
             log.warn("the producer group[{}] exist already.", group);

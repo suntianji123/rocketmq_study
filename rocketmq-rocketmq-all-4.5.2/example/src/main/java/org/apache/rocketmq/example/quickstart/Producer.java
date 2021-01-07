@@ -23,32 +23,18 @@ import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 
 /**
- * This class demonstrates how to send messages to brokers using provided {@link DefaultMQProducer}.
+ * 生产者类
  */
 public class Producer {
     public static void main(String[] args) throws MQClientException, InterruptedException {
 
-        /*
-         * Instantiate with a producer group name.
-         */
+        //实例化一个默认的生产者
         DefaultMQProducer producer = new DefaultMQProducer("please_rename_unique_group_name");
 
-        /*
-         * Specify name server addresses.
-         * <p/>
-         *
-         * Alternatively, you may specify name server addresses via exporting environmental variable: NAMESRV_ADDR
-         * <pre>
-         * {@code
-         * producer.setNamesrvAddr("name-server1-ip:9876;name-server2-ip:9876");
-         * }
-         * </pre>
-         */
-
-        /*
-         * Launch the instance.
-         */
+        //设置中心服务器地址
         producer.setNamesrvAddr("127.0.0.1:9876");
+
+        //启动生产者
         producer.start();
 
         for (int i = 0; i < 1000; i++) {

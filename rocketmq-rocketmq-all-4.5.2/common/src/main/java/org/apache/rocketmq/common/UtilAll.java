@@ -52,10 +52,17 @@ public class UtilAll {
     public static final String YYYYMMDDHHMMSS = "yyyyMMddHHmmss";
     final static char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
 
+    /**
+     * 获取进程的pid值
+     * @return
+     */
     public static int getPid() {
+        //获取runtime对象
         RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
+        //获取进程名
         String name = runtime.getName(); // format: "pid@hostname"
         try {
+            //获取pid值
             return Integer.parseInt(name.substring(0, name.indexOf('@')));
         } catch (Exception e) {
             return -1;

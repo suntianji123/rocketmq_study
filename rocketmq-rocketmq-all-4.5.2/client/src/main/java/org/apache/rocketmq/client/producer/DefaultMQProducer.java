@@ -42,21 +42,7 @@ import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
- * This class is the entry point for applications intending to send messages.
- * </p>
- *
- * It's fine to tune fields which exposes getter/setter methods, but keep in mind, all of them should work well out of
- * box for most scenarios.
- * </p>
- *
- * This class aggregates various <code>send</code> methods to deliver messages to brokers. Each of them has pros and
- * cons; you'd better understand strengths and weakness of them before actually coding.
- * </p>
- *
- * <p>
- * <strong>Thread Safety:</strong> After configuring and starting process, this class can be regarded as thread-safe
- * and used among multiple threads context.
- * </p>
+ * 默认的生产者类
  */
 public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
@@ -68,14 +54,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
 
     /**
-     * Producer group conceptually aggregates all producer instances of exactly same role, which is particularly
-     * important when transactional messages are involved.
-     * </p>
-     *
-     * For non-transactional messages, it does not matter as long as it's unique per process.
-     * </p>
-     *
-     * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
+     * 生产者组名
      */
     private String producerGroup;
 
@@ -147,9 +126,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
-     * Constructor specifying producer group.
-     *
-     * @param producerGroup Producer group, see the name-sake field.
+     * 实例化一个默认的生产者
+     * @param producerGroup 生产者组名
      */
     public DefaultMQProducer(final String producerGroup) {
         this(null, producerGroup, null);
@@ -203,11 +181,10 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
-     * Constructor specifying namespace, producer group and RPC hook.
-     *
-     * @param namespace Namespace for this MQ Producer instance.
-     * @param producerGroup Producer group, see the name-sake field.
-     * @param rpcHook RPC hook to execute per each remoting command execution.
+     * 实例化一个默认的生产者
+     * @param namespace 命名空间 默认为null
+     * @param producerGroup 生产者组名
+     * @param rpcHook
      */
     public DefaultMQProducer(final String namespace, final String producerGroup, RPCHook rpcHook) {
         this.namespace = namespace;
@@ -268,20 +245,15 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
-     * Start this producer instance.
-     * </p>
-     *
-     * <strong>
-     * Much internal initializing procedures are carried out to make this instance prepared, thus, it's a must to invoke
-     * this method before sending or querying messages.
-     * </strong>
-     * </p>
-     *
-     * @throws MQClientException if there is any unexpected error.
+     * 启动生产者服务
+     * @throws MQClientException
      */
     @Override
     public void start() throws MQClientException {
+        //设置包装命名空间之后的组名 %RETYR% or %DLQ%namespace%producerGroup
         this.setProducerGroup(withNamespace(this.producerGroup));
+
+        //启动默认的额生产者实现
         this.defaultMQProducerImpl.start();
         if (null != traceDispatcher) {
             try {

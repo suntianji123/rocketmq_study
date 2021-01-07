@@ -27,11 +27,23 @@ import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.protocol.ResponseCode;
 
 /**
- * Common Validator
+ * 公用的校验器
  */
 public class Validators {
+
+    /**
+     * 组名正则表达式
+     */
     public static final String VALID_PATTERN_STR = "^[%|a-zA-Z0-9_-]+$";
+
+    /**
+     * 组名匹配器
+     */
     public static final Pattern PATTERN = Pattern.compile(VALID_PATTERN_STR);
+
+    /**
+     * 祖达组名长度
+     */
     public static final int CHARACTER_MAX_LENGTH = 255;
 
     /**
@@ -47,17 +59,22 @@ public class Validators {
     }
 
     /**
-     * Validate group
+     * 检查组名
      */
     public static void checkGroup(String group) throws MQClientException {
+        //组名不能为空
         if (UtilAll.isBlank(group)) {
             throw new MQClientException("the specified group is blank", null);
         }
+
+        //满足正则表达式
         if (!regularExpressionMatcher(group, PATTERN)) {
             throw new MQClientException(String.format(
                 "the specified group[%s] contains illegal characters, allowing only %s", group,
                 VALID_PATTERN_STR), null);
         }
+
+        //组名的长度不能大于最大长度
         if (group.length() > CHARACTER_MAX_LENGTH) {
             throw new MQClientException("the specified group is longer than group max length 255.", null);
         }

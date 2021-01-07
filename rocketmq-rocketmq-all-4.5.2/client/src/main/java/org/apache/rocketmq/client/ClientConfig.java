@@ -28,14 +28,26 @@ import org.apache.rocketmq.remoting.netty.TlsSystemConfig;
 import org.apache.rocketmq.remoting.protocol.LanguageCode;
 
 /**
- * Client Common configuration
+ * 通用客户端配置类
  */
 public class ClientConfig {
     public static final String SEND_MESSAGE_WITH_VIP_CHANNEL_PROPERTY = "com.rocketmq.sendMessageWithVIPChannel";
+
+    /**
+     * 中心服务地址
+     */
     private String namesrvAddr = NameServerAddressUtils.getNameServerAddresses();
     private String clientIP = RemotingUtil.getLocalAddress();
+
+    /**
+     * 生产者实例名 进程的pid值
+     */
     private String instanceName = System.getProperty("rocketmq.client.name", "DEFAULT");
     private int clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
+
+    /**
+     * 命名空间
+     */
     protected String namespace;
     protected AccessChannel accessChannel = AccessChannel.LOCAL;
 
@@ -59,8 +71,15 @@ public class ClientConfig {
 
     private LanguageCode language = LanguageCode.JAVA;
 
+    /**
+     * locahost@pid
+     * 构建clientId
+     * @return
+     */
     public String buildMQClientId() {
+        //实例化一个StringBuilder对象
         StringBuilder sb = new StringBuilder();
+        //获取ipv4地址
         sb.append(this.getClientIP());
 
         sb.append("@");
@@ -89,13 +108,20 @@ public class ClientConfig {
         this.instanceName = instanceName;
     }
 
+    /**
+     *改变实例名为进程的pid值
+     */
     public void changeInstanceNameToPID() {
         if (this.instanceName.equals("DEFAULT")) {
             this.instanceName = String.valueOf(UtilAll.getPid());
         }
     }
 
-
+    /**
+     * 带有命名空间的名
+     * @param resource 原始名
+     * @return
+     */
     public String withNamespace(String resource) {
         return NamespaceUtil.wrapNamespace(this.getNamespace(), resource);
     }

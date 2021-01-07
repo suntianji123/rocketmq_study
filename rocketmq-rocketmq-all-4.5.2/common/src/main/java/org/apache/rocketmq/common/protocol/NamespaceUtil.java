@@ -80,37 +80,62 @@ public class NamespaceUtil {
         return resourceWithNamespace;
     }
 
+    /**
+     * 将原始组名和命名空间名包装
+     * @param namespace 命名空间名
+     * @param resourceWithOutNamespace 原始名
+     * @return 返回一个新的名 //返回 %RETRY%namespace%resouce
+     */
     public static String wrapNamespace(String namespace, String resourceWithOutNamespace) {
+        //如果没有设置命名空间名
         if (StringUtils.isEmpty(namespace) || StringUtils.isEmpty(resourceWithOutNamespace)) {
+            //直接返回资源名
             return resourceWithOutNamespace;
         }
 
+        //如果子系统资源名 不需要包装 或者已经包含命名空间名 直接返回
         if (isSystemResource(resourceWithOutNamespace) || isAlreadyWithNamespace(resourceWithOutNamespace, namespace)) {
             return resourceWithOutNamespace;
         }
 
+        //没有RETRY 和 DLQ的资源ing
         String resourceWithoutRetryAndDLQ = withOutRetryAndDLQ(resourceWithOutNamespace);
+
+        //实例化一个StringBuilder对象
         StringBuffer strBuffer = new StringBuffer();
 
+
+        //拼接%RETRY%
         if (isRetryTopic(resourceWithOutNamespace)) {
             strBuffer.append(MixAll.RETRY_GROUP_TOPIC_PREFIX);
         }
 
+        //拼接%DLQ%
         if (isDLQTopic(resourceWithOutNamespace)) {
             strBuffer.append(MixAll.DLQ_GROUP_TOPIC_PREFIX);
         }
 
+        //返回 %RETRY%namespace%resouce
         return strBuffer.append(namespace).append(NAMESPACE_SEPARATOR).append(resourceWithoutRetryAndDLQ).toString();
 
     }
 
+    /**
+     * 判断某个资源名是否已经包装过命名空间名
+     * @param resource 资源名
+     * @param namespace 命名空间名
+     * @return
+     */
     public static boolean isAlreadyWithNamespace(String resource, String namespace) {
+        //如果命名空间名为空 或者资源名为空 或者是系统资源 返回false
         if (StringUtils.isEmpty(namespace) || StringUtils.isEmpty(resource) || isSystemResource(resource)) {
             return false;
         }
 
+        //去除RETRY DLQ之后的资源ing
         String resourceWithoutRetryAndDLQ = withOutRetryAndDLQ(resource);
 
+        //返回命名空间 + % + 去掉RETRY和DLQ之后的资源名
         return resourceWithoutRetryAndDLQ.startsWith(namespace + NAMESPACE_SEPARATOR);
     }
 
@@ -135,14 +160,22 @@ public class NamespaceUtil {
         return index > 0 ? resourceWithoutRetryAndDLQ.substring(0, index) : STRING_BLANK;
     }
 
+    /**
+     * 将某个资源名去除retryTopic 和dlq
+     * @param originalResource 传入的资源名
+     * @return
+     */
     private static String withOutRetryAndDLQ(String originalResource) {
         if (StringUtils.isEmpty(originalResource)) {
             return STRING_BLANK;
         }
+
+        //去除%RETRY%
         if (isRetryTopic(originalResource)) {
             return originalResource.substring(RETRY_PREFIX_LENGTH);
         }
 
+        //去除%DLQ%
         if (isDLQTopic(originalResource)) {
             return originalResource.substring(DLQ_PREFIX_LENGTH);
         }
@@ -150,23 +183,44 @@ public class NamespaceUtil {
         return originalResource;
     }
 
+    /**
+     *
+     * 判断某资源名是否为资源名
+     * @param resource 传入组名
+     * @return
+     */
     private static boolean isSystemResource(String resource) {
-        if (StringUtils.isEmpty(resource)) {
+        if (StringUtils.isEmpty(resource)) {//如果资源名为空
+            //返回false
             return false;
         }
 
+        //如果是系统主题名或者系统组名 返回true
         if (MixAll.isSystemTopic(resource) || MixAll.isSysConsumerGroup(resource)) {
             return true;
         }
 
+        //如果是直接创建主题 TBW102 返回true
         return MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC.equals(resource);
     }
 
+    /**
+     * 判断某个资源名是否为retry类型的资源名
+     * @param resource 资源名
+     * @return
+     */
     public static boolean isRetryTopic(String resource) {
+        //资源名以%RETRY% 表示是retry的资源名
         return StringUtils.isNotBlank(resource) && resource.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX);
     }
 
+    /**
+     * 判断是否为DLO类型的主题
+     * @param resource 资源名
+     * @return
+     */
     public static boolean isDLQTopic(String resource) {
+        //资源名以%DLQ%作为前缀
         return StringUtils.isNotBlank(resource) && resource.startsWith(MixAll.DLQ_GROUP_TOPIC_PREFIX);
     }
 }
