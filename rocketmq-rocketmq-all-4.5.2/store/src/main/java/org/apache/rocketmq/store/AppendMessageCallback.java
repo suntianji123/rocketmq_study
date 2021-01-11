@@ -20,14 +20,17 @@ import java.nio.ByteBuffer;
 import org.apache.rocketmq.common.message.MessageExtBatch;
 
 /**
- * Write messages callback interface
+ * 向mappedFile文件写入msg的接口
  */
 public interface AppendMessageCallback {
 
     /**
-     * After message serialization, write MapedByteBuffer
-     *
-     * @return How many bytes to write
+     * 向某个mappedFile写入消息
+     * @param fileFromOffset mappedFile在整个文件夹系统的起始偏移量
+     * @param byteBuffer 文件的ByteBuffer额对象
+     * @param maxBlank 最大可写的孔家
+     * @param msg 消息对象
+     * @return
      */
     AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer,
         final int maxBlank, final MessageExtBrokerInner msg);

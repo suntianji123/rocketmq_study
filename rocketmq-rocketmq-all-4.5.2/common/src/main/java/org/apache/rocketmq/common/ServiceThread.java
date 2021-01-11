@@ -30,10 +30,20 @@ public abstract class ServiceThread implements Runnable {
     private Thread thread;
     protected final CountDownLatch2 waitPoint = new CountDownLatch2(1);
     protected volatile AtomicBoolean hasNotified = new AtomicBoolean(false);
+
+    /**
+     * 服务是否已经停止
+     */
     protected volatile boolean stopped = false;
+
+    /**
+     * 服务线程是否为守护线程
+     */
     protected boolean isDaemon = false;
 
-    //Make it able to restart the thread
+    /**
+     * 线程的启动状态
+     */
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public ServiceThread() {
@@ -42,14 +52,22 @@ public abstract class ServiceThread implements Runnable {
 
     public abstract String getServiceName();
 
+    /**
+     * 启动线程
+     */
     public void start() {
         log.info("Try to start service thread:{} started:{} lastThread:{}", getServiceName(), started.get(), thread);
         if (!started.compareAndSet(false, true)) {
             return;
         }
+
+        //设置服务停止标志为false
         stopped = false;
+        //实例化一个线程 指定服务名
         this.thread = new Thread(this, getServiceName());
+        //设置线程是否为守护线程
         this.thread.setDaemon(isDaemon);
+        //启动线程
         this.thread.start();
     }
 
@@ -120,13 +138,23 @@ public abstract class ServiceThread implements Runnable {
         log.info("makestop thread " + this.getServiceName());
     }
 
+    /**
+     * 唤醒线程
+     */
     public void wakeup() {
+        //已经通知
         if (hasNotified.compareAndSet(false, true)) {
             waitPoint.countDown(); // notify
         }
     }
 
+    /**
+     * 等待运行
+     * 当run 方法的for循环 没有任务时候 没隔interval时间 检测一次request 否则立刻执行
+     * @param interval 等待时间
+     */
     protected void waitForRunning(long interval) {
+        //有任务 直接返回
         if (hasNotified.compareAndSet(true, false)) {
             this.onWaitEnd();
             return;
@@ -136,6 +164,7 @@ public abstract class ServiceThread implements Runnable {
         waitPoint.reset();
 
         try {
+            //如果当前waitPoint为1 有需要刷新的任务 立刻停止阻塞
             waitPoint.await(interval, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             log.error("Interrupted", e);

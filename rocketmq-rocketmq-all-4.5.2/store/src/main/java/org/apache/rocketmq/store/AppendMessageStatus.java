@@ -17,12 +17,12 @@
 package org.apache.rocketmq.store;
 
 /**
- * When write a message to the commit log, returns code
+ * 向mappedFile添加消息返回的状态枚举
  */
 public enum AppendMessageStatus {
-    PUT_OK,
-    END_OF_FILE,
-    MESSAGE_SIZE_EXCEEDED,
-    PROPERTIES_SIZE_EXCEEDED,
-    UNKNOWN_ERROR,
+    PUT_OK,//存储消息成功
+    END_OF_FILE,//'消息的总长度超过文件的剩余可写空间时 返回
+    MESSAGE_SIZE_EXCEEDED,//消息的超时messageStore限制的值4M时 返回
+    PROPERTIES_SIZE_EXCEEDED,//消息头的properties的 属性数量超时Short.Max时返回
+    UNKNOWN_ERROR,//未知错误
 }

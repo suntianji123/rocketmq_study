@@ -42,8 +42,9 @@ public class MessageStoreConfig {
     // this will be set by pipe of calculate filter bit map.
     private int bitMapLengthConsumeQueueExt = 64;
 
-    // CommitLog flush interval
-    // flush data to disk
+    /**
+     * 定时刷新commitLog文件的时间
+     */
     @ImportantField
     private int flushIntervalCommitLog = 500;
 
@@ -58,7 +59,9 @@ public class MessageStoreConfig {
      */
     private boolean useReentrantLockWhenPutMessage = false;
 
-    // Whether schedule flush,default is real-time
+    /**
+     * 是否定时刷新commitLog文件
+     */
     @ImportantField
     private boolean flushCommitLogTimed = false;
     // ConsumeQueue flush interval
@@ -86,14 +89,21 @@ public class MessageStoreConfig {
     // This ensures no on-the-wire or on-disk corruption to the messages occurred.
     // This check adds some overhead,so it may be disabled in cases seeking extreme performance.
     private boolean checkCRCOnRecover = true;
-    // How many pages are to be flushed when flush CommitLog
+
+    /**
+     * 当mappedFile中至少存在4 * 4k的待刷新到磁盘的byte时候 才可以刷新
+     */
     private int flushCommitLogLeastPages = 4;
     // How many pages are to be committed when commit data to file
     private int commitCommitLogLeastPages = 4;
     // Flush page size when the disk in warming state
     private int flushLeastPagesWhenWarmMapedFile = 1024 / 4 * 16;
-    // How many pages are to be flushed when flush ConsumeQueue
+    // 每次刷新commitLog文件最少刷新的页数
     private int flushConsumeQueueLeastPages = 2;
+
+    /**
+     * 下一次刷新commitLog的最低时间间隔
+     */
     private int flushCommitLogThoroughInterval = 1000 * 10;
     private int commitCommitLogThoroughInterval = 200;
     private int flushConsumeQueueThoroughInterval = 1000 * 60;

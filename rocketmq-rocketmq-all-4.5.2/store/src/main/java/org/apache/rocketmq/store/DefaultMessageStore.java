@@ -292,6 +292,7 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         this.flushConsumeQueueService.start();
+        //启动commitLog服务
         this.commitLog.start();
         this.storeStatsService.start();
 

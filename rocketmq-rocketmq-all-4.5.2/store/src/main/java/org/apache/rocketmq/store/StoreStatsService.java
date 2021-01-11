@@ -46,8 +46,17 @@ public class StoreStatsService extends ServiceThread {
 
     private final AtomicLong putMessageFailedTimes = new AtomicLong(0);
 
+    /**
+     * 向commitLog中存入某个主题的消息的总次数
+     *主题 | 次数
+     */
     private final ConcurrentMap<String, AtomicLong> putMessageTopicTimesTotal =
         new ConcurrentHashMap<String, AtomicLong>(128);
+
+    /**
+     * 向commitLog中写入某个主题的消息的总大小
+     * 主题 | total byte size
+     */
     private final ConcurrentMap<String, AtomicLong> putMessageTopicSizeTotal =
         new ConcurrentHashMap<String, AtomicLong>(128);
 
@@ -557,15 +566,25 @@ public class StoreStatsService extends ServiceThread {
         return rs;
     }
 
+    /**
+     * 获取某个主题的存入消息总次数
+     * @param topic 主图
+     * @return
+     */
     public AtomicLong getSinglePutMessageTopicTimesTotal(String topic) {
+        //获取总次数
         AtomicLong rs = putMessageTopicTimesTotal.get(topic);
         if (null == rs) {
+            //实例化总次数
             rs = new AtomicLong(0);
+            //放入总次数
             AtomicLong previous = putMessageTopicTimesTotal.putIfAbsent(topic, rs);
             if (previous != null) {
                 rs = previous;
             }
         }
+
+        //返回总次数
         return rs;
     }
 

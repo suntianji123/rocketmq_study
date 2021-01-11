@@ -45,6 +45,10 @@ import sun.nio.ch.DirectBuffer;
  * 映射文件类
  */
 public class MappedFile extends ReferenceResource {
+
+    /**
+     * mappedFile文件每一页存放的字节数
+     */
     public static final int OS_PAGE_SIZE = 1024 * 4;
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
@@ -63,6 +67,10 @@ public class MappedFile extends ReferenceResource {
      */
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
+
+    /**
+     * 已经刷新到位置
+     */
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
 
     /**
@@ -103,6 +111,10 @@ public class MappedFile extends ReferenceResource {
      * 文件的ByteBuffer对象
      */
     private MappedByteBuffer mappedByteBuffer;
+
+    /**
+     * mappedFile对象上一次存储消息的时间戳
+     */
     private volatile long storeTimestamp = 0;
 
     /**
@@ -301,13 +313,18 @@ public class MappedFile extends ReferenceResource {
      * @return
      */
     public AppendMessageResult appendMessagesInner(final MessageExt messageExt, final AppendMessageCallback cb) {
+        //消息不能为空
         assert messageExt != null;
+        //向commitlog的mappedFile添加消息后的回调不能空
         assert cb != null;
 
+        //当前已经写到的位置
         int currentPos = this.wrotePosition.get();
 
-        if (currentPos < this.fileSize) {
+        if (currentPos < this.fileSize) {//文件有剩余空间可写
+            //获取磁盘文件的ByteBuffer对象
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
+            //设置写入的起始位置
             byteBuffer.position(currentPos);
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
@@ -317,10 +334,18 @@ public class MappedFile extends ReferenceResource {
             } else {
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
+
+            //增减mappedFile写入到的位置
             this.wrotePosition.addAndGet(result.getWroteBytes());
+
+            //设置mappedFile最后一次写入消息的时间
             this.storeTimestamp = result.getStoreTimestamp();
+
+            //返回向mappedFile写入消息的操作结果
             return result;
         }
+
+        //文件已经写满了不能继续写
         log.error("MappedFile.appendMessage return null, wrotePosition: {} fileSize: {}", currentPos, this.fileSize);
         return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
     }
@@ -373,12 +398,13 @@ public class MappedFile extends ReferenceResource {
      * @return The current flushed position
      */
     public int flush(final int flushLeastPages) {
-        if (this.isAbleToFlush(flushLeastPages)) {
-            if (this.hold()) {
+        if (this.isAbleToFlush(flushLeastPages)) {//如果mappedFile可以刷新
+            if (this.hold()) {//增加引用
+                //获取已经写入到的位置
                 int value = getReadPosition();
 
                 try {
-                    //We only append data to fileChannel or mappedByteBuffer, never both.
+                    //强制刷新文件 写入到磁盘
                     if (writeBuffer != null || this.fileChannel.position() != 0) {
                         this.fileChannel.force(false);
                     } else {
@@ -388,13 +414,18 @@ public class MappedFile extends ReferenceResource {
                     log.error("Error occurred when force data to disk.", e);
                 }
 
+                //设置已经刷新到位置
                 this.flushedPosition.set(value);
+
+                //释放当前线程的引用
                 this.release();
             } else {
                 log.warn("in flush, hold failed, flush offset = " + this.flushedPosition.get());
                 this.flushedPosition.set(getReadPosition());
             }
         }
+
+        //获取已经刷新的位置
         return this.getFlushedPosition();
     }
 
@@ -439,15 +470,24 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
+    /**
+     * 判断mappedFile是否可以被刷新
+     * @param flushLeastPages
+     * @return
+     */
     private boolean isAbleToFlush(final int flushLeastPages) {
+        //获取已经刷新到的位置
         int flush = this.flushedPosition.get();
+
+        //获取已经写入字节的位置
         int write = getReadPosition();
 
+        //如果已经满了 可以刷新
         if (this.isFull()) {
             return true;
         }
 
-        if (flushLeastPages > 0) {
+        if (flushLeastPages > 0) {//如果剩余的页数足够
             return ((write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE)) >= flushLeastPages;
         }
 
@@ -477,6 +517,10 @@ public class MappedFile extends ReferenceResource {
         this.flushedPosition.set(pos);
     }
 
+    /**
+     * 判断mappedFile文件是否已经满了
+     * @return
+     */
     public boolean isFull() {
         return this.fileSize == this.wrotePosition.get();
     }
@@ -575,7 +619,8 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
-     * @return The max position which have valid data
+     * 获取可以读到的位置 或者 已经写到字节位置
+     * @return
      */
     public int getReadPosition() {
         return this.writeBuffer == null ? this.wrotePosition.get() : this.committedPosition.get();

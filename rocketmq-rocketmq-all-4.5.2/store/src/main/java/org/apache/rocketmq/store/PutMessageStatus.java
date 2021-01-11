@@ -16,11 +16,14 @@
  */
 package org.apache.rocketmq.store;
 
+/**
+ * 向commitLog添加消息返回状态枚举
+ */
 public enum PutMessageStatus {
-    PUT_OK,
+    PUT_OK,//存放成功
     FLUSH_DISK_TIMEOUT,
     FLUSH_SLAVE_TIMEOUT,
-    SLAVE_NOT_AVAILABLE,
+    SLAVE_NOT_AVAILABLE,//生产者的消息不能直接推送给从站
     SERVICE_NOT_AVAILABLE,
     CREATE_MAPEDFILE_FAILED,
     MESSAGE_ILLEGAL,

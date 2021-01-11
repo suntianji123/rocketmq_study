@@ -82,11 +82,22 @@ public class MessageExt extends Message {
         return TopicFilterType.SINGLE_TAG;
     }
 
+    /**
+     * 将socketAddress地址 写入到指定的ByteBuffer对象
+     * @param socketAddress 地址对象
+     * @param byteBuffer byteBuffer对象
+     * @return
+     */
     public static ByteBuffer socketAddress2ByteBuffer(final SocketAddress socketAddress, final ByteBuffer byteBuffer) {
+        //获取ipv4地址
         InetSocketAddress inetSocketAddress = (InetSocketAddress) socketAddress;
+        //写入ip字节数组
         byteBuffer.put(inetSocketAddress.getAddress().getAddress(), 0, 4);
+        //写入端口字节数组
         byteBuffer.putInt(inetSocketAddress.getPort());
+        //将byteBuffer从写模式变成读模式
         byteBuffer.flip();
+        //返回byteBuffer
         return byteBuffer;
     }
 

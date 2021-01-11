@@ -58,7 +58,14 @@ public class MappedFileQueue {
      */
     private final AllocateMappedFileService allocateMappedFileService;
 
+    /**
+     * 需要刷新的起始偏移量
+     */
     private long flushedWhere = 0;
+
+    /**
+     * 已经提交的mappedFile位置
+     */
     private long committedWhere = 0;
 
     private volatile long storeTimestamp = 0;
@@ -284,7 +291,7 @@ public class MappedFileQueue {
     }
 
     /**
-     * 获取上一次分配的MappedFile 映射文件对象
+     *获取mappedFiles中的最后一个元素
      * @return
      */
     public MappedFile getLastMappedFile() {
@@ -472,14 +479,26 @@ public class MappedFileQueue {
         return deleteCount;
     }
 
+    /**
+     * 刷新mappedFileQueue中的mappedFile
+     * @param flushLeastPages 至少刷新的页数
+     * @return
+     */
     public boolean flush(final int flushLeastPages) {
         boolean result = true;
+        //寻找需要刷新的mappedFile文件 有可能有部分已经刷新
         MappedFile mappedFile = this.findMappedFileByOffset(this.flushedWhere, this.flushedWhere == 0);
         if (mappedFile != null) {
+            //上一次存储消息的时间
             long tmpTimeStamp = mappedFile.getStoreTimestamp();
+
+            //当mappedFile没有刷新到此判断额字节数组超过4*4k时 将字节刷新到磁盘
             int offset = mappedFile.flush(flushLeastPages);
+            //已经刷新到的位置
             long where = mappedFile.getFileFromOffset() + offset;
+            //是否刷新过字节到磁盘
             result = where == this.flushedWhere;
+            //设置已经刷新到的位置
             this.flushedWhere = where;
             if (0 == flushLeastPages) {
                 this.storeTimestamp = tmpTimeStamp;
@@ -503,17 +522,20 @@ public class MappedFileQueue {
     }
 
     /**
-     * Finds a mapped file by offset.
-     *
-     * @param offset Offset.
-     * @param returnFirstOnNotFound If the mapped file is not found, then return the first one.
-     * @return Mapped file or null (when not found and returnFirstOnNotFound is <code>false</code>).
+     * 寻找mappedFile
+     * @param offset 偏移量
+     * @param returnFirstOnNotFound 如果没有找到指定offset偏移量的mappedFile 是否返回第一个mappedFile
+     * @return
      */
     public MappedFile findMappedFileByOffset(final long offset, final boolean returnFirstOnNotFound) {
         try {
+            //获取mappedFiles数组中的第1个元素
             MappedFile firstMappedFile = this.getFirstMappedFile();
+
+            //虎丘mappedFiles数组中的最后一个元素
             MappedFile lastMappedFile = this.getLastMappedFile();
             if (firstMappedFile != null && lastMappedFile != null) {
+                //'位置不在mappedFiles数组的区间列表内
                 if (offset < firstMappedFile.getFileFromOffset() || offset >= lastMappedFile.getFileFromOffset() + this.mappedFileSize) {
                     LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}",
                         offset,
@@ -522,18 +544,22 @@ public class MappedFileQueue {
                         this.mappedFileSize,
                         this.mappedFiles.size());
                 } else {
+
+                    //寻找的mappedFile在mappedFiles数组中的下标
                     int index = (int) ((offset / this.mappedFileSize) - (firstMappedFile.getFileFromOffset() / this.mappedFileSize));
                     MappedFile targetFile = null;
                     try {
+                        //获取目标mappedFile
                         targetFile = this.mappedFiles.get(index);
                     } catch (Exception ignored) {
                     }
 
                     if (targetFile != null && offset >= targetFile.getFileFromOffset()
-                        && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {
+                        && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {//目标文件存在
                         return targetFile;
                     }
 
+                    //遍历数组返回指定偏移量的mappedFile对象
                     for (MappedFile tmpMappedFile : this.mappedFiles) {
                         if (offset >= tmpMappedFile.getFileFromOffset()
                             && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {
@@ -542,6 +568,7 @@ public class MappedFileQueue {
                     }
                 }
 
+                //如果没有指定偏移量的mappedFile 返回第一个mappedFile
                 if (returnFirstOnNotFound) {
                     return firstMappedFile;
                 }
@@ -553,6 +580,10 @@ public class MappedFileQueue {
         return null;
     }
 
+    /**
+     * 获取mappedFileQueue数组中的第一个元素
+     * @return
+     */
     public MappedFile getFirstMappedFile() {
         MappedFile mappedFileFirst = null;
 

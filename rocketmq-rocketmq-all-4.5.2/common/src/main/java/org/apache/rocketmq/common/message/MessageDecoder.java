@@ -57,13 +57,25 @@ public class MessageDecoder {
         + 4 // 13 RECONSUMETIMES
         + 8; // 14 Prepared Transaction Offset
 
+    /**
+     * 创建消息id
+     * @param input 存储消息id的ByteBuffer对象
+     * @param addr 消息存储的服务器的地址的ByteBuffer对象
+     * @param offset 消息在整个commitLog文件系统中偏移量
+     * @return
+     */
     public static String createMessageId(final ByteBuffer input, final ByteBuffer addr, final long offset) {
+        //将读变为写
         input.flip();
+        //设置可写的最大字节长度
         input.limit(MessageDecoder.MSG_ID_LENGTH);
 
+        //写入地址
         input.put(addr);
+        //写入消息在整个文件夹系统中的偏移量
         input.putLong(offset);
 
+        //将storeHost和起始偏移量转为id
         return UtilAll.bytes2string(input.array());
     }
 

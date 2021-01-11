@@ -16,10 +16,26 @@
  */
 package org.apache.rocketmq.store;
 
+/**
+ *向commitLog存入消息放回结果类
+ */
 public class PutMessageResult {
+
+    /**
+     * 向commitLog存入消息的状态
+     */
     private PutMessageStatus putMessageStatus;
+
+    /**
+     * 向mappedFile添加消息返回的结果
+     */
     private AppendMessageResult appendMessageResult;
 
+    /**
+     * 实例化一个向commitLog存入消息的结果类
+     * @param putMessageStatus 存放消息的状态
+     * @param appendMessageResult 向mappedFile添加消息返回的结果
+     */
     public PutMessageResult(PutMessageStatus putMessageStatus, AppendMessageResult appendMessageResult) {
         this.putMessageStatus = putMessageStatus;
         this.appendMessageResult = appendMessageResult;
