@@ -45,35 +45,64 @@ public class TopAddressing {
         this.unitName = unitName;
     }
 
+    /**
+     * 获取指定字符串的第一行字符串
+     * @param str 指定字符串
+     * @return
+     */
     private static String clearNewLine(final String str) {
+
+        //去除字符串空格
         String newString = str.trim();
+        //获取制表符下标
         int index = newString.indexOf("\r");
         if (index != -1) {
+            //截取制表符之前的字符串
             return newString.substring(0, index);
         }
 
+        //获取换行符的下标
         index = newString.indexOf("\n");
         if (index != -1) {
+            //截取换行符之前的字符串
             return newString.substring(0, index);
         }
 
+        //返回字符串
         return newString;
     }
 
+    /**
+     * 从netty server获取中心服务器地址
+     * @return
+     */
     public final String fetchNSAddr() {
         return fetchNSAddr(true, 3000);
     }
 
+    /**
+     * 从web server获取中心服务器地址
+     * @param verbose 是否为冗长的
+     * @param timeoutMills 请求web server超时时间
+     * @return
+     */
     public final String fetchNSAddr(boolean verbose, long timeoutMills) {
+        //web server地址
         String url = this.wsAddr;
         try {
+            //单元名
             if (!UtilAll.isBlank(this.unitName)) {
                 url = url + "-" + this.unitName + "?nofix=1";
             }
+
+            //发送http请求
             HttpTinyClient.HttpResult result = HttpTinyClient.httpGet(url, null, null, "UTF-8", timeoutMills);
+            //请求ok
             if (200 == result.code) {
+                //获取响应结果
                 String responseStr = result.content;
                 if (responseStr != null) {
+                    //返回第一行数据
                     return clearNewLine(responseStr);
                 } else {
                     log.error("fetch nameserver address is null");

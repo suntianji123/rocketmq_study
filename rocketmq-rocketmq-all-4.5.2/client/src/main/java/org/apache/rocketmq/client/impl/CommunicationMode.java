@@ -16,8 +16,11 @@
  */
 package org.apache.rocketmq.client.impl;
 
+/**
+ * 生产者向广播站推送的消息类型
+ */
 public enum CommunicationMode {
-    SYNC,
-    ASYNC,
-    ONEWAY,
+    SYNC,//同步 需要等待响应
+    ASYNC,//异步 异步收取效应
+    ONEWAY,//单向 不需要收到响应
 }

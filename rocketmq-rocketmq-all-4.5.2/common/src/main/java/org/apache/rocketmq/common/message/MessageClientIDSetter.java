@@ -118,6 +118,10 @@ public class MessageClientIDSetter {
         return buffer.array();
     }
 
+    /**
+     * 设置消息唯一的id
+     * @param msg Message对象
+     */
     public static void setUniqID(final Message msg) {
         if (msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX) == null) {
             msg.putProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX, createUniqID());

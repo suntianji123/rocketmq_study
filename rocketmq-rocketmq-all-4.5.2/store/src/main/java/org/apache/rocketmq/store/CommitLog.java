@@ -60,7 +60,14 @@ public class CommitLog {
     protected HashMap<String/* topic-queueid */, Long/* offset */> topicQueueTable = new HashMap<String, Long>(1024);
     protected volatile long confirmOffset = -1L;
 
+    /**
+     * CommitLog开始打开putMessageLock的时间
+     */
     private volatile long beginTimeInLock = 0;
+
+    /**
+     * 向commitLog存入消息的锁
+     */
     protected final PutMessageLock putMessageLock;
 
     public CommitLog(final DefaultMessageStore defaultMessageStore) {
@@ -533,25 +540,34 @@ public class CommitLog {
         return beginTimeInLock;
     }
 
+    /**
+     * 向commitLog将消息写入到磁盘文件
+     * @param msg
+     * @return
+     */
     public PutMessageResult putMessage(final MessageExtBrokerInner msg) {
-        // Set the storage time
+        //设置将消息存入commitLog文件的时间
         msg.setStoreTimestamp(System.currentTimeMillis());
-        // Set the message body BODY CRC (consider the most appropriate setting
-        // on the client)
+        //设置消息的Crc码 防止消息体被恶意更改
         msg.setBodyCRC(UtilAll.crc32(msg.getBody()));
-        // Back to Results
+        // 定义一个添加消息的结果
         AppendMessageResult result = null;
 
+        //获取存储统计服务
         StoreStatsService storeStatsService = this.defaultMessageStore.getStoreStatsService();
 
+        //获取消息的主题
         String topic = msg.getTopic();
+
+        //获取将要将消息存储到的队列的编号
         int queueId = msg.getQueueId();
 
+        //获取产权类型
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
             || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
             // Delay Delivery
-            if (msg.getDelayTimeLevel() > 0) {
+            if (msg.getDelayTimeLevel() > 0) {//定时发送的消息
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
@@ -569,20 +585,28 @@ public class CommitLog {
             }
         }
 
+        //到解锁的时间
         long elapsedTimeInLock = 0;
         MappedFile unlockMappedFile = null;
+
+        //获取上一次分配的映射文件对象
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
 
+        //打开向CommitLog存放消息的锁
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
         try {
+            //获取开始加锁是时间
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
+
+            //设置开始加锁的时间
             this.beginTimeInLock = beginLockTimestamp;
 
-            // Here settings are stored timestamp, in order to ensure an orderly
-            // global
+            //设置消息开始存入commitlog的时间
             msg.setStoreTimestamp(beginLockTimestamp);
 
+            //没有找到上一次使用过的mappedFile对象 获取mappedFile映射文件对象满了
             if (null == mappedFile || mappedFile.isFull()) {
+                //创建一个mappedFile
                 mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
             }
             if (null == mappedFile) {

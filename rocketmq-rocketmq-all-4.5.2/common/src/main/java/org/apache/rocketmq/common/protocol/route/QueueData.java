@@ -31,17 +31,17 @@ public class QueueData implements Comparable<QueueData> {
     private String brokerName;
 
     /**
-     * 读队列的数量
+     * 广播站临时缓存将要推送给消费者消息队列的数量
      */
     private int readQueueNums;
 
     /**
-     * 写队列的数量
+     * 广播站临时缓冲生产者推送给自己的这个主题的消息的队列数量
      */
     private int writeQueueNums;
 
     /**
-     * 广播站的权限
+     * 广播站的对主题的消息的缓存权限
      */
     private int perm;
 

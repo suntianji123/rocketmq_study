@@ -40,9 +40,16 @@ import org.apache.rocketmq.common.protocol.body.KVTable;
 import org.apache.rocketmq.common.protocol.body.TopicConfigSerializeWrapper;
 import org.apache.rocketmq.common.sysflag.TopicSysFlag;
 
+/**
+ * 主题配置管理类
+ */
 public class TopicConfigManager extends ConfigManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
+
+    /**
+     * 访问主题配置表的锁
+     */
     private transient final Lock lockTopicConfigTable = new ReentrantLock();
 
     private final ConcurrentMap<String, TopicConfig> topicConfigTable =
@@ -152,29 +159,46 @@ public class TopicConfigManager extends ConfigManager {
         return this.topicConfigTable.get(topic);
     }
 
+    /**
+     * 在sendMessage方法中穿件一个主题配置对象
+     * @param topic 主题
+     * @param defaultTopic 生产者默认主题
+     * @param remoteAddress 远程服务器地址
+     * @param clientDefaultTopicQueueNums 生产者默认的主题队列数量
+     * @param topicSysFlag 主题系统标志值
+     * @return
+     */
     public TopicConfig createTopicInSendMessageMethod(final String topic, final String defaultTopic,
         final String remoteAddress, final int clientDefaultTopicQueueNums, final int topicSysFlag) {
+
+        //定义一个主题配置
         TopicConfig topicConfig = null;
+        //是否创建新的
         boolean createNew = false;
 
         try {
-            if (this.lockTopicConfigTable.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+            if (this.lockTopicConfigTable.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {//加锁
                 try {
+                    //获取主题的配置
                     topicConfig = this.topicConfigTable.get(topic);
-                    if (topicConfig != null)
+                    if (topicConfig != null)//主题配置存在 直接返回
                         return topicConfig;
 
+                    //获取默认的主题配置
                     TopicConfig defaultTopicConfig = this.topicConfigTable.get(defaultTopic);
                     if (defaultTopicConfig != null) {
                         if (defaultTopic.equals(MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC)) {
-                            if (!this.brokerController.getBrokerConfig().isAutoCreateTopicEnable()) {
+                            if (!this.brokerController.getBrokerConfig().isAutoCreateTopicEnable()) {//广播站没有创建主题的权限
+                                //设置默认主题的权限为可读 可写
                                 defaultTopicConfig.setPerm(PermName.PERM_READ | PermName.PERM_WRITE);
                             }
                         }
 
-                        if (PermName.isInherited(defaultTopicConfig.getPerm())) {
+                        if (PermName.isInherited(defaultTopicConfig.getPerm())) {//主题有可被继承权限
+                            //实例化一个主题配置对象
                             topicConfig = new TopicConfig(topic);
 
+                            //获取广播站缓存从消费者推送过来的这个主题的消息的队列数量
                             int queueNums =
                                 clientDefaultTopicQueueNums > defaultTopicConfig.getWriteQueueNums() ? defaultTopicConfig
                                     .getWriteQueueNums() : clientDefaultTopicQueueNums;
@@ -183,12 +207,20 @@ public class TopicConfigManager extends ConfigManager {
                                 queueNums = 0;
                             }
 
+                            //设置广播站缓存将要推送给消费者的这个主题的消息的队列数量
                             topicConfig.setReadQueueNums(queueNums);
+                            //设置广播站缓存从消费者推送过来的这个主题的消息的队列数量
                             topicConfig.setWriteQueueNums(queueNums);
+
+                            //获取权限
                             int perm = defaultTopicConfig.getPerm();
+                            //取消继承权限
                             perm &= ~PermName.PERM_INHERIT;
+                            //设置权限值
                             topicConfig.setPerm(perm);
+                            //设置主题系统标志
                             topicConfig.setTopicSysFlag(topicSysFlag);
+                            //设置主题过滤类型
                             topicConfig.setTopicFilterType(defaultTopicConfig.getTopicFilterType());
                         } else {
                             log.warn("Create new topic failed, because the default topic[{}] has no perm [{}] producer:[{}]",
@@ -199,19 +231,24 @@ public class TopicConfigManager extends ConfigManager {
                             defaultTopic, remoteAddress);
                     }
 
-                    if (topicConfig != null) {
+                    if (topicConfig != null) {//创建主题配置完成
                         log.info("Create new topic by default topic:[{}] config:[{}] producer:[{}]",
                             defaultTopic, topicConfig, remoteAddress);
 
+                        //将主题配置 放入主题配置列表
                         this.topicConfigTable.put(topic, topicConfig);
 
+                        //设置主题的版本
                         this.dataVersion.nextVersion();
 
+                        //是新创建
                         createNew = true;
 
+                        //更新本地磁盘的额主题配置文件
                         this.persist();
                     }
                 } finally {
+                    //释放锁
                     this.lockTopicConfigTable.unlock();
                 }
             }
@@ -226,36 +263,58 @@ public class TopicConfigManager extends ConfigManager {
         return topicConfig;
     }
 
+    /**
+     * 创建主题配置
+     * @param topic 主题
+     * @param clientDefaultTopicQueueNums 广播站缓存这个主题的消息的队列的数量
+     * @param perm 广播站对这个主题的权限
+     * @param topicSysFlag 系统标志位
+     * @return
+     */
     public TopicConfig createTopicInSendMessageBackMethod(
         final String topic,
         final int clientDefaultTopicQueueNums,
         final int perm,
         final int topicSysFlag) {
+        //从主题配置表获取主题配置
         TopicConfig topicConfig = this.topicConfigTable.get(topic);
-        if (topicConfig != null)
+        if (topicConfig != null)//主题配置存在 直接返回 主题配置
             return topicConfig;
 
+        //是否为新创建的主题配置
         boolean createNew = false;
 
         try {
-            if (this.lockTopicConfigTable.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+            if (this.lockTopicConfigTable.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {//加锁
                 try {
+                    //从主题配置表获取主题配置
                     topicConfig = this.topicConfigTable.get(topic);
-                    if (topicConfig != null)
+                    if (topicConfig != null)//如果主题配置存在 直接返回
                         return topicConfig;
 
+                    //实例化一个主题配置对象
                     topicConfig = new TopicConfig(topic);
+                    //设置广播站缓存将要推送给消息者的这个主题的消息的队列数量
                     topicConfig.setReadQueueNums(clientDefaultTopicQueueNums);
+                    //设置广播站缓存接收从生产者推送过来的额这个主题的消息的的队列数量
                     topicConfig.setWriteQueueNums(clientDefaultTopicQueueNums);
+                    //设置权限
                     topicConfig.setPerm(perm);
+
+                    //设置主题系统标志位
                     topicConfig.setTopicSysFlag(topicSysFlag);
 
                     log.info("create new topic {}", topicConfig);
+                    //将主题配置存放入主题配置表
                     this.topicConfigTable.put(topic, topicConfig);
+                    //设置是新创建
                     createNew = true;
+                    //设置主题版本
                     this.dataVersion.nextVersion();
+                    //更新沙盒目录下主题配置文件
                     this.persist();
                 } finally {
+                    //释放锁
                     this.lockTopicConfigTable.unlock();
                 }
             }
@@ -399,6 +458,11 @@ public class TopicConfigManager extends ConfigManager {
         }
     }
 
+    /**
+     * 判断广播主题的消息的广播是否为有序的
+     * @param topic 主题
+     * @return
+     */
     public boolean isOrderTopic(final String topic) {
         TopicConfig topicConfig = this.topicConfigTable.get(topic);
         if (topicConfig == null) {

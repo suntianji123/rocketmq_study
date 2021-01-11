@@ -19,6 +19,9 @@ package org.apache.rocketmq.common.protocol;
 
 public class RequestCode {
 
+    /**
+     * 使用SendMessageRequestHeader的命令行码
+     */
     public static final int SEND_MESSAGE = 10;
 
     public static final int PULL_MESSAGE = 11;
@@ -93,6 +96,10 @@ public class RequestCode {
     public static final int REGISTER_BROKER = 103;
 
     public static final int UNREGISTER_BROKER = 104;
+
+    /**
+     * 从中心服务器获取主题对应的发布广播站列表信息
+     */
     public static final int GET_ROUTEINTO_BY_TOPIC = 105;
 
     public static final int GET_BROKER_CLUSTER_INFO = 106;
@@ -150,6 +157,9 @@ public class RequestCode {
     public static final int QUERY_CORRECTION_OFFSET = 308;
     public static final int CONSUME_MESSAGE_DIRECTLY = 309;
 
+    /**
+     * 使用V2 SendMessageRequestHeader的请求头的命令行码
+     */
     public static final int SEND_MESSAGE_V2 = 310;
 
     public static final int GET_UNIT_TOPIC_LIST = 311;
@@ -176,6 +186,10 @@ public class RequestCode {
      */
     public static final int GET_NAMESRV_CONFIG = 319;
 
+
+    /**
+     * 批量提交消息的命令行码
+     */
     public static final int SEND_BATCH_MESSAGE = 320;
 
     public static final int QUERY_CONSUME_QUEUE = 321;

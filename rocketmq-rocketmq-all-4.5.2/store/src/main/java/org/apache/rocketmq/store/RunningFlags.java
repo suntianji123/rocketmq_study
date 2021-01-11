@@ -28,8 +28,14 @@ public class RunningFlags {
 
     private static final int DISK_FULL_BIT = 1 << 4;
 
+    /**
+     * 运行标志值
+     */
     private volatile int flagBits = 0;
 
+    /**
+     * 实例化一个运行标志位对象
+     */
     public RunningFlags() {
     }
 

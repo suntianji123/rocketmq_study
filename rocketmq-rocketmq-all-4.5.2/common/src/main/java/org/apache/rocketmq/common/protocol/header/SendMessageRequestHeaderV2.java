@@ -23,7 +23,7 @@ import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
 /**
- * Use short variable name to speed up FastJson deserialization process.
+ * 新版本的SendMessageRequestHeader类
  */
 public class SendMessageRequestHeaderV2 implements CommandCustomHeader {
     @CFNotNull
@@ -72,6 +72,11 @@ public class SendMessageRequestHeaderV2 implements CommandCustomHeader {
         return v1;
     }
 
+    /**
+     * 将SendMessageRequestHeader包装为V2版本
+     * @param v1 v1版本的SendMessageRequestHeader对戏
+     * @return
+     */
     public static SendMessageRequestHeaderV2 createSendMessageRequestHeaderV2(final SendMessageRequestHeader v1) {
         SendMessageRequestHeaderV2 v2 = new SendMessageRequestHeaderV2();
         v2.a = v1.getProducerGroup();

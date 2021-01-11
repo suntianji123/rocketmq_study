@@ -76,6 +76,9 @@ public class DefaultMessageStore implements MessageStore {
 
     private final IndexService indexService;
 
+    /**
+     * 分配映射文件对象MappedFile的服务
+     */
     private final AllocateMappedFileService allocateMappedFileService;
 
     private final ReputMessageService reputMessageService;
@@ -84,10 +87,19 @@ public class DefaultMessageStore implements MessageStore {
 
     private final ScheduleMessageService scheduleMessageService;
 
+    /**
+     * 存储统计服务
+     */
     private final StoreStatsService storeStatsService;
 
+    /**
+     * 缓存mappedFile的池
+     */
     private final TransientStorePool transientStorePool;
 
+    /**
+     * 消息存储对象运行标志位对象
+     */
     private final RunningFlags runningFlags = new RunningFlags();
     private final SystemClock systemClock = new SystemClock();
 
@@ -101,6 +113,9 @@ public class DefaultMessageStore implements MessageStore {
 
     private StoreCheckpoint storeCheckpoint;
 
+    /**
+     * 记录日志打印消息的次数
+     */
     private AtomicLong printTimes = new AtomicLong(0);
 
     private final LinkedList<CommitLogDispatcher> dispatcherList;
@@ -351,12 +366,18 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 将消息放入消息存储对象
+     * @param msg 消息对象
+     * @return
+     */
     public PutMessageResult putMessage(MessageExtBrokerInner msg) {
-        if (this.shutdown) {
+        if (this.shutdown) {//消息存储对象已经关闭
             log.warn("message store has shutdown, so putMessage is forbidden");
             return new PutMessageResult(PutMessageStatus.SERVICE_NOT_AVAILABLE, null);
         }
 
+        //广播站角色为从站
         if (BrokerRole.SLAVE == this.messageStoreConfig.getBrokerRole()) {
             long value = this.printTimes.getAndIncrement();
             if ((value % 50000) == 0) {
@@ -366,6 +387,7 @@ public class DefaultMessageStore implements MessageStore {
             return new PutMessageResult(PutMessageStatus.SERVICE_NOT_AVAILABLE, null);
         }
 
+        //如果消息存储对象不可存入数据
         if (!this.runningFlags.isWriteable()) {
             long value = this.printTimes.getAndIncrement();
             if ((value % 50000) == 0) {
@@ -374,24 +396,30 @@ public class DefaultMessageStore implements MessageStore {
 
             return new PutMessageResult(PutMessageStatus.SERVICE_NOT_AVAILABLE, null);
         } else {
+            //设置打印次数为0
             this.printTimes.set(0);
         }
 
+        //判断消息主题的长度 不能为Byte的最大值255
         if (msg.getTopic().length() > Byte.MAX_VALUE) {
             log.warn("putMessage message topic length too long " + msg.getTopic().length());
             return new PutMessageResult(PutMessageStatus.MESSAGE_ILLEGAL, null);
         }
 
+        //消息的Properties属性 不能大于Short整数的最大值
         if (msg.getPropertiesString() != null && msg.getPropertiesString().length() > Short.MAX_VALUE) {
             log.warn("putMessage message properties length too long " + msg.getPropertiesString().length());
             return new PutMessageResult(PutMessageStatus.PROPERTIES_SIZE_EXCEEDED, null);
         }
 
+        //如果使用systemLock锁访问ospageCache超时
         if (this.isOSPageCacheBusy()) {
             return new PutMessageResult(PutMessageStatus.OS_PAGECACHE_BUSY, null);
         }
 
+        //获取系统锁的开始实际爱
         long beginTime = this.getSystemClock().now();
+        //使用commitLog向commitLog存入消息
         PutMessageResult result = this.commitLog.putMessage(msg);
 
         long elapsedTime = this.getSystemClock().now() - beginTime;
@@ -463,11 +491,18 @@ public class DefaultMessageStore implements MessageStore {
         return result;
     }
 
+    /**
+     * 判断向commitLog文件写入消息的服务是否繁忙
+     * @return
+     */
     @Override
     public boolean isOSPageCacheBusy() {
+        //虎丘commigLog加锁的开始时间
         long begin = this.getCommitLog().getBeginTimeInLock();
+        //获取已经加锁的市场
         long diff = this.systemClock.now() - begin;
 
+        //已经加锁的时间大于放入OsPageCache的最大时间 说明osPage繁忙
         return diff < 10000000
                 && diff > this.messageStoreConfig.getOsPageCacheBusyTimeOutMills();
     }
@@ -942,6 +977,10 @@ public class DefaultMessageStore implements MessageStore {
         return this.commitLog.getMaxOffset() - this.haService.getPush2SlaveMaxOffset().get();
     }
 
+    /**
+     * 获取当前时间
+     * @return
+     */
     @Override
     public long now() {
         return this.systemClock.now();

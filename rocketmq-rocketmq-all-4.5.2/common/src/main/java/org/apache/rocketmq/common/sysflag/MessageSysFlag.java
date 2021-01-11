@@ -16,10 +16,25 @@
  */
 package org.apache.rocketmq.common.sysflag;
 
+/**
+ * 消息的系统标志枚举
+ */
 public class MessageSysFlag {
+
+    /**
+     * 消息的消息体数组经过了压缩处理标志
+     */
     public final static int COMPRESSED_FLAG = 0x1;
     public final static int MULTI_TAGS_FLAG = 0x1 << 1;
+
+    /**
+     * 没有产权的类型
+     */
     public final static int TRANSACTION_NOT_TYPE = 0;
+
+    /**
+     * 消息是否准备了产权
+     */
     public final static int TRANSACTION_PREPARED_TYPE = 0x1 << 2;
     public final static int TRANSACTION_COMMIT_TYPE = 0x2 << 2;
     public final static int TRANSACTION_ROLLBACK_TYPE = 0x3 << 2;

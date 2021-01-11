@@ -28,6 +28,9 @@ import org.apache.rocketmq.store.config.MessageStoreConfig;
 import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
+/**
+ * ByteBuffer缓存池类
+ */
 public class TransientStorePool {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
@@ -72,11 +75,19 @@ public class TransientStorePool {
         this.availableBuffers.offerFirst(byteBuffer);
     }
 
+    /**
+     * 从缓存池中中获取一个ByteBuffer对象
+     * @return
+     */
     public ByteBuffer borrowBuffer() {
+        //从队列中提取一个
         ByteBuffer buffer = availableBuffers.pollFirst();
+        //剩余可用的ByteBuffer对象低于百分之四十
         if (availableBuffers.size() < poolSize * 0.4) {
             log.warn("TransientStorePool only remain {} sheets.", availableBuffers.size());
         }
+
+        //返回ByteBuffer对象
         return buffer;
     }
 

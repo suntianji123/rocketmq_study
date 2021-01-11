@@ -59,12 +59,12 @@ public abstract class NettyRemotingAbstract {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
     /**
-     * Semaphore to limit maximum number of on-going one-way requests, which protects system memory footprint.
+     * 发送不需要回复的请求的并发锁
      */
     protected final Semaphore semaphoreOneway;
 
     /**
-     * Semaphore to limit maximum number of on-going asynchronous requests, which protects system memory footprint.
+     * 发送需要等待回复的请求并发锁
      */
     protected final Semaphore semaphoreAsync;
 
@@ -81,8 +81,9 @@ public abstract class NettyRemotingAbstract {
     protected final HashMap<Integer/* request code */, Pair<NettyRequestProcessor, ExecutorService>> processorTable =
         new HashMap<Integer, Pair<NettyRequestProcessor, ExecutorService>>(64);
 
+
     /**
-     * Executor to feed netty events to user defined {@link ChannelEventListener}.
+     * netty channel idler connect close exception事件的执行器
      */
     protected final NettyEventExecutor nettyEventExecutor = new NettyEventExecutor();
 
@@ -588,39 +589,51 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     * netty connect idle close execption事件执行器
+     */
     class NettyEventExecutor extends ServiceThread {
+        //任务队列对象
         private final LinkedBlockingQueue<NettyEvent> eventQueue = new LinkedBlockingQueue<NettyEvent>();
+        //任务最多等待执行任务的数量
         private final int maxSize = 10000;
 
+        //向执行器添加一个netty事件
         public void putNettyEvent(final NettyEvent event) {
             if (this.eventQueue.size() <= maxSize) {
                 this.eventQueue.add(event);
-            } else {
+            } else {//任务对哦满了 记录警告
                 log.warn("event queue size[{}] enough, so drop this event {}", this.eventQueue.size(), event.toString());
             }
         }
 
+        /**
+         * 执行器的run方法
+         */
         @Override
         public void run() {
+            //线程的run方法
             log.info(this.getServiceName() + " service started");
 
+            //获取channel事件监听器
             final ChannelEventListener listener = NettyRemotingAbstract.this.getChannelEventListener();
 
-            while (!this.isStopped()) {
+            while (!this.isStopped()) {//如果线程没有关闭
                 try {
+                    //从任务队列取出一个任务 超时时间为3秒
                     NettyEvent event = this.eventQueue.poll(3000, TimeUnit.MILLISECONDS);
-                    if (event != null && listener != null) {
-                        switch (event.getType()) {
-                            case IDLE:
+                    if (event != null && listener != null) {//有netty channel事件 并且netty channel事件监听器不为null
+                        switch (event.getType()) {//获取事件的枚举类型
+                            case IDLE://channel 长时间没有发生读写的事件
                                 listener.onChannelIdle(event.getRemoteAddr(), event.getChannel());
                                 break;
-                            case CLOSE:
+                            case CLOSE://channel 关闭了
                                 listener.onChannelClose(event.getRemoteAddr(), event.getChannel());
                                 break;
-                            case CONNECT:
+                            case CONNECT://channel连接上了远程服务器
                                 listener.onChannelConnect(event.getRemoteAddr(), event.getChannel());
                                 break;
-                            case EXCEPTION:
+                            case EXCEPTION://channel发生了异常
                                 listener.onChannelException(event.getRemoteAddr(), event.getChannel());
                                 break;
                             default:
@@ -636,6 +649,10 @@ public abstract class NettyRemotingAbstract {
             log.info(this.getServiceName() + " service end");
         }
 
+        /**
+         * 工作线程的名
+         * @return
+         */
         @Override
         public String getServiceName() {
             return NettyEventExecutor.class.getSimpleName();

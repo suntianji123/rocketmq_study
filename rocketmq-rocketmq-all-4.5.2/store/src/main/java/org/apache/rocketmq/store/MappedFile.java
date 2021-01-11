@@ -41,34 +41,86 @@ import org.apache.rocketmq.store.config.FlushDiskType;
 import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
+/**
+ * 映射文件类
+ */
 public class MappedFile extends ReferenceResource {
     public static final int OS_PAGE_SIZE = 1024 * 4;
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    /**
+     * 整个文件夹下已经分配的文件占用的总的磁盘大小 给所有的mappedFile的大小
+     */
     private static final AtomicLong TOTAL_MAPPED_VIRTUAL_MEMORY = new AtomicLong(0);
 
+    /**
+     * 整个文件系统 总的添加ymappedFile的文件数量
+     */
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
+
+    /**
+     * mappedFile当前写入打的位置
+     */
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
+
+    /**
+     * 文件大小
+     */
     protected int fileSize;
+
+    /**
+     * 文件通道对象
+     */
     protected FileChannel fileChannel;
     /**
      * Message will put to here first, and then reput to FileChannel if writeBuffer is not null.
      */
     protected ByteBuffer writeBuffer = null;
+
+    /**
+     * writeBuffer来源的缓存池
+     */
     protected TransientStorePool transientStorePool = null;
+
+    /**
+     * 文件名
+     */
     private String fileName;
+
+    /**
+     * 文件在整个文件系统的起始偏移量
+     */
     private long fileFromOffset;
+
+    /**
+     * 文件对象
+     */
     private File file;
+
+    /**
+     * 文件的ByteBuffer对象
+     */
     private MappedByteBuffer mappedByteBuffer;
     private volatile long storeTimestamp = 0;
+
+    /**
+     *当前mappedFile是否为文件系统的第一个mappedFile对象
+     */
     private boolean firstCreateInQueue = false;
 
     public MappedFile() {
     }
 
+    /**
+     * 实例化一个mappedFile对象
+     * @param fileName 文件路径
+     * @param fileSize 文件大小
+     * @throws IOException
+     */
     public MappedFile(final String fileName, final int fileSize) throws IOException {
+        //初始化mappedFile
         init(fileName, fileSize);
     }
 
@@ -77,10 +129,16 @@ public class MappedFile extends ReferenceResource {
         init(fileName, fileSize, transientStorePool);
     }
 
+    /**
+     * 保证文件夹存在
+     * @param dirName 文件夹
+     */
     public static void ensureDirOK(final String dirName) {
-        if (dirName != null) {
+        if (dirName != null) {//文件夹不为空
+            //实例化一个文件
             File f = new File(dirName);
-            if (!f.exists()) {
+            if (!f.exists()) {//文件夹不存在
+                //创建文件夹
                 boolean result = f.mkdirs();
                 log.info(dirName + " mkdir " + (result ? "OK" : "Failed"));
             }
@@ -141,26 +199,59 @@ public class MappedFile extends ReferenceResource {
         return TOTAL_MAPPED_VIRTUAL_MEMORY.get();
     }
 
+    /**
+     * 初始化一个MappedFile对象
+     * @param fileName 文件名
+     * @param fileSize 文件大消息
+     * @param transientStorePool 来源的对象池
+     * @throws IOException
+     */
     public void init(final String fileName, final int fileSize,
         final TransientStorePool transientStorePool) throws IOException {
+        //初始化MappedFile对象
         init(fileName, fileSize);
+
+        //从ByteBuffer缓存池获取一个ByteBuffer对象 设置为writeBuffer
         this.writeBuffer = transientStorePool.borrowBuffer();
+        //指定writeBuffer来源的ByteBuffer缓存池
         this.transientStorePool = transientStorePool;
     }
 
+    /**
+     * 初始化MappedFile对象
+     * @param fileName 文件名
+     * @param fileSize 文件大小
+     * @throws IOException
+     */
     private void init(final String fileName, final int fileSize) throws IOException {
+        //设置文件名
         this.fileName = fileName;
+        //设置文件大小
         this.fileSize = fileSize;
+
+        //实例化一个文件对象
         this.file = new File(fileName);
+
+        //设置文件在整个文件系统中的起始偏移量
         this.fileFromOffset = Long.parseLong(this.file.getName());
+
+        //是否初始化成功
         boolean ok = false;
 
+        //保证文件的父文件夹存在
         ensureDirOK(this.file.getParent());
 
         try {
+            //指定文件通道
             this.fileChannel = new RandomAccessFile(this.file, "rw").getChannel();
+
+            //获取文件的ByteBuffer对象
             this.mappedByteBuffer = this.fileChannel.map(MapMode.READ_WRITE, 0, fileSize);
+
+            //增加文件夹占用总的内存大小
             TOTAL_MAPPED_VIRTUAL_MEMORY.addAndGet(fileSize);
+
+            //增加总的mappedFile数量
             TOTAL_MAPPED_FILES.incrementAndGet();
             ok = true;
         } catch (FileNotFoundException e) {
@@ -170,7 +261,8 @@ public class MappedFile extends ReferenceResource {
             log.error("Failed to map file " + this.fileName, e);
             throw e;
         } finally {
-            if (!ok && this.fileChannel != null) {
+            if (!ok && this.fileChannel != null) {//'如果初始化不成功 并且文件通道已经打开
+                //关闭文件通道
                 this.fileChannel.close();
             }
         }
@@ -188,6 +280,12 @@ public class MappedFile extends ReferenceResource {
         return fileChannel;
     }
 
+    /**
+     * 向mappedFilie中存入消息
+     * @param msg 消息对象
+     * @param cb 存入消息之后的回调对象
+     * @return
+     */
     public AppendMessageResult appendMessage(final MessageExtBrokerInner msg, final AppendMessageCallback cb) {
         return appendMessagesInner(msg, cb);
     }
@@ -196,6 +294,12 @@ public class MappedFile extends ReferenceResource {
         return appendMessagesInner(messageExtBatch, cb);
     }
 
+    /**
+     * 向mappedFilie中存入消息
+     * @param messageExt 消息
+     * @param cb 回调对象
+     * @return
+     */
     public AppendMessageResult appendMessagesInner(final MessageExt messageExt, final AppendMessageCallback cb) {
         assert messageExt != null;
         assert cb != null;

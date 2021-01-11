@@ -25,12 +25,12 @@ public class MessageStoreConfig {
     @ImportantField
     private String storePathRootDir = System.getProperty("user.home") + File.separator + "store";
 
-    //The directory in which the commitlog is kept
+    //存储commitLog文件的文件夹
     @ImportantField
     private String storePathCommitLog = System.getProperty("user.home") + File.separator + "store"
         + File.separator + "commitlog";
 
-    // CommitLog file size,default is 1G
+    //一个CommitLog文件的大小 1G
     private int mappedFileSizeCommitLog = 1024 * 1024 * 1024;
     // ConsumeQueue file size,default is 30W
     private int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
@@ -121,6 +121,10 @@ public class MessageStoreConfig {
     @ImportantField
     private String haMasterAddress = null;
     private int haSlaveFallbehindMax = 1024 * 1024 * 256;
+
+    /**
+     * 广播站角色为异步主站
+     */
     @ImportantField
     private BrokerRole brokerRole = BrokerRole.ASYNC_MASTER;
     @ImportantField
@@ -135,9 +139,16 @@ public class MessageStoreConfig {
     private boolean debugLockEnable = false;
     private boolean duplicationEnable = false;
     private boolean diskFallRecorded = true;
+
+    /**
+     * 访问commitLog 使用systemLock的超时时间
+     */
     private long osPageCacheBusyTimeOutMills = 1000;
     private int defaultQueryMaxNum = 32;
 
+    /**
+     * 创建MappedFile对象时 设置的writerBuffer是否从 ByteBuffer缓存池获取
+     */
     @ImportantField
     private boolean transientStorePoolEnable = false;
     private int transientStorePoolSize = 5;

@@ -145,6 +145,10 @@ public class BrokerController {
     private RemotingServer remotingServer;
     private RemotingServer fastRemotingServer;
     private TopicConfigManager topicConfigManager;
+
+    /**
+     * 处理广播站收到了生产者推送的消息的执行器
+     */
     private ExecutorService sendMessageExecutor;
     private ExecutorService pullMessageExecutor;
     private ExecutorService queryMessageExecutor;
@@ -317,6 +321,7 @@ public class BrokerController {
                 Executors.newFixedThreadPool(this.brokerConfig.getConsumerManageThreadPoolNums(), new ThreadFactoryImpl(
                     "ConsumerManageThread_"));
 
+            //注册处理器
             this.registerProcessor();
 
             final long initialDelay = UtilAll.computeNextMorningTimeMillis() - System.currentTimeMillis();
@@ -531,10 +536,12 @@ public class BrokerController {
         }
     }
 
+    /**
+     * 注册处理器
+     */
     public void registerProcessor() {
-        /**
-         * SendMessageProcessor
-         */
+
+        //实例化一个收到生产者生产的消息请求的处理器
         SendMessageProcessor sendProcessor = new SendMessageProcessor(this);
         sendProcessor.registerSendMessageHook(sendMessageHookList);
         sendProcessor.registerConsumeMessageHook(consumeMessageHookList);

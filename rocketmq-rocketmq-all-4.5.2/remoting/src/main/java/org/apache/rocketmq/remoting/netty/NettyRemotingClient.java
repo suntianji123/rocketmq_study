@@ -73,9 +73,24 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
 
+    /**
+     * 设置netty客户端配置
+     */
     private final NettyClientConfig nettyClientConfig;
+
+    /**
+     * netty client启动配置
+     */
     private final Bootstrap bootstrap = new Bootstrap();
+
+    /**
+     * 轮训channel 读写事件的执行器组
+     */
     private final EventLoopGroup eventLoopGroupWorker;
+
+    /**
+     * 操作已经与远程netty server建立的channel列表锁
+     */
     private final Lock lockChannelTables = new ReentrantLock();
 
     /**
@@ -83,6 +98,9 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
      */
     private final ConcurrentMap<String /* addr */, ChannelWrapper> channelTables = new ConcurrentHashMap<String, ChannelWrapper>();
 
+    /**
+     * 定时器 工作线程为守护线程
+     */
     private final Timer timer = new Timer("ClientHouseKeepingService", true);
 
     /**
@@ -99,24 +117,43 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
      * Invoke the callback methods in this executor when process response.
      */
     private ExecutorService callbackExecutor;
+
+    /**
+     * channel connect  close idle exception世间的监听器
+     */
     private final ChannelEventListener channelEventListener;
+
+    /**
+     * netty client channel handler的执行器
+     */
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
     public NettyRemotingClient(final NettyClientConfig nettyClientConfig) {
         this(nettyClientConfig, null);
     }
 
+    /**
+     * 实例化Netty client对象
+     * @param nettyClientConfig Netty client配置
+     * @param channelEventListener netty channel事件监听器
+     */
     public NettyRemotingClient(final NettyClientConfig nettyClientConfig,
         final ChannelEventListener channelEventListener) {
+
+        //设置并发锁
         super(nettyClientConfig.getClientOnewaySemaphoreValue(), nettyClientConfig.getClientAsyncSemaphoreValue());
+        //设置netty client配置
         this.nettyClientConfig = nettyClientConfig;
+        //设置channel事件监听器
         this.channelEventListener = channelEventListener;
 
+        //设置公共处理器的工作线程数
         int publicThreadNums = nettyClientConfig.getClientCallbackExecutorThreads();
         if (publicThreadNums <= 0) {
             publicThreadNums = 4;
         }
 
+        //实例化一个固定线程线的执行器 最小工作线程为制定的publicThreadNum 最大线程数也是 超时时间为0 清除不工作的线程 线程工厂类
         this.publicExecutor = Executors.newFixedThreadPool(publicThreadNums, new ThreadFactory() {
             private AtomicInteger threadIndex = new AtomicInteger(0);
 
@@ -126,6 +163,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             }
         });
 
+        //制定轮训channel 读写的执行器组
         this.eventLoopGroupWorker = new NioEventLoopGroup(1, new ThreadFactory() {
             private AtomicInteger threadIndex = new AtomicInteger(0);
 
@@ -135,6 +173,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             }
         });
 
+        //判断访问远程netty server是否使用tls证书
         if (nettyClientConfig.isUseTLS()) {
             try {
                 sslContext = TlsHelper.buildSslContext(true);
@@ -154,8 +193,12 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         return Math.abs(r.nextInt() % 999) % 999;
     }
 
+    /**
+     * 启动netty client包装对象
+     */
     @Override
     public void start() {
+        //设置channel handler的执行器组 实例化一个默认的事件执行器组  工作线程数为cpu核数 指定线程工厂对象
         this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(
             nettyClientConfig.getClientWorkerThreads(),
             new ThreadFactory() {
@@ -168,6 +211,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                 }
             });
 
+        //netty client启动配置
         Bootstrap handler = this.bootstrap.group(this.eventLoopGroupWorker).channel(NioSocketChannel.class)
             .option(ChannelOption.TCP_NODELAY, true)
             .option(ChannelOption.SO_KEEPALIVE, false)
@@ -175,6 +219,8 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             .option(ChannelOption.SO_SNDBUF, nettyClientConfig.getClientSocketSndBufSize())
             .option(ChannelOption.SO_RCVBUF, nettyClientConfig.getClientSocketRcvBufSize())
             .handler(new ChannelInitializer<SocketChannel>() {
+
+                //设置当channel注册到eventloop之后给channel添加handler链表的handler对象
                 @Override
                 public void initChannel(SocketChannel ch) throws Exception {
                     ChannelPipeline pipeline = ch.pipeline();
@@ -196,6 +242,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                 }
             });
 
+        //定时器每1秒执行一次
         this.timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
@@ -207,7 +254,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             }
         }, 1000 * 3, 1000);
 
-        if (this.channelEventListener != null) {
+        if (this.channelEventListener != null) {//如果channel事件监听器对象不null 启动netty channel事件的执行器线程
             this.nettyEventExecutor.start();
         }
     }

@@ -67,6 +67,9 @@ public abstract class ConfigManager {
 
     public abstract void decode(final String jsonString);
 
+    /**
+     * 将主题配置序列化到本地磁盘
+     */
     public synchronized void persist() {
         String jsonString = this.encode(true);
         if (jsonString != null) {

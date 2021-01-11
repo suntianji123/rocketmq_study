@@ -19,13 +19,29 @@ package org.apache.rocketmq.common.message;
 import java.util.HashSet;
 
 public class MessageConst {
+
+    /**
+     * Message中的keys在properties中的key
+     */
     public static final String PROPERTY_KEYS = "KEYS";
+
+    /**
+     * Message的tags值在properties中的key
+     */
     public static final String PROPERTY_TAGS = "TAGS";
+
+    /**
+     * Messsage的waitStoreMsgOK 在properties中的key
+     */
     public static final String PROPERTY_WAIT_STORE_MSG_OK = "WAIT";
     public static final String PROPERTY_DELAY_TIME_LEVEL = "DELAY";
     public static final String PROPERTY_RETRY_TOPIC = "RETRY_TOPIC";
     public static final String PROPERTY_REAL_TOPIC = "REAL_TOPIC";
     public static final String PROPERTY_REAL_QUEUE_ID = "REAL_QID";
+
+    /**
+     * 消息是否准备了产权
+     */
     public static final String PROPERTY_TRANSACTION_PREPARED = "TRAN_MSG";
     public static final String PROPERTY_PRODUCER_GROUP = "PGROUP";
     public static final String PROPERTY_MIN_OFFSET = "MIN_OFFSET";
@@ -35,10 +51,30 @@ public class MessageConst {
     public static final String PROPERTY_TRANSFER_FLAG = "TRANSFER_FLAG";
     public static final String PROPERTY_CORRECTION_FLAG = "CORRECTION_FLAG";
     public static final String PROPERTY_MQ2_FLAG = "MQ2_FLAG";
+
+    /**
+     * 如果消息的主题是重新消费的消息
+     */
     public static final String PROPERTY_RECONSUME_TIME = "RECONSUME_TIME";
+
+    /**
+     * 广播站消息区域
+     */
     public static final String PROPERTY_MSG_REGION = "MSG_REGION";
+
+    /**
+     * 广播站是符打开
+     */
     public static final String PROPERTY_TRACE_SWITCH = "TRACE_ON";
+
+    /**
+     * 设置消息唯一的id
+     */
     public static final String PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX = "UNIQ_KEY";
+
+    /**
+     * 消息最大重新消费的次数
+     */
     public static final String PROPERTY_MAX_RECONSUME_TIMES = "MAX_RECONSUME_TIMES";
     public static final String PROPERTY_CONSUME_START_TIMESTAMP = "CONSUME_START_TIME";
     public static final String PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET = "TRAN_PREPARED_QUEUE_OFFSET";

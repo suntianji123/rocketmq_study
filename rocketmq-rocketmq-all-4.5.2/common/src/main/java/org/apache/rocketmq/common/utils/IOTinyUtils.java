@@ -33,26 +33,56 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 
+/**
+ * IOTinyUtils类
+ */
 public class IOTinyUtils {
 
+    /**
+     * 将输入流按照指定编码格式转为字符串
+     * @param input 输入流
+     * @param encoding 编码格式
+     * @return
+     * @throws IOException
+     */
     static public String toString(InputStream input, String encoding) throws IOException {
         return (null == encoding) ? toString(new InputStreamReader(input, RemotingHelper.DEFAULT_CHARSET)) : toString(new InputStreamReader(
             input, encoding));
     }
 
+    /**
+     * 将Reader中的字节以字符串的形式返回
+     * @param reader Reader对象
+     * @return
+     * @throws IOException
+     */
     static public String toString(Reader reader) throws IOException {
+        //实例化一个CharArrayWriter对象
         CharArrayWriter sw = new CharArrayWriter();
         copy(reader, sw);
+        //返回写对象的字符串
         return sw.toString();
     }
 
+    /**
+     * 将reader字符数组写入writer对象
+     * @param input reader对象
+     * @param output writer对象
+     * @return
+     * @throws IOException
+     */
     static public long copy(Reader input, Writer output) throws IOException {
+        //实例化一个字符串
         char[] buffer = new char[1 << 12];
+        //写入的字符数量
         long count = 0;
         for (int n = 0; (n = input.read(buffer)) >= 0; ) {
+            //一次最大读取buffer.size个字符
             output.write(buffer, 0, n);
             count += n;
         }
+
+        //返回写入到writer中的字符数量
         return count;
     }
 

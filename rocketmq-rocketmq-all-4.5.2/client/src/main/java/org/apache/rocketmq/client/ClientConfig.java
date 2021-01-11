@@ -52,11 +52,12 @@ public class ClientConfig {
     protected AccessChannel accessChannel = AccessChannel.LOCAL;
 
     /**
-     * Pulling topic information interval from the named server
+     * 固定时间从中心服务器拉取广播站的主题配置信息
      */
     private int pollNameServerInterval = 1000 * 30;
+
     /**
-     * Heartbeat interval in microseconds with message broker
+     * 给广播站发送心跳的时间
      */
     private int heartbeatBrokerInterval = 1000 * 30;
     /**
@@ -274,6 +275,10 @@ public class ClientConfig {
         this.language = language;
     }
 
+    /**
+     * 获取mqclientinstance的命名空间
+     * @return
+     */
     public String getNamespace() {
         if (StringUtils.isNotEmpty(namespace)) {
             return namespace;

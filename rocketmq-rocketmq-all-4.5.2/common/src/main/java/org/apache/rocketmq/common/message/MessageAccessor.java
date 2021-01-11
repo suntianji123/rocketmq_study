@@ -69,6 +69,11 @@ public class MessageAccessor {
         putProperty(msg, MessageConst.PROPERTY_RECONSUME_TIME, reconsumeTimes);
     }
 
+    /**
+     * 获取消息重新消费的次数
+     * @param msg 消息i对象
+     * @return
+     */
     public static String getReconsumeTime(final Message msg) {
         return msg.getProperty(MessageConst.PROPERTY_RECONSUME_TIME);
     }

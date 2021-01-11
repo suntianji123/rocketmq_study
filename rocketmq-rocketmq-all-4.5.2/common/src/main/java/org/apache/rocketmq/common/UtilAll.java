@@ -92,7 +92,14 @@ public class UtilAll {
         return sb.toString();
     }
 
+    /**
+     * 将某个文件在整个文件夹系统中的偏移量转为文件名
+     * @param offset 偏移量
+     * @return
+     */
     public static String offset2FileName(final long offset) {
+
+        //数字格式化对象
         final NumberFormat nf = NumberFormat.getInstance();
         nf.setMinimumIntegerDigits(20);
         nf.setMaximumFractionDigits(0);
@@ -100,6 +107,12 @@ public class UtilAll {
         return nf.format(offset);
     }
 
+
+    /**
+     * 计算已经过去的时间
+     * @param beginTime 开始时间
+     * @return
+     */
     public static long computeElapsedTimeMilliseconds(final long beginTime) {
         return System.currentTimeMillis() - beginTime;
     }
@@ -312,25 +325,44 @@ public class UtilAll {
         return result;
     }
 
+    /**
+     * 压缩字节数组
+     * @param src 字节数组
+     * @param level zip压缩级别
+     * @return
+     * @throws IOException
+     */
     public static byte[] compress(final byte[] src, final int level) throws IOException {
         byte[] result = src;
+        //实例化一个字节数组输入对象
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(src.length);
+
+        //实例化一个压缩者对象
         java.util.zip.Deflater defeater = new java.util.zip.Deflater(level);
+
+        //压缩输出流
         DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(byteArrayOutputStream, defeater);
         try {
+
+            //写入压缩前的字节数组
             deflaterOutputStream.write(src);
+            //执行压缩
             deflaterOutputStream.finish();
+            //关闭输出流
             deflaterOutputStream.close();
+            //获取压缩后的字节数组
             result = byteArrayOutputStream.toByteArray();
         } catch (IOException e) {
             defeater.end();
             throw e;
         } finally {
             try {
+                //关闭字节数组输出流
                 byteArrayOutputStream.close();
             } catch (IOException ignored) {
             }
 
+            //关闭压缩器
             defeater.end();
         }
 

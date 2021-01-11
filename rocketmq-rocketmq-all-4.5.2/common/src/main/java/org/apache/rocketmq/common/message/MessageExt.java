@@ -22,10 +22,17 @@ import java.nio.ByteBuffer;
 import org.apache.rocketmq.common.TopicFilterType;
 import org.apache.rocketmq.common.sysflag.MessageSysFlag;
 
+/**
+ * 广播站缓存的消息
+ */
 public class MessageExt extends Message {
     private static final long serialVersionUID = 5720810158625748049L;
 
+    /**
+     * 消息存放的队列编号
+     */
     private int queueId;
+
 
     private int storeSize;
 
@@ -34,10 +41,21 @@ public class MessageExt extends Message {
     private long bornTimestamp;
     private SocketAddress bornHost;
 
+    /**
+     * 将消息存入commitLog文件的时间
+     */
     private long storeTimestamp;
     private SocketAddress storeHost;
+
+    /**
+     * 消息id
+     */
     private String msgId;
     private long commitLogOffset;
+
+    /**
+     * 消息体字节数组的CRC值 防止消息体被恶意更改
+     */
     private int bodyCRC;
     private int reconsumeTimes;
 

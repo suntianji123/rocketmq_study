@@ -29,18 +29,33 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
+/**
+ * 文件映射队列类
+ */
 public class MappedFileQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
     private static final int DELETE_FILES_BATCH_MAX = 10;
 
+    /**
+     * 设置文件的父目录
+     */
     private final String storePath;
 
+    /**
+     * 单个映射问价的最大大小
+     */
     private final int mappedFileSize;
 
+    /**
+     * 已经分配的映射文件对象
+     */
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
+    /**
+     * 分配映射文件对象的服务
+     */
     private final AllocateMappedFileService allocateMappedFileService;
 
     private long flushedWhere = 0;
@@ -48,6 +63,12 @@ public class MappedFileQueue {
 
     private volatile long storeTimestamp = 0;
 
+    /**
+     * 实例化一个文件映射队列对象
+     * @param storePath 存储文件的文件夹
+     * @param mappedFileSize 映射文件的最大大小
+     * @param allocateMappedFileService 分配映射文件的服务
+     */
     public MappedFileQueue(final String storePath, int mappedFileSize,
         AllocateMappedFileService allocateMappedFileService) {
         this.storePath = storePath;
@@ -191,11 +212,20 @@ public class MappedFileQueue {
         return 0;
     }
 
+
+    /**
+     * 获取指定开始偏移量的mappedFile文件夹对象
+     * @param startOffset 开始偏移量（在整个commitLog文件夹下的起始偏移量）
+     * @param needCreate 需要创建
+     * @return
+     */
     public MappedFile getLastMappedFile(final long startOffset, boolean needCreate) {
+        //创建新的文件在整个文件系统中的起始偏移量
         long createOffset = -1;
         MappedFile mappedFileLast = getLastMappedFile();
 
         if (mappedFileLast == null) {
+            //起始偏移量
             createOffset = startOffset - (startOffset % this.mappedFileSize);
         }
 
@@ -203,27 +233,38 @@ public class MappedFileQueue {
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
 
+        //满足新的文件条件
         if (createOffset != -1 && needCreate) {
             String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
+
+            //新的文件名（全路径）
             String nextNextFilePath = this.storePath + File.separator
                 + UtilAll.offset2FileName(createOffset + this.mappedFileSize);
+
+            //定义mappedFile文件
             MappedFile mappedFile = null;
 
+            //分配mappedFile对象的服务不为空
             if (this.allocateMappedFileService != null) {
+                //分配mappedFile对象
                 mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile(nextFilePath,
                     nextNextFilePath, this.mappedFileSize);
             } else {
                 try {
+                    //实例化一个mappedFile对象
                     mappedFile = new MappedFile(nextFilePath, this.mappedFileSize);
                 } catch (IOException e) {
                     log.error("create mappedFile exception", e);
                 }
             }
 
-            if (mappedFile != null) {
+            if (mappedFile != null) {//mappedFile对象不为null
                 if (this.mappedFiles.isEmpty()) {
+                    //设置mappedFile的文件系统中的第一个mappedFile
                     mappedFile.setFirstCreateInQueue(true);
                 }
+
+                //将mappedFile添加mappedFiles队列
                 this.mappedFiles.add(mappedFile);
             }
 
@@ -233,10 +274,19 @@ public class MappedFileQueue {
         return mappedFileLast;
     }
 
+    /**
+     * 获取一个指定在commitlog文件中的偏移量的mappedFile
+     * @param startOffset 开始偏移量
+     * @return
+     */
     public MappedFile getLastMappedFile(final long startOffset) {
         return getLastMappedFile(startOffset, true);
     }
 
+    /**
+     * 获取上一次分配的MappedFile 映射文件对象
+     * @return
+     */
     public MappedFile getLastMappedFile() {
         MappedFile mappedFileLast = null;
 

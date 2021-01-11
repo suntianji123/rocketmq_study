@@ -381,19 +381,33 @@ public class MessageDecoder {
         return msgExts;
     }
 
+    /**
+     * 将properties map中的属性值转为字符串
+     * @param properties map
+     * @return
+     */
     public static String messageProperties2String(Map<String, String> properties) {
+        //实例化一个StringBuilder对象
         StringBuilder sb = new StringBuilder();
-        if (properties != null) {
-            for (final Map.Entry<String, String> entry : properties.entrySet()) {
+        if (properties != null) {//map不为空
+            for (final Map.Entry<String, String> entry : properties.entrySet()) {//遍历map
+                //属性名
                 final String name = entry.getKey();
+
+                //属性值
                 final String value = entry.getValue();
 
+                //拼接属性名
                 sb.append(name);
                 sb.append(NAME_VALUE_SEPARATOR);
+
+                //拼接属性值
                 sb.append(value);
                 sb.append(PROPERTY_SEPARATOR);
             }
         }
+
+        //返回属性值
         return sb.toString();
     }
 

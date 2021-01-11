@@ -122,6 +122,9 @@ public class BrokerConfig {
     private long waitTimeMillsInHeartbeatQueue = 31 * 1000;
     private long waitTimeMillsInTransactionQueue = 3 * 1000;
 
+    /**
+     * 广播站开始接受处理消费者推送的消息的时间点
+     */
     private long startAcceptSendRequestTimeStamp = 0L;
 
     private boolean traceOn = true;

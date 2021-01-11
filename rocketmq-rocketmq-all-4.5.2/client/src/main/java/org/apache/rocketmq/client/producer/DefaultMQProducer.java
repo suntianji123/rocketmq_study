@@ -59,30 +59,28 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     private String producerGroup;
 
     /**
-     * Just for testing or demo program
+     * 消息的默认主推
      */
     private String createTopicKey = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
 
     /**
-     * Number of queues to create per default topic.
+     * 对某个主题默认创建的队列数量
      */
     private volatile int defaultTopicQueueNums = 4;
 
+
     /**
-     * Timeout for sending messages.
+     * 生产者发布消息超时时间
      */
     private int sendMsgTimeout = 3000;
 
     /**
-     * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
+     * 当消息的消息体字节数组大小超过了这个值才进行对消息压缩
      */
     private int compressMsgBodyOverHowmuch = 1024 * 4;
 
     /**
-     * Maximum number of retry to perform internally before claiming sending failure in synchronous mode.
-     * </p>
-     *
-     * This may potentially cause message duplication which is up to application developers to resolve.
+     * 发送消息失败时候 重复尝试发送的次数
      */
     private int retryTimesWhenSendFailed = 2;
 
@@ -100,7 +98,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     private boolean retryAnotherBrokerWhenNotStoreOK = false;
 
     /**
-     * Maximum allowed message size in bytes.
+     * 每个消息的最大size值
      */
     private int maxMessageSize = 1024 * 1024 * 4; // 4M
 
@@ -306,8 +304,12 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Override
     public SendResult send(
         Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+        //检查消息
         Validators.checkMessage(msg, this);
+        //设置主题转为设置命名空间之后的主题
         msg.setTopic(withNamespace(msg.getTopic()));
+
+        //发布消息
         return this.defaultMQProducerImpl.send(msg);
     }
 

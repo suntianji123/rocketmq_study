@@ -103,7 +103,7 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
                 }
             case RequestCode.UNREGISTER_BROKER:
                 return this.unregisterBroker(ctx, request);
-            case RequestCode.GET_ROUTEINTO_BY_TOPIC:
+            case RequestCode.GET_ROUTEINTO_BY_TOPIC://从中心服务器获取广播站对应的发布广播站列表信息
                 return this.getRouteInfoByTopic(ctx, request);
             case RequestCode.GET_BROKER_CLUSTER_INFO:
                 return this.getBrokerClusterInfo(ctx, request);
@@ -372,15 +372,26 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * 获取主题对应的发布广播站列表信息
+     * @param ctx 与netty client建立的channel对象
+     * @param request 远程请求命令对象
+     * @return
+     * @throws RemotingCommandException
+     */
     public RemotingCommand getRouteInfoByTopic(ChannelHandlerContext ctx,
         RemotingCommand request) throws RemotingCommandException {
+
+        //实例化一个响应的命令行
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
+
+        //解码请求头
         final GetRouteInfoRequestHeader requestHeader =
             (GetRouteInfoRequestHeader) request.decodeCommandCustomHeader(GetRouteInfoRequestHeader.class);
 
         TopicRouteData topicRouteData = this.namesrvController.getRouteInfoManager().pickupTopicRouteData(requestHeader.getTopic());
 
-        if (topicRouteData != null) {
+        if (topicRouteData != null) {//主题路径信息数据存在
             if (this.namesrvController.getNamesrvConfig().isOrderMessageEnable()) {
                 String orderTopicConf =
                     this.namesrvController.getKvConfigManager().getKVConfig(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG,
@@ -388,14 +399,20 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
                 topicRouteData.setOrderTopicConf(orderTopicConf);
             }
 
+            //编码为字节数据
             byte[] content = topicRouteData.encode();
+            //设置响应的响应体
             response.setBody(content);
+            //设置响应码
             response.setCode(ResponseCode.SUCCESS);
+            //设置标记
             response.setRemark(null);
             return response;
         }
 
+        //设置响应码
         response.setCode(ResponseCode.TOPIC_NOT_EXIST);
+        //设置标记
         response.setRemark("No topic route info in name server for the topic: " + requestHeader.getTopic()
             + FAQUrl.suggestTodo(FAQUrl.APPLY_TOPIC_URL));
         return response;

@@ -19,6 +19,9 @@ package org.apache.rocketmq.store;
 import org.apache.rocketmq.common.TopicFilterType;
 import org.apache.rocketmq.common.message.MessageExt;
 
+/**
+ * 广播站缓存生产者推送过来的消息转换后的类
+ */
 public class MessageExtBrokerInner extends MessageExt {
     private static final long serialVersionUID = 7256001576878700634L;
     private String propertiesString;

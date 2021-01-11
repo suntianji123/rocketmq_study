@@ -112,6 +112,10 @@ public class RemotingCommand {
      */
     private int flag = 0;
     private String remark;
+
+    /**
+     * 扩展属性map
+     */
     private HashMap<String, String> extFields;
     private transient CommandCustomHeader customHeader;
 

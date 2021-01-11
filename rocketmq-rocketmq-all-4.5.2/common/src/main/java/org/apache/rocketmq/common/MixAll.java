@@ -134,12 +134,22 @@ public class MixAll {
         return DLQ_GROUP_TOPIC_PREFIX + consumerGroup;
     }
 
+    /**
+     * 使用有特权的广播站地址发布像爱惜
+     * @param isChange 是否使用特权
+     * @param brokerAddr 普通广播站地址
+     * @return
+     */
     public static String brokerVIPChannel(final boolean isChange, final String brokerAddr) {
-        if (isChange) {
+        if (isChange) {//使用特权的广播站发送消息
+            //
             String[] ipAndPort = brokerAddr.split(":");
             String brokerAddrNew = ipAndPort[0] + ":" + (Integer.parseInt(ipAndPort[1]) - 2);
+
+            //普通广播站端口 - 2 特权广播站服务器端口
             return brokerAddrNew;
-        } else {
+        } else {//不使用特权
+            //返回普通地址
             return brokerAddr;
         }
     }

@@ -54,14 +54,28 @@ import org.apache.rocketmq.store.PutMessageResult;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
+/**
+ * 收到生产者生产的消息请求的处理器类
+ */
 public class SendMessageProcessor extends AbstractSendMessageProcessor implements NettyRequestProcessor {
 
     private List<ConsumeMessageHook> consumeMessageHookList;
 
+    /**
+     * 实例化一个收到收到生产者生产的消息的处理器对象
+     * @param brokerController 生产者控制器对象
+     */
     public SendMessageProcessor(final BrokerController brokerController) {
         super(brokerController);
     }
 
+    /**
+     * 收到消费者推送的消息处理方法
+     * @param ctx 与生产者建立的channel连接
+     * @param request 远程命令对象
+     * @return
+     * @throws RemotingCommandException
+     */
     @Override
     public RemotingCommand processRequest(ChannelHandlerContext ctx,
                                           RemotingCommand request) throws RemotingCommandException {
@@ -70,18 +84,22 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             case RequestCode.CONSUMER_SEND_MSG_BACK:
                 return this.consumerSendMsgBack(ctx, request);
             default:
+                //获取推送消息的请求头对象
                 SendMessageRequestHeader requestHeader = parseRequestHeader(request);
                 if (requestHeader == null) {
                     return null;
                 }
 
+                //获取context对象
                 mqtraceContext = buildMsgContext(ctx, requestHeader);
                 this.executeSendMessageHookBefore(ctx, request, mqtraceContext);
 
+                //远程命令行响应对象
                 RemotingCommand response;
                 if (requestHeader.isBatch()) {
                     response = this.sendBatchMessage(ctx, request, mqtraceContext, requestHeader);
                 } else {
+                    //处理生产者推送的消息 获取响应
                     response = this.sendMessage(ctx, request, mqtraceContext, requestHeader);
                 }
 
@@ -251,15 +269,26 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         return response;
     }
 
+    /**
+     * 判断是否处理 %RETYR%l or %DLQ%类型的消息
+     * @param requestHeader 请求头
+     * @param response 响应的命令行对象
+     * @param request 请求的命令行对象
+     * @param msg 消息
+     * @param topicConfig 主题配置
+     * @return
+     */
     private boolean handleRetryAndDLQ(SendMessageRequestHeader requestHeader, RemotingCommand response,
                                       RemotingCommand request,
                                       MessageExt msg, TopicConfig topicConfig) {
+        //虎丘主题
         String newTopic = requestHeader.getTopic();
         if (null != newTopic && newTopic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
+            //主题名
             String groupName = newTopic.substring(MixAll.RETRY_GROUP_TOPIC_PREFIX.length());
             SubscriptionGroupConfig subscriptionGroupConfig =
                 this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(groupName);
-            if (null == subscriptionGroupConfig) {
+            if (null == subscriptionGroupConfig) {//订阅配置不存在
                 response.setCode(ResponseCode.SUBSCRIPTION_GROUP_NOT_EXIST);
                 response.setRemark(
                     "subscription group not exist, " + groupName + " " + FAQUrl.suggestTodo(FAQUrl.SUBSCRIPTION_GROUP_NOT_EXIST));
@@ -295,61 +324,100 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         return true;
     }
 
+    /**
+     * 处理生产者推送的消息 获取响应的命令行对象
+     * @param ctx ChannelHandlerContext对象
+     * @param request 远程请求的远程命令行对象
+     * @param sendMessageContext contxt
+     * @param requestHeader 请求头对象
+     * @return
+     * @throws RemotingCommandException
+     */
     private RemotingCommand sendMessage(final ChannelHandlerContext ctx,
                                         final RemotingCommand request,
                                         final SendMessageContext sendMessageContext,
                                         final SendMessageRequestHeader requestHeader) throws RemotingCommandException {
 
+
+        //创建响应
         final RemotingCommand response = RemotingCommand.createResponseCommand(SendMessageResponseHeader.class);
         final SendMessageResponseHeader responseHeader = (SendMessageResponseHeader)response.readCustomHeader();
 
+        //设置命令行id
         response.setOpaque(request.getOpaque());
 
+        //添加广播站区域属性
         response.addExtField(MessageConst.PROPERTY_MSG_REGION, this.brokerController.getBrokerConfig().getRegionId());
+
+        //添加广播站是否打开的属性
         response.addExtField(MessageConst.PROPERTY_TRACE_SWITCH, String.valueOf(this.brokerController.getBrokerConfig().isTraceOn()));
 
         log.debug("receive SendMessage request command, {}", request);
 
         final long startTimstamp = this.brokerController.getBrokerConfig().getStartAcceptSendRequestTimeStamp();
+
+        //当前时间小于开始时间 广播站不能处理消费者推送的消息
         if (this.brokerController.getMessageStore().now() < startTimstamp) {
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark(String.format("broker unable to service, until %s", UtilAll.timeMillisToHumanString2(startTimstamp)));
             return response;
         }
 
+        //设置响应码
         response.setCode(-1);
+
+        //校验topicConfig
         super.msgCheck(ctx, requestHeader, response);
-        if (response.getCode() != -1) {
+        if (response.getCode() != -1) {//校验topicconfig出错误 返回
             return response;
         }
 
+        //获取消息体
         final byte[] body = request.getBody();
 
+        //存放消息的队列编号
         int queueIdInt = requestHeader.getQueueId();
+
+        //获取主题配置
         TopicConfig topicConfig = this.brokerController.getTopicConfigManager().selectTopicConfig(requestHeader.getTopic());
 
-        if (queueIdInt < 0) {
+        if (queueIdInt < 0) {//没有指定存放消息的队列编号 随机一个
             queueIdInt = Math.abs(this.random.nextInt() % 99999999) % topicConfig.getWriteQueueNums();
         }
 
+        //实例化一个广播站缓存的消息对象
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
+        //设置消息的topic
         msgInner.setTopic(requestHeader.getTopic());
+        //设置消息所存放的队列编号
         msgInner.setQueueId(queueIdInt);
+
 
         if (!handleRetryAndDLQ(requestHeader, response, request, msgInner, topicConfig)) {
             return response;
         }
 
+        //设置消息体
         msgInner.setBody(body);
+        //设置标志
         msgInner.setFlag(requestHeader.getFlag());
+        //将属性字符串解析到properties map
         MessageAccessor.setProperties(msgInner, MessageDecoder.string2messageProperties(requestHeader.getProperties()));
+        //设置属性字符串
         msgInner.setPropertiesString(requestHeader.getProperties());
+        //设置消费者生产消息的时间
         msgInner.setBornTimestamp(requestHeader.getBornTimestamp());
+        //设置消息来源的生产者地址
         msgInner.setBornHost(ctx.channel().remoteAddress());
+        //设置存储消息的服务器地址
         msgInner.setStoreHost(this.getStoreHost());
+        //设置消息重试次数
         msgInner.setReconsumeTimes(requestHeader.getReconsumeTimes() == null ? 0 : requestHeader.getReconsumeTimes());
         PutMessageResult putMessageResult = null;
+
+        //获取属性properties map
         Map<String, String> oriProps = MessageDecoder.string2messageProperties(requestHeader.getProperties());
+        //获取交易标志
         String traFlag = oriProps.get(MessageConst.PROPERTY_TRANSACTION_PREPARED);
         if (traFlag != null && Boolean.parseBoolean(traFlag)) {
             if (this.brokerController.getBrokerConfig().isRejectTransactionMessage()) {
@@ -361,6 +429,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             }
             putMessageResult = this.brokerController.getTransactionalMessageService().prepareMessage(msgInner);
         } else {
+            //获取消息存储对象 存储消息
             putMessageResult = this.brokerController.getMessageStore().putMessage(msgInner);
         }
 

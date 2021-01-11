@@ -466,37 +466,61 @@ public class RouteInfoManager {
         }
     }
 
+    /**
+     * 获取某个主题对应的发布广播站列表信息
+     * @param topic 主题
+     * @return
+     */
     public TopicRouteData pickupTopicRouteData(final String topic) {
+        //实例化一个主题路径信息数据对象
         TopicRouteData topicRouteData = new TopicRouteData();
+        //是否寻找到不同广播站对这个主题的队列配置列表
         boolean foundQueueData = false;
+        //是否寻找到到发布这个主图的广播站列表
         boolean foundBrokerData = false;
+
+        //广播站名列表
         Set<String> brokerNameSet = new HashSet<String>();
+
+        //广播站信息列表
         List<BrokerData> brokerDataList = new LinkedList<BrokerData>();
+
         topicRouteData.setBrokerDatas(brokerDataList);
 
+        //广播站过滤服务器列表
         HashMap<String, List<String>> filterServerMap = new HashMap<String, List<String>>();
+
+        //设置过滤服务器列表
         topicRouteData.setFilterServerTable(filterServerMap);
 
         try {
             try {
+                //启动读锁
                 this.lock.readLock().lockInterruptibly();
+                //获取之前广播站对这个主题的配置信息列表
                 List<QueueData> queueDataList = this.topicQueueTable.get(topic);
                 if (queueDataList != null) {
+                    //设置列表
                     topicRouteData.setQueueDatas(queueDataList);
+                    //找到不同广播站对这个主题的队列配置列表
                     foundQueueData = true;
 
                     Iterator<QueueData> it = queueDataList.iterator();
-                    while (it.hasNext()) {
+                    while (it.hasNext()) {//遍历每一个广播站的队列配置
                         QueueData qd = it.next();
+                        //添加广播站列表
                         brokerNameSet.add(qd.getBrokerName());
                     }
 
-                    for (String brokerName : brokerNameSet) {
+                    for (String brokerName : brokerNameSet) {//遍历广播站名
                         BrokerData brokerData = this.brokerAddrTable.get(brokerName);
                         if (null != brokerData) {
+                            //克隆广播站信息数据
                             BrokerData brokerDataClone = new BrokerData(brokerData.getCluster(), brokerData.getBrokerName(), (HashMap<Long, String>) brokerData
                                 .getBrokerAddrs().clone());
+                            //添加到广播站信息列表
                             brokerDataList.add(brokerDataClone);
+                            //找到广播站信息
                             foundBrokerData = true;
                             for (final String brokerAddr : brokerDataClone.getBrokerAddrs().values()) {
                                 List<String> filterServerList = this.filterServerTable.get(brokerAddr);
@@ -506,6 +530,7 @@ public class RouteInfoManager {
                     }
                 }
             } finally {
+                //释放读锁
                 this.lock.readLock().unlock();
             }
         } catch (Exception e) {
@@ -515,6 +540,7 @@ public class RouteInfoManager {
         log.debug("pickupTopicRouteData {} {}", topic, topicRouteData);
 
         if (foundBrokerData && foundQueueData) {
+            //返回主题路径数据
             return topicRouteData;
         }
 

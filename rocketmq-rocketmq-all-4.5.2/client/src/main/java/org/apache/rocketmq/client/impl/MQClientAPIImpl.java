@@ -169,6 +169,10 @@ import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 public class MQClientAPIImpl {
 
     private final static InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 智能发送信息
+     */
     private static boolean sendSmartMsg =
         Boolean.parseBoolean(System.getProperty("org.apache.rocketmq.client.sendSmartMsg", "true"));
 
@@ -245,14 +249,22 @@ public class MQClientAPIImpl {
         return remotingClient;
     }
 
+    /**
+     * 从指定web服务器获取中心服务器地址
+     * @return
+     */
     public String fetchNameServerAddr() {
         try {
+            //获取从指定的web server发送get请求获取的中心服务器地址字符串
             String addrs = this.topAddressing.fetchNSAddr();
             if (addrs != null) {
                 if (!addrs.equals(this.nameSrvAddr)) {
                     log.info("name server address changed, old=" + this.nameSrvAddr + ", new=" + addrs);
+                    //更新mqclientapi对象的中心服务器地址
                     this.updateNameServerAddressList(addrs);
+                    //设置中心服务器地址
                     this.nameSrvAddr = addrs;
+                    //返回中心服务器地址
                     return nameSrvAddr;
                 }
             }
@@ -272,7 +284,11 @@ public class MQClientAPIImpl {
         this.remotingClient.updateNameServerAddressList(list);
     }
 
+    /**
+     * 启动mqclientapi实现
+     */
     public void start() {
+        //启动netty client包装对象
         this.remotingClient.start();
     }
 
@@ -430,6 +446,21 @@ public class MQClientAPIImpl {
         
     }
 
+    /**
+     * 向远程广播站推送消息
+     * @param addr 远程广播站地址
+     * @param brokerName 广播站不名
+     * @param msg 消息对象
+     * @param requestHeader 请求头
+     * @param timeoutMillis 请求超时时间
+     * @param communicationMode 交流模式 sync async oneway
+     * @param context 上下文
+     * @param producer 生产者
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public SendResult sendMessage(
         final String addr,
         final String brokerName,
@@ -443,6 +474,25 @@ public class MQClientAPIImpl {
         return sendMessage(addr, brokerName, msg, requestHeader, timeoutMillis, communicationMode, null, null, null, 0, context, producer);
     }
 
+    /**
+     * 某个生产者向某个广播站推送消息
+     * @param addr 主站地址
+     * @param brokerName 广播站名
+     * @param msg 消息体
+     * @param requestHeader 请求头
+     * @param timeoutMillis 请求超时时间
+     * @param communicationMode 交流模式 sync async oneway
+     * @param sendCallback 发送成功的回调方法
+     * @param topicPublishInfo 主题对应的发布消息
+     * @param instance  mqclientinstance对象
+     * @param retryTimesWhenSendFailed 发送失败重试次数
+     * @param context
+     * @param producer 生产者
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public SendResult sendMessage(
         final String addr,
         final String brokerName,
@@ -457,15 +507,20 @@ public class MQClientAPIImpl {
         final SendMessageContext context,
         final DefaultMQProducerImpl producer
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //开始时间
         long beginStartTime = System.currentTimeMillis();
+        //定义一个远程命令行
         RemotingCommand request = null;
+
         if (sendSmartMsg || msg instanceof MessageBatch) {
             SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
+            //创建命令行的resutl对戏
             request = RemotingCommand.createRequestCommand(msg instanceof MessageBatch ? RequestCode.SEND_BATCH_MESSAGE : RequestCode.SEND_MESSAGE_V2, requestHeaderV2);
         } else {
             request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
         }
 
+        //设置请求体
         request.setBody(msg.getBody());
 
         switch (communicationMode) {
@@ -483,9 +538,11 @@ public class MQClientAPIImpl {
                 return null;
             case SYNC:
                 long costTimeSync = System.currentTimeMillis() - beginStartTime;
-                if (timeoutMillis < costTimeSync) {
+                if (timeoutMillis < costTimeSync) {//判断超时
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
                 }
+
+                //同步发送消息
                 return this.sendMessageSync(addr, brokerName, msg, timeoutMillis - costTimeSync, request);
             default:
                 assert false;
@@ -495,6 +552,18 @@ public class MQClientAPIImpl {
         return null;
     }
 
+    /**
+     * 同步向广播站推送消息
+     * @param addr 广播站地址
+     * @param brokerName 广播站名
+     * @param msg 消息体
+     * @param timeoutMillis 请求超时时间
+     * @param request 远程命令行对象
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     private SendResult sendMessageSync(
         final String addr,
         final String brokerName,
@@ -502,6 +571,7 @@ public class MQClientAPIImpl {
         final long timeoutMillis,
         final RemotingCommand request
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //同步执行远程命令
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
         return this.processSendResponse(brokerName, msg, response);
@@ -1349,25 +1419,58 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 从中心服务器获取默认的主题配置信息
+     * @param topic 主题名
+     * @param timeoutMillis 从中心服务器获取主题路径信息超时时间
+     * @return
+     * @throws RemotingException
+     * @throws MQClientException
+     * @throws InterruptedException
+     */
     public TopicRouteData getDefaultTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis)
         throws RemotingException, MQClientException, InterruptedException {
 
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, false);
     }
 
+    /**
+     * 获取主题对应的发布广播站列表对象
+     * @param topic 主题
+     * @param timeoutMillis 从中心服务器获取信息超时时间
+     * @return
+     * @throws RemotingException
+     * @throws MQClientException
+     * @throws InterruptedException
+     */
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis)
         throws RemotingException, MQClientException, InterruptedException {
 
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, true);
     }
 
+    /**
+     * 从中心服务器获取主题对应的发布广播站列表信息对象
+     * @param topic 主题
+     * @param timeoutMillis 从中心服务器获取信息超时时间
+     * @param allowTopicNotExist 是否允许主题不存在
+     * @return
+     * @throws MQClientException
+     * @throws InterruptedException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws RemotingConnectException
+     */
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis,
         boolean allowTopicNotExist) throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
+        //实例化请求主题路径信息请求头
         GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();
+        //设置请求头的主题
         requestHeader.setTopic(topic);
 
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ROUTEINTO_BY_TOPIC, requestHeader);
 
+        //同步访问中心服务器 等待响应
         RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
         assert response != null;
         switch (response.getCode()) {

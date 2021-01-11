@@ -22,12 +22,30 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 消息类
+ */
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
+    /**
+     * 消息主题
+     */
     private String topic;
+
+    /**
+     * 标志
+     */
     private int flag;
+
+    /**
+     * 属性集
+     */
     private Map<String, String> properties;
+
+    /**
+     * 消息体
+     */
     private byte[] body;
     private String transactionId;
 
@@ -38,20 +56,41 @@ public class Message implements Serializable {
         this(topic, "", "", 0, body, true);
     }
 
+    /**
+     * 实例化一个消息对象
+     * @param topic 主题
+     * @param tags 标签字符串
+     * @param keys
+     * @param flag 标志
+     * @param body 消息体
+     * @param waitStoreMsgOK
+     */
     public Message(String topic, String tags, String keys, int flag, byte[] body, boolean waitStoreMsgOK) {
+        //设置主题
         this.topic = topic;
+        //设置标志
         this.flag = flag;
+        //设置消息体
         this.body = body;
 
+        //将tags值设置到properties中
         if (tags != null && tags.length() > 0)
             this.setTags(tags);
 
+        //将keys设置到properties中
         if (keys != null && keys.length() > 0)
             this.setKeys(keys);
 
+        //将waitStoreMsgOK设置到properties中
         this.setWaitStoreMsgOK(waitStoreMsgOK);
     }
 
+    /**
+     * 实例化一个消息对象
+     * @param topic 主题
+     * @param tags 标签
+     * @param body 消息体
+     */
     public Message(String topic, String tags, byte[] body) {
         this(topic, tags, "", 0, body, true);
     }
@@ -60,15 +99,25 @@ public class Message implements Serializable {
         this(topic, tags, keys, 0, body, true);
     }
 
+    /**
+     * 将keys中的值设置到properties map
+     * @param keys
+     */
     public void setKeys(String keys) {
         this.putProperty(MessageConst.PROPERTY_KEYS, keys);
     }
 
+    /**
+     * 向properties map中放入某个属性值
+     * @param name 属性名
+     * @param value 值
+     */
     void putProperty(final String name, final String value) {
-        if (null == this.properties) {
+        if (null == this.properties) {//初始化map
             this.properties = new HashMap<String, String>();
         }
 
+        //向map中放入属性值
         this.properties.put(name, value);
     }
 
@@ -118,6 +167,10 @@ public class Message implements Serializable {
         return this.getProperty(MessageConst.PROPERTY_TAGS);
     }
 
+    /**
+     * 将标签设置到properties标签
+     * @param tags 标签
+     */
     public void setTags(String tags) {
         this.putProperty(MessageConst.PROPERTY_TAGS, tags);
     }
@@ -157,6 +210,10 @@ public class Message implements Serializable {
         return Boolean.parseBoolean(result);
     }
 
+    /**
+     * 将waitStoreMsgOK值设置到properties map中
+     * @param waitStoreMsgOK
+     */
     public void setWaitStoreMsgOK(boolean waitStoreMsgOK) {
         this.putProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK, Boolean.toString(waitStoreMsgOK));
     }

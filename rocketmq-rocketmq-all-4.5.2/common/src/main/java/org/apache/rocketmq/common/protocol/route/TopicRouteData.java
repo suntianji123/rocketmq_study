@@ -25,28 +25,54 @@ import java.util.HashMap;
 import java.util.List;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+/**
+ * 主题对应的发布广播站信息数据类
+ */
 public class TopicRouteData extends RemotingSerializable {
+
+    /**
+     * 如果主题消息是顺序的 顺序主题配置 brokerName1:10;brokerName2:20
+     * 表示哪些广播站是顺序广播这个主题消息的 :之后的数字表示消息队列的数量
+     * brokerName1广播站广播10之后 -> brokerName2再次广播20次
+     */
     private String orderTopicConf;
+
+    /**
+     * 广播站读写队列的配置数据列表
+     */
     private List<QueueData> queueDatas;
+
+    /**
+     * 广播站信息列表
+     */
     private List<BrokerData> brokerDatas;
+
+    /**
+     * 某个广播站 过滤的服务器列表
+     */
     private HashMap<String/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
 
+    /**
+     * 克隆某个主题路径信息对象
+     * @return
+     */
     public TopicRouteData cloneTopicRouteData() {
+        //实例化一个主题路径信息对象
         TopicRouteData topicRouteData = new TopicRouteData();
         topicRouteData.setQueueDatas(new ArrayList<QueueData>());
         topicRouteData.setBrokerDatas(new ArrayList<BrokerData>());
         topicRouteData.setFilterServerTable(new HashMap<String, List<String>>());
         topicRouteData.setOrderTopicConf(this.orderTopicConf);
 
-        if (this.queueDatas != null) {
+        if (this.queueDatas != null) {//不同广播站对该主题的队列列表不为null
             topicRouteData.getQueueDatas().addAll(this.queueDatas);
         }
 
-        if (this.brokerDatas != null) {
+        if (this.brokerDatas != null) {//广播站列表
             topicRouteData.getBrokerDatas().addAll(this.brokerDatas);
         }
 
-        if (this.filterServerTable != null) {
+        if (this.filterServerTable != null) {//过滤服务器列表
             topicRouteData.getFilterServerTable().putAll(this.filterServerTable);
         }
 
@@ -96,6 +122,11 @@ public class TopicRouteData extends RemotingSerializable {
         return result;
     }
 
+    /**
+     * 判断两个主题路径信息对象是否内容一样
+     * @param obj 老的
+     * @return
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)

@@ -92,17 +92,17 @@ public class Validators {
     }
 
     /**
-     * Validate message
+     * 验证消息
      */
     public static void checkMessage(Message msg, DefaultMQProducer defaultMQProducer)
         throws MQClientException {
-        if (null == msg) {
+        if (null == msg) {//消息体
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message is null");
         }
-        // topic
+        //验证主题
         Validators.checkTopic(msg.getTopic());
 
-        // body
+        // 验证消息体
         if (null == msg.getBody()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body is null");
         }
@@ -111,6 +111,7 @@ public class Validators {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body length is zero");
         }
 
+        //消息的长度不能超过生产者指定的消息的最大长度
         if (msg.getBody().length > defaultMQProducer.getMaxMessageSize()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL,
                 "the message body size over max value, MAX: " + defaultMQProducer.getMaxMessageSize());
@@ -118,24 +119,26 @@ public class Validators {
     }
 
     /**
-     * Validate topic
+     *检查主题
      */
     public static void checkTopic(String topic) throws MQClientException {
-        if (UtilAll.isBlank(topic)) {
+        if (UtilAll.isBlank(topic)) {//主题为空 抛出异常
             throw new MQClientException("The specified topic is blank", null);
         }
 
+        //主题不满足正则 抛出异常
         if (!regularExpressionMatcher(topic, PATTERN)) {
             throw new MQClientException(String.format(
                 "The specified topic[%s] contains illegal characters, allowing only %s", topic,
                 VALID_PATTERN_STR), null);
         }
 
+        //主题不能超过最大字符长度
         if (topic.length() > CHARACTER_MAX_LENGTH) {
             throw new MQClientException("The specified topic is longer than topic max length 255.", null);
         }
 
-        //whether the same with system reserved keyword
+        //如果是系统自动创建的主题  抛出异常
         if (topic.equals(MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC)) {
             throw new MQClientException(
                 String.format("The topic[%s] is conflict with AUTO_CREATE_TOPIC_KEY_TOPIC.", topic), null);

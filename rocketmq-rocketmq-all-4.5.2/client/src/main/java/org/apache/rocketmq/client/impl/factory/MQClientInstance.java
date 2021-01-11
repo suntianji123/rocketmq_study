@@ -109,13 +109,25 @@ public class MQClientInstance {
 
 
     private final long bootTimestamp = System.currentTimeMillis();
+
+    /**
+     * 生产者列表 使用当前mqclientinstance的消费者列表
+     */
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
     private final NettyClientConfig nettyClientConfig;
     private final MQClientAPIImpl mQClientAPIImpl;
     private final MQAdminImpl mQAdminImpl;
+
+    /**
+     * 从中心服务器获取到的主题配置列表
+     */
     private final ConcurrentMap<String/* Topic */, TopicRouteData> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
+
+    /**
+     * 访问中心服务器的锁
+     */
     private final Lock lockNamesrv = new ReentrantLock();
     private final Lock lockHeartbeat = new ReentrantLock();
     private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable =
@@ -198,26 +210,40 @@ public class MQClientInstance {
             MQVersion.getVersionDesc(MQVersion.CURRENT_VERSION), RemotingCommand.getSerializeTypeConfigInThisServer());
     }
 
+    /**
+     * 将从中心服务器获取的某个主题的TopicRouteData 转为生产者 消费者维护的TopicPulishInfo对象
+     * @param topic 主题
+     * @param route TopicRouteData
+     * @return
+     */
     public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route) {
+        //实例化一个TopicPublishInfo对象
         TopicPublishInfo info = new TopicPublishInfo();
+        //设置从中心服务器获取的TopicRouteData对象
         info.setTopicRouteData(route);
-        if (route.getOrderTopicConf() != null && route.getOrderTopicConf().length() > 0) {
+        if (route.getOrderTopicConf() != null && route.getOrderTopicConf().length() > 0) {//指定了一些广播站对这个主题的消息广播是顺序的
+            //解析配置字符串
             String[] brokers = route.getOrderTopicConf().split(";");
-            for (String broker : brokers) {
-                String[] item = broker.split(":");
+            for (String broker : brokers) {//遍历顺序的广播站名
+                String[] item = broker.split(":");//item[1]消息队列的数量
                 int nums = Integer.parseInt(item[1]);
+
+                //设置消息队列配置列表
                 for (int i = 0; i < nums; i++) {
                     MessageQueue mq = new MessageQueue(topic, item[0], i);
                     info.getMessageQueueList().add(mq);
                 }
             }
 
+            //设置是顺序的消息主题
             info.setOrderTopic(true);
         } else {
+            //实时发消的广播站队列配置列表
             List<QueueData> qds = route.getQueueDatas();
+            //乱序
             Collections.sort(qds);
             for (QueueData qd : qds) {
-                if (PermName.isWriteable(qd.getPerm())) {
+                if (PermName.isWriteable(qd.getPerm())) {//发布消息的广播站配置了可写权限
                     BrokerData brokerData = null;
                     for (BrokerData bd : route.getBrokerDatas()) {
                         if (bd.getBrokerName().equals(qd.getBrokerName())) {
@@ -226,14 +252,17 @@ public class MQClientInstance {
                         }
                     }
 
+                    //过滤掉没有写广播权限的广播站
                     if (null == brokerData) {
                         continue;
                     }
 
+                    //过滤掉没有主站的广播站
                     if (!brokerData.getBrokerAddrs().containsKey(MixAll.MASTER_ID)) {
                         continue;
                     }
 
+                    //向messagequeue中添加writequeuenums个当前广播站的消息队列配置对象
                     for (int i = 0; i < qd.getWriteQueueNums(); i++) {
                         MessageQueue mq = new MessageQueue(topic, qd.getBrokerName(), i);
                         info.getMessageQueueList().add(mq);
@@ -262,25 +291,30 @@ public class MQClientInstance {
         return mqList;
     }
 
+    /**
+     * 启动mqclientinstance服务
+     * @throws MQClientException
+     */
     public void start() throws MQClientException {
 
         synchronized (this) {
-            switch (this.serviceState) {
-                case CREATE_JUST:
+            switch (this.serviceState) {//判断服务的状态
+                case CREATE_JUST://只是创建
+                    //设置服务状态为启动失败
                     this.serviceState = ServiceState.START_FAILED;
-                    // If not specified,looking address from name server
-                    if (null == this.clientConfig.getNamesrvAddr()) {
+                    // 没有设置中心服务器地址 从寻址对象获取中心服务器地址
+                    if (null == this.clientConfig.getNamesrvAddr()) {//如果没有配置中心服务器地址 使用寻址服务器获取中心服务器地址
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
-                    // Start request-response channel
+                    // 启动mqclientapi实现对象
                     this.mQClientAPIImpl.start();
-                    // Start various schedule tasks
+                    //启动定时任务
                     this.startScheduledTask();
                     // Start pull service
                     this.pullMessageService.start();
                     // Start rebalance service
                     this.rebalanceService.start();
-                    // Start push service
+                    // 设置生产者服务的状态为Running
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
                     log.info("the client factory [{}] start OK", this.clientId);
                     this.serviceState = ServiceState.RUNNING;
@@ -297,8 +331,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 启动mqclientinstance的定时任务
+     */
     private void startScheduledTask() {
-        if (null == this.clientConfig.getNamesrvAddr()) {
+        if (null == this.clientConfig.getNamesrvAddr()) {//如果没有设置中心服务器地址 固定时间通过寻址对象 访问webserver更新中心服务器地址
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
                 @Override
@@ -312,6 +349,7 @@ public class MQClientInstance {
             }, 1000 * 10, 1000 * 60 * 2, TimeUnit.MILLISECONDS);
         }
 
+        //开启一定时任务 从中心服务器拉取广播站对应的主题配置信息 更新所有producer维护的topic topicpublishinfo列表
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -324,6 +362,7 @@ public class MQClientInstance {
             }
         }, 10, this.clientConfig.getPollNameServerInterval(), TimeUnit.MILLISECONDS);
 
+        //添加一个定时任务 清理掉掉线的广播站 发送心跳给所有的广播站
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -366,7 +405,11 @@ public class MQClientInstance {
         return clientId;
     }
 
+    /**
+     * 更新广播站的主题配置信息
+     */
     public void updateTopicRouteInfoFromNameServer() {
+        //实例化一个主题列表对象
         Set<String> topicList = new HashSet<String>();
 
         // Consumer
@@ -388,6 +431,7 @@ public class MQClientInstance {
 
         // Producer
         {
+            //获取消费者的生产的主题列表
             Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
             while (it.hasNext()) {
                 Entry<String, MQProducerInner> entry = it.next();
@@ -399,7 +443,7 @@ public class MQClientInstance {
             }
         }
 
-        for (String topic : topicList) {
+        for (String topic : topicList) {//遍历各个主题  更新主题对应的广播站主题配置信息
             this.updateTopicRouteInfoFromNameServer(topic);
         }
     }
@@ -550,6 +594,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 更新主题对应的广播站主题配置信息
+     * @param topic 主题
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic) {
         return updateTopicRouteInfoFromNameServer(topic, false, null);
     }
@@ -647,37 +696,54 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 更新主题对应的发布广播站对应的主题配置信息
+     * @param topic 主题
+     * @param isDefault 是否为默认主题
+     * @param defaultMQProducer 生产者
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
+            //访问中心服务器加锁
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
+                    //定义一个主题对应的广播站信息数据
                     TopicRouteData topicRouteData;
-                    if (isDefault && defaultMQProducer != null) {
+                    if (isDefault && defaultMQProducer != null) { //用户自定义的额主题 会使用这个逻辑获取主题的路径配置信息
                         topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(defaultMQProducer.getCreateTopicKey(),
                             1000 * 3);
                         if (topicRouteData != null) {
-                            for (QueueData data : topicRouteData.getQueueDatas()) {
+                            for (QueueData data : topicRouteData.getQueueDatas()) {//遍历每一个广播站对该主题的消息读写队列的配置信息
+                                //获取主题数量
                                 int queueNums = Math.min(defaultMQProducer.getDefaultTopicQueueNums(), data.getReadQueueNums());
+                                //设置读队列的数量
                                 data.setReadQueueNums(queueNums);
+                                //设置写数量
                                 data.setWriteQueueNums(queueNums);
-                            }
-                        }
+                    }
+                }
                     } else {
+                        //从中心服务器获取主题对应的广播站信息列表
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
                     if (topicRouteData != null) {
+                        //获取之前老的主题路径配置信息对象
                         TopicRouteData old = this.topicRouteTable.get(topic);
+                        //判断新的配置和老的配置是否一样
                         boolean changed = topicRouteDataIsChange(old, topicRouteData);
                         if (!changed) {
+                            //判断是否某个生产者 或者消费者维护的主题发布信息列表对应该主题的发布信息发生变更
                             changed = this.isNeedUpdateTopicRouteInfo(topic);
                         } else {
                             log.info("the topic[{}] route info changed, old[{}] ,new[{}]", topic, old, topicRouteData);
                         }
 
-                        if (changed) {
+                        if (changed) {//需要改变
                             TopicRouteData cloneTopicRouteData = topicRouteData.cloneTopicRouteData();
 
+                            //修改广播站 对应的站点列表信息
                             for (BrokerData bd : topicRouteData.getBrokerDatas()) {
                                 this.brokerAddrTable.put(bd.getBrokerName(), bd.getBrokerAddrs());
                             }
@@ -685,6 +751,7 @@ public class MQClientInstance {
                             // Update Pub info
                             {
                                 TopicPublishInfo publishInfo = topicRouteData2TopicPublishInfo(topic, topicRouteData);
+                                //设置中心服务器有这个主题配置
                                 publishInfo.setHaveTopicRouterInfo(true);
                                 Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
                                 while (it.hasNext()) {
@@ -827,11 +894,17 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 判断主题路径信息是否一样
+     * @param olddata 老的主题
+     * @param nowdata 新的主题
+     * @return
+     */
     private boolean topicRouteDataIsChange(TopicRouteData olddata, TopicRouteData nowdata) {
         if (olddata == null || nowdata == null)
             return true;
-        TopicRouteData old = olddata.cloneTopicRouteData();
-        TopicRouteData now = nowdata.cloneTopicRouteData();
+        TopicRouteData old = olddata.cloneTopicRouteData();//克隆老
+        TopicRouteData now = nowdata.cloneTopicRouteData();//克隆新
         Collections.sort(old.getQueueDatas());
         Collections.sort(old.getBrokerDatas());
         Collections.sort(now.getQueueDatas());
@@ -840,11 +913,16 @@ public class MQClientInstance {
 
     }
 
+    /**
+     * 是否需要更新某个主题的路径信息
+     * @param topic 主题
+     * @return
+     */
     private boolean isNeedUpdateTopicRouteInfo(final String topic) {
         boolean result = false;
-        {
+        {//某个生产者 生产这个主题的发布路径信息变更
             Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
-            while (it.hasNext() && !result) {
+            while (it.hasNext() && !result) {//某个生产者 生产这个主题的发布路径信息变更
                 Entry<String, MQProducerInner> entry = it.next();
                 MQProducerInner impl = entry.getValue();
                 if (impl != null) {
@@ -853,7 +931,7 @@ public class MQClientInstance {
             }
         }
 
-        {
+        {//某个消费者 生产这个主题的发布路径信息变更
             Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
             while (it.hasNext() && !result) {
                 Entry<String, MQConsumerInner> entry = it.next();
@@ -1071,9 +1149,15 @@ public class MQClientInstance {
         return null;
     }
 
+    /**
+     * 寻找广播站主站地址
+     * @param brokerName 广播站名
+     * @return
+     */
     public String findBrokerAddressInPublish(final String brokerName) {
         HashMap<Long/* brokerId */, String/* address */> map = this.brokerAddrTable.get(brokerName);
         if (map != null && !map.isEmpty()) {
+            //返回主站的地址
             return map.get(MixAll.MASTER_ID);
         }
 

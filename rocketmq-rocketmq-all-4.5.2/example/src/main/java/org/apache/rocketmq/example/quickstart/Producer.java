@@ -48,8 +48,8 @@ public class Producer {
                     ("Hello RocketMQ " + i).getBytes(RemotingHelper.DEFAULT_CHARSET) /* Message body */
                 );
 
-                /*
-                 * Call send message to deliver message to one of brokers.
+                /**
+                 * 生产发布消息
                  */
                 SendResult sendResult = producer.send(msg);
 

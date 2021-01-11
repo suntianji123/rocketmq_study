@@ -21,22 +21,37 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 /**
- * Base class for background thread
+ * 执行器的工作线程的抽象类
  */
 public abstract class ServiceThread implements Runnable {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
     private static final long JOIN_TIME = 90 * 1000;
+
+    /**
+     * 工作线程
+     */
     protected final Thread thread;
     protected volatile boolean hasNotified = false;
+
+    /**
+     * 线程是否启动
+     */
     protected volatile boolean stopped = false;
 
+    /**
+     *实例化一个执行器工作线程对象
+     */
     public ServiceThread() {
+        //设置工作线程的名为 子类指定的名
         this.thread = new Thread(this, this.getServiceName());
     }
 
     public abstract String getServiceName();
 
+    /**
+     * 启动工作线程
+     */
     public void start() {
         this.thread.start();
     }
