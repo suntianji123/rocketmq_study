@@ -24,6 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.logging.InternalLogger;
 
+/**
+ * 统计项类
+ */
 public class StatsItem {
 
     private final AtomicLong value = new AtomicLong(0);

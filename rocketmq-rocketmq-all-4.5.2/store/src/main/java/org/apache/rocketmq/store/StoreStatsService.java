@@ -44,6 +44,9 @@ public class StoreStatsService extends ServiceThread {
 
     private static int printTPSInterval = 60 * 1;
 
+    /**
+     * 存放消息失败的次数
+     */
     private final AtomicLong putMessageFailedTimes = new AtomicLong(0);
 
     /**
@@ -68,10 +71,22 @@ public class StoreStatsService extends ServiceThread {
     private final LinkedList<CallSnapshot> getTimesFoundList = new LinkedList<CallSnapshot>();
     private final LinkedList<CallSnapshot> getTimesMissList = new LinkedList<CallSnapshot>();
     private final LinkedList<CallSnapshot> transferedMsgCountList = new LinkedList<CallSnapshot>();
+
+    /**
+     * 存放消息在耗时在不同级别的次数
+     */
     private volatile AtomicLong[] putMessageDistributeTime;
     private long messageStoreBootTimestamp = System.currentTimeMillis();
+
+    /**
+     * 向commitLog存放消息 耗时的最大值
+     */
     private volatile long putMessageEntireTimeMax = 0;
     private volatile long getMessageEntireTimeMax = 0;
+
+    /**
+     * 存放消息的锁
+     */
     // for putMessageEntireTimeMax
     private ReentrantLock lockPut = new ReentrantLock();
     // for getMessageEntireTimeMax
@@ -82,10 +97,17 @@ public class StoreStatsService extends ServiceThread {
     private ReentrantLock lockSampling = new ReentrantLock();
     private long lastPrintTimestamp = System.currentTimeMillis();
 
+    /**
+     * 实例化一个统计服务
+     */
     public StoreStatsService() {
         this.initPutMessageDistributeTime();
     }
 
+    /**
+     * 初始化存放消息耗时在不同级别的数组 返回之前的数组
+     * @return
+     */
     private AtomicLong[] initPutMessageDistributeTime() {
         AtomicLong[] next = new AtomicLong[13];
         for (int i = 0; i < next.length; i++) {
@@ -103,6 +125,10 @@ public class StoreStatsService extends ServiceThread {
         return putMessageEntireTimeMax;
     }
 
+    /**
+     * 设置存放消息的用时的最大值
+     * @param value
+     */
     public void setPutMessageEntireTimeMax(long value) {
         final AtomicLong[] times = this.putMessageDistributeTime;
 

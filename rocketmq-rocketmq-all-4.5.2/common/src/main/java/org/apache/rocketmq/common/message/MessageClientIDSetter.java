@@ -128,6 +128,11 @@ public class MessageClientIDSetter {
         }
     }
 
+    /**
+     * 获取消息唯一的id
+     * @param msg
+     * @return
+     */
     public static String getUniqID(final Message msg) {
         return msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX);
     }

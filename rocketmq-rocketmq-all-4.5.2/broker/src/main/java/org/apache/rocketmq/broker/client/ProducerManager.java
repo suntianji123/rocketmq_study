@@ -40,7 +40,15 @@ public class ProducerManager {
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
     private static final long CHANNEL_EXPIRED_TIMEOUT = 1000 * 120;
     private static final int GET_AVALIABLE_CHANNEL_RETRY_COUNT = 3;
+
+    /**
+     * 反问生产者列表锁
+     */
     private final Lock groupChannelLock = new ReentrantLock();
+
+    /**
+     * 生产者 对应的通道列表信息 多个进程可能使用同一个组名
+     */
     private final HashMap<String /* group name */, HashMap<Channel, ClientChannelInfo>> groupChannelTable =
         new HashMap<String, HashMap<Channel, ClientChannelInfo>>();
     private PositiveAtomicCounter positiveAtomicCounter = new PositiveAtomicCounter();
@@ -131,29 +139,42 @@ public class ProducerManager {
         }
     }
 
+    /**
+     * 广播站注册生产者
+     * @param group 生产者
+     * @param clientChannelInfo 客户端通道信息对象
+     */
     public void registerProducer(final String group, final ClientChannelInfo clientChannelInfo) {
         try {
             ClientChannelInfo clientChannelInfoFound = null;
 
-            if (this.groupChannelLock.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+            if (this.groupChannelLock.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {//加锁
                 try {
+                    //获取生产者组名对应的多个channel列表
                     HashMap<Channel, ClientChannelInfo> channelTable = this.groupChannelTable.get(group);
                     if (null == channelTable) {
+                        //新建一个map
                         channelTable = new HashMap<>();
+                        //向组名列表放入map
                         this.groupChannelTable.put(group, channelTable);
                     }
 
+                    //获取之前存在的channelInfo
                     clientChannelInfoFound = channelTable.get(clientChannelInfo.getChannel());
-                    if (null == clientChannelInfoFound) {
+                    if (null == clientChannelInfoFound) {//channelInfo不存在
+                        //将新的channelinfo放入列表
                         channelTable.put(clientChannelInfo.getChannel(), clientChannelInfo);
                         log.info("new producer connected, group: {} channel: {}", group,
                             clientChannelInfo.toString());
                     }
                 } finally {
+                    //释放锁
                     this.groupChannelLock.unlock();
                 }
 
+                //如果以前就存在这个channelInfo
                 if (clientChannelInfoFound != null) {
+                    //设置channelinfo的上一次更新时间
                     clientChannelInfoFound.setLastUpdateTimestamp(System.currentTimeMillis());
                 }
             } else {

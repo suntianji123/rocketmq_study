@@ -19,12 +19,38 @@ package org.apache.rocketmq.client.producer;
 import com.alibaba.fastjson.JSON;
 import org.apache.rocketmq.common.message.MessageQueue;
 
+/**
+ * 给广播站推送消息的结果类
+ */
 public class SendResult {
+    /**
+     * 发送消息状态
+     */
     private SendStatus sendStatus;
+
+    /**
+     * 消息唯一id
+     */
     private String msgId;
+
+    /**
+     * 消息存储的主题队列信息
+     */
     private MessageQueue messageQueue;
+
+    /**
+     * 消息在主题队列中的偏移
+     */
     private long queueOffset;
+
+    /**
+     * 事务id
+     */
     private String transactionId;
+
+    /**
+     * 消息id storeAddr + offset
+     */
     private String offsetMsgId;
     private String regionId;
     private boolean traceOn = true;
@@ -32,12 +58,25 @@ public class SendResult {
     public SendResult() {
     }
 
+    /**
+     * 给广播站推送消息的结果对象
+     * @param sendStatus
+     * @param msgId
+     * @param offsetMsgId
+     * @param messageQueue
+     * @param queueOffset
+     */
     public SendResult(SendStatus sendStatus, String msgId, String offsetMsgId, MessageQueue messageQueue,
         long queueOffset) {
+        //设置发送状态
         this.sendStatus = sendStatus;
+        //设置消息的唯一id
         this.msgId = msgId;
+        //设置消息id storeAddr + offset
         this.offsetMsgId = offsetMsgId;
+        //主题队列
         this.messageQueue = messageQueue;
+        //消息在主题中的偏移量
         this.queueOffset = queueOffset;
     }
 

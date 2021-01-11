@@ -26,27 +26,58 @@ import java.util.concurrent.TimeUnit;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.logging.InternalLogger;
 
+/**
+ * 统计状态类
+ */
 public class StatsItemSet {
+
+    /**
+     * 统计项列表
+     */
     private final ConcurrentMap<String/* key */, StatsItem> statsItemTable =
         new ConcurrentHashMap<String, StatsItem>(128);
 
+    /**
+     * 统计名
+     */
     private final String statsName;
+
+    /**
+     * 执行器
+     */
     private final ScheduledExecutorService scheduledExecutorService;
+
+    /**
+     * 日志对象
+     */
     private final InternalLogger log;
 
+    /**
+     * 实例化一个统计项
+     * @param statsName 统计名
+     * @param scheduledExecutorService 执行器
+     * @param log 日志对象
+     */
     public StatsItemSet(String statsName, ScheduledExecutorService scheduledExecutorService, InternalLogger log) {
+        //设置统计名
         this.statsName = statsName;
+        //设置执行器
         this.scheduledExecutorService = scheduledExecutorService;
+        //设置日志对象
         this.log = log;
         this.init();
     }
 
+    /**
+     * 初始化统计项
+     */
     public void init() {
 
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
+                    //10秒钟执行一次
                     samplingInSeconds();
                 } catch (Throwable ignored) {
                 }
@@ -57,6 +88,7 @@ public class StatsItemSet {
             @Override
             public void run() {
                 try {
+                    //10分钟执行一次
                     samplingInMinutes();
                 } catch (Throwable ignored) {
                 }
@@ -67,6 +99,7 @@ public class StatsItemSet {
             @Override
             public void run() {
                 try {
+                    //一小时执行一次
                     samplingInHour();
                 } catch (Throwable ignored) {
                 }
@@ -77,6 +110,7 @@ public class StatsItemSet {
             @Override
             public void run() {
                 try {
+                    //每一分钟打印一次
                     printAtMinutes();
                 } catch (Throwable ignored) {
                 }
@@ -152,16 +186,35 @@ public class StatsItemSet {
         }
     }
 
+    /**
+     * 向统计表中添加统计key
+     * @param statsKey 统计key
+     * @param incValue 增加值
+     * @param incTimes 增加次数
+     */
     public void addValue(final String statsKey, final int incValue, final int incTimes) {
+        //获取统计项
         StatsItem statsItem = this.getAndCreateStatsItem(statsKey);
+
+        //增加值
         statsItem.getValue().addAndGet(incValue);
+
+        //增加次数
         statsItem.getTimes().addAndGet(incTimes);
     }
 
+    /**
+     * 获取一个统计项
+     * @param statsKey 统计key
+     * @return
+     */
     public StatsItem getAndCreateStatsItem(final String statsKey) {
+        //获取统计项
         StatsItem statsItem = this.statsItemTable.get(statsKey);
         if (null == statsItem) {
+            //map中没有 需要创建一个新的统计项
             statsItem = new StatsItem(this.statsName, statsKey, this.scheduledExecutorService, this.log);
+            //获取之前的
             StatsItem prev = this.statsItemTable.putIfAbsent(statsKey, statsItem);
 
             if (null != prev) {
@@ -170,6 +223,7 @@ public class StatsItemSet {
             }
         }
 
+        //返回
         return statsItem;
     }
 

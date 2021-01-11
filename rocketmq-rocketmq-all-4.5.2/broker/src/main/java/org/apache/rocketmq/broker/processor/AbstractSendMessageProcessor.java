@@ -268,10 +268,17 @@ public abstract class AbstractSendMessageProcessor implements NettyRequestProces
         this.sendMessageHookList = sendMessageHookList;
     }
 
+    /**
+     * 执行响应
+     * @param ctx 与生产者建立的channel
+     * @param request 生产者请求的request
+     * @param response 广播站响应的response
+     */
     protected void doResponse(ChannelHandlerContext ctx, RemotingCommand request,
         final RemotingCommand response) {
-        if (!request.isOnewayRPC()) {
+        if (!request.isOnewayRPC()) {//不是单向
             try {
+                //写入响应
                 ctx.writeAndFlush(response);
             } catch (Throwable e) {
                 log.error("SendMessageProcessor process request over, but response failed", e);

@@ -659,7 +659,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             break;
                         }
 
+                        //获取发送结果
                         sendResult = this.sendKernelImpl(msg, mq, communicationMode, sendCallback, topicPublishInfo, timeout - costTime);
+                        //结束时间
                         endTimestamp = System.currentTimeMillis();
                         this.updateFaultItem(mq.getBrokerName(), endTimestamp - beginTimestampPrev, false);
                         switch (communicationMode) {
@@ -1025,6 +1027,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     this.executeSendMessageHookAfter(context);
                 }
 
+                //返回发送结果
                 return sendResult;
             } catch (RemotingException e) {
                 if (this.hasSendMessageHook()) {

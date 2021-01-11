@@ -129,9 +129,17 @@ public class MQClientInstance {
      * 访问中心服务器的锁
      */
     private final Lock lockNamesrv = new ReentrantLock();
+
+    /**
+     * 发送心跳的锁
+     */
     private final Lock lockHeartbeat = new ReentrantLock();
     private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable =
         new ConcurrentHashMap<String, HashMap<Long, String>>();
+
+    /**
+     * 广播站版本信息列表
+     */
     private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable =
         new ConcurrentHashMap<String, HashMap<String, Integer>>();
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
@@ -145,6 +153,10 @@ public class MQClientInstance {
     private final RebalanceService rebalanceService;
     private final DefaultMQProducer defaultMQProducer;
     private final ConsumerStatsManager consumerStatsManager;
+
+    /**
+     * 当前进程给广播站发送心跳的总次数
+     */
     private final AtomicLong sendHeartbeatTimesTotal = new AtomicLong(0);
     private ServiceState serviceState = ServiceState.CREATE_JUST;
     private DatagramSocket datagramSocket;
@@ -368,7 +380,9 @@ public class MQClientInstance {
             @Override
             public void run() {
                 try {
+                    //清理掉线的广播站
                     MQClientInstance.this.cleanOfflineBroker();
+                    //给所有的broker发送心跳
                     MQClientInstance.this.sendHeartbeatToAllBrokerWithLock();
                 } catch (Exception e) {
                     log.error("ScheduledTask sendHeartbeatToAllBroker exception", e);
@@ -469,45 +483,53 @@ public class MQClientInstance {
         return newOffsetTable;
     }
     /**
-     * Remove offline broker
+     * 清理掉线的广播站
      */
     private void cleanOfflineBroker() {
         try {
-            if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))
+            if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))//访问中心服务器加锁
                 try {
+                    //更新列表
                     ConcurrentHashMap<String, HashMap<Long, String>> updatedTable = new ConcurrentHashMap<String, HashMap<Long, String>>();
 
                     Iterator<Entry<String, HashMap<Long, String>>> itBrokerTable = this.brokerAddrTable.entrySet().iterator();
-                    while (itBrokerTable.hasNext()) {
+                    while (itBrokerTable.hasNext()) {//遍历所有的广播主演列表
                         Entry<String, HashMap<Long, String>> entry = itBrokerTable.next();
+                        //获取广播站名
                         String brokerName = entry.getKey();
+                        //获取广播站id 对应的地址
                         HashMap<Long, String> oneTable = entry.getValue();
 
                         HashMap<Long, String> cloneAddrTable = new HashMap<Long, String>();
+                        //克隆广播站点 地址列表
                         cloneAddrTable.putAll(oneTable);
 
                         Iterator<Entry<Long, String>> it = cloneAddrTable.entrySet().iterator();
-                        while (it.hasNext()) {
+                        while (it.hasNext()) {//遍历克隆后的列表
                             Entry<Long, String> ee = it.next();
-                            String addr = ee.getValue();
-                            if (!this.isBrokerAddrExistInTopicRouteTable(addr)) {
+                            String addr = ee.getValue();//地址
+                            if (!this.isBrokerAddrExistInTopicRouteTable(addr)) {//如果广播站在topicData列表中 删除广播站
                                 it.remove();
                                 log.info("the broker addr[{} {}] is offline, remove it", brokerName, addr);
                             }
                         }
 
                         if (cloneAddrTable.isEmpty()) {
+                            //删除节点
                             itBrokerTable.remove();
                             log.info("the broker[{}] name's host is offline, remove it", brokerName);
                         } else {
+                            //放入新的广播站点地址map
                             updatedTable.put(brokerName, cloneAddrTable);
                         }
                     }
 
                     if (!updatedTable.isEmpty()) {
+                        //添加到广播站地址map
                         this.brokerAddrTable.putAll(updatedTable);
                     }
                 } finally {
+                    //释放访问中心服务器的锁
                     this.lockNamesrv.unlock();
                 }
         } catch (InterruptedException e) {
@@ -553,8 +575,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 给所有的广播站发送心跳
+     */
     public void sendHeartbeatToAllBrokerWithLock() {
-        if (this.lockHeartbeat.tryLock()) {
+        if (this.lockHeartbeat.tryLock()) {//加锁
             try {
                 this.sendHeartbeatToAllBroker();
                 this.uploadFilterClassSource();
@@ -603,11 +628,18 @@ public class MQClientInstance {
         return updateTopicRouteInfoFromNameServer(topic, false, null);
     }
 
+    /**
+     * 判断某个广播站地址是否在topicRouteTable中
+     * @param addr 广播站地址
+     * @return
+     */
     private boolean isBrokerAddrExistInTopicRouteTable(final String addr) {
         Iterator<Entry<String, TopicRouteData>> it = this.topicRouteTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<String, TopicRouteData> entry = it.next();
             TopicRouteData topicRouteData = entry.getValue();
+
+            //遍历广播站列表
             List<BrokerData> bds = topicRouteData.getBrokerDatas();
             for (BrokerData bd : bds) {
                 if (bd.getBrokerAddrs() != null) {
@@ -621,38 +653,58 @@ public class MQClientInstance {
         return false;
     }
 
+    /**
+     * 给所有的广播站发送心跳
+     */
     private void sendHeartbeatToAllBroker() {
+
+        //准备心跳数据 包括所有的生产者列表 消费者列表
         final HeartbeatData heartbeatData = this.prepareHeartbeatData();
+
+        //当前进程上是否没有生产者
         final boolean producerEmpty = heartbeatData.getProducerDataSet().isEmpty();
+
+        //当前进程上是否米有消费者
         final boolean consumerEmpty = heartbeatData.getConsumerDataSet().isEmpty();
-        if (producerEmpty && consumerEmpty) {
+        if (producerEmpty && consumerEmpty) {//既没有生产者也没有消费者
             log.warn("sending heartbeat, but no consumer and no producer");
             return;
         }
 
-        if (!this.brokerAddrTable.isEmpty()) {
+        if (!this.brokerAddrTable.isEmpty()) {//广播站列表不为空
+
+            //增加进程总的给所有广播站发送心跳的次数
             long times = this.sendHeartbeatTimesTotal.getAndIncrement();
+
+            //获取广播站迭代器
             Iterator<Entry<String, HashMap<Long, String>>> it = this.brokerAddrTable.entrySet().iterator();
             while (it.hasNext()) {
                 Entry<String, HashMap<Long, String>> entry = it.next();
+                //广播站名
                 String brokerName = entry.getKey();
+                //广播站主站从站地址列表
                 HashMap<Long, String> oneTable = entry.getValue();
-                if (oneTable != null) {
+                if (oneTable != null) {//列表不为空
                     for (Map.Entry<Long, String> entry1 : oneTable.entrySet()) {
+                        //获取广播站id
                         Long id = entry1.getKey();
+                        //获取广播站地址
                         String addr = entry1.getValue();
-                        if (addr != null) {
-                            if (consumerEmpty) {
-                                if (id != MixAll.MASTER_ID)
+                        if (addr != null) {//地址不能为null
+                            if (consumerEmpty) {//当前进程上没有消费者
+                                if (id != MixAll.MASTER_ID)//生产者不能连接广播站的从站
                                     continue;
                             }
 
                             try {
+                                //获取远程广播站的rocketmq版本
                                 int version = this.mQClientAPIImpl.sendHearbeat(addr, heartbeatData, 3000);
+                                //将广播站的rocketmq版本缓存起来
                                 if (!this.brokerVersionTable.containsKey(brokerName)) {
                                     this.brokerVersionTable.put(brokerName, new HashMap<String, Integer>(4));
                                 }
                                 this.brokerVersionTable.get(brokerName).put(addr, version);
+                                //发送心跳20次打印一次日志
                                 if (times % 20 == 0) {
                                     log.info("send heart beat to broker[{} {} {}] success", brokerName, id, addr);
                                     log.info(heartbeatData.toString());
@@ -799,13 +851,17 @@ public class MQClientInstance {
         return false;
     }
 
+    /**
+     * 准备心跳数据
+     * @return
+     */
     private HeartbeatData prepareHeartbeatData() {
         HeartbeatData heartbeatData = new HeartbeatData();
 
-        // clientID
+        //设置客户端id
         heartbeatData.setClientID(this.clientId);
 
-        // Consumer
+        //消费者
         for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
@@ -821,17 +877,20 @@ public class MQClientInstance {
             }
         }
 
-        // Producer
+        // 生产者
         for (Map.Entry<String/* group */, MQProducerInner> entry : this.producerTable.entrySet()) {
             MQProducerInner impl = entry.getValue();
-            if (impl != null) {
+            if (impl != null) {//生产者不为null
+                //实例化生产者数据
                 ProducerData producerData = new ProducerData();
+                //设置生产者组名
                 producerData.setGroupName(entry.getKey());
-
+                //设置到心跳数据 的生产者列表
                 heartbeatData.getProducerDataSet().add(producerData);
             }
         }
 
+        //返回心跳数据
         return heartbeatData;
     }
 

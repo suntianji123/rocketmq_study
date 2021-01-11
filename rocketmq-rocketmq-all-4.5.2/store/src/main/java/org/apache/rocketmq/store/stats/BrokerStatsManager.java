@@ -29,11 +29,22 @@ import org.apache.rocketmq.common.stats.StatsItemSet;
 
 public class BrokerStatsManager {
 
+    /**
+     * 主题存放消息的总数量  总次数
+     */
     public static final String TOPIC_PUT_NUMS = "TOPIC_PUT_NUMS";
+
+    /**
+     * 主题存放消息的总字节大小表
+     */
     public static final String TOPIC_PUT_SIZE = "TOPIC_PUT_SIZE";
     public static final String GROUP_GET_NUMS = "GROUP_GET_NUMS";
     public static final String GROUP_GET_SIZE = "GROUP_GET_SIZE";
     public static final String SNDBCK_PUT_NUMS = "SNDBCK_PUT_NUMS";
+
+    /**
+     * 广播站存放消息的总数量表
+     */
     public static final String BROKER_PUT_NUMS = "BROKER_PUT_NUMS";
     public static final String BROKER_GET_NUMS = "BROKER_GET_NUMS";
     public static final String GROUP_GET_FROM_DISK_NUMS = "GROUP_GET_FROM_DISK_NUMS";
@@ -62,18 +73,36 @@ public class BrokerStatsManager {
      */
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.ROCKETMQ_STATS_LOGGER_NAME);
     private static final InternalLogger COMMERCIAL_LOG = InternalLoggerFactory.getLogger(LoggerName.COMMERCIAL_LOGGER_NAME);
+
+    /**
+     * 广播站统计线程
+     */
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
         "BrokerStatsThread"));
     private final ScheduledExecutorService commercialExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
         "CommercialStatsThread"));
+
+    /**
+     * 统计列表
+     */
     private final HashMap<String, StatsItemSet> statsTable = new HashMap<String, StatsItemSet>();
+
+    /**
+     * 广播站集群名
+     */
     private final String clusterName;
     private final MomentStatsItemSet momentStatsItemSetFallSize = new MomentStatsItemSet(GROUP_GET_FALL_SIZE, scheduledExecutorService, log);
     private final MomentStatsItemSet momentStatsItemSetFallTime = new MomentStatsItemSet(GROUP_GET_FALL_TIME, scheduledExecutorService, log);
 
+    /**
+     * 实例化一个广播站统计管理器
+     * @param clusterName 广播站集群名
+     */
     public BrokerStatsManager(String clusterName) {
+        //设置广播站集群名
         this.clusterName = clusterName;
 
+        //添加一个主题存放消息总数
         this.statsTable.put(TOPIC_PUT_NUMS, new StatsItemSet(TOPIC_PUT_NUMS, this.scheduledExecutorService, log));
         this.statsTable.put(TOPIC_PUT_SIZE, new StatsItemSet(TOPIC_PUT_SIZE, this.scheduledExecutorService, log));
         this.statsTable.put(GROUP_GET_NUMS, new StatsItemSet(GROUP_GET_NUMS, this.scheduledExecutorService, log));
@@ -125,10 +154,21 @@ public class BrokerStatsManager {
         this.statsTable.get(TOPIC_PUT_NUMS).addValue(topic, 1, 1);
     }
 
+    /**
+     * 增加存放消息的总数
+     * @param topic 主题
+     * @param num 存放主题消息的数量
+     * @param times 存放主题消息的次数
+     */
     public void incTopicPutNums(final String topic, int num, int times) {
         this.statsTable.get(TOPIC_PUT_NUMS).addValue(topic, num, times);
     }
 
+    /**
+     * 增加主题存放消息的总字节数
+     * @param topic 主题
+     * @param size 增加字节数
+     */
     public void incTopicPutSize(final String topic, final int size) {
         this.statsTable.get(TOPIC_PUT_SIZE).addValue(topic, size, 1);
     }

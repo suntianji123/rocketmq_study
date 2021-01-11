@@ -423,16 +423,21 @@ public class DefaultMessageStore implements MessageStore {
         //使用commitLog向commitLog存入消息
         PutMessageResult result = this.commitLog.putMessage(msg);
 
+        //获取消耗时间
         long elapsedTime = this.getSystemClock().now() - beginTime;
         if (elapsedTime > 500) {
             log.warn("putMessage not in lock elapsed time(ms)={}, bodyLength={}", elapsedTime, msg.getBody().length);
         }
+
+        //统存入消息在不同时间段的耗时次数 以及存放消息耗时的最大值
         this.storeStatsService.setPutMessageEntireTimeMax(elapsedTime);
 
         if (null == result || !result.isOk()) {
+            //增加存放消息失败的次数
             this.storeStatsService.getPutMessageFailedTimes().incrementAndGet();
         }
 
+        //返回存放消息的结果
         return result;
     }
 

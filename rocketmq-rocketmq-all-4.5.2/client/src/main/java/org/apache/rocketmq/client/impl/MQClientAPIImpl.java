@@ -574,6 +574,8 @@ public class MQClientAPIImpl {
         //同步执行远程命令
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
+
+        //处理推送消息给广播站 收到的响应
         return this.processSendResponse(brokerName, msg, response);
     }
 
@@ -708,6 +710,15 @@ public class MQClientAPIImpl {
         }
     }
 
+    /**
+     * 处理推送给消息给广播站后 收到广播站的响应
+     * @param brokerName 广播站名
+     * @param msg 消息
+     * @param response 响应
+     * @return
+     * @throws MQBrokerException
+     * @throws RemotingCommandException
+     */
     private SendResult processSendResponse(
         final String brokerName,
         final Message msg,
@@ -718,7 +729,9 @@ public class MQClientAPIImpl {
             case ResponseCode.FLUSH_SLAVE_TIMEOUT:
             case ResponseCode.SLAVE_NOT_AVAILABLE: {
             }
-            case ResponseCode.SUCCESS: {
+            case ResponseCode.SUCCESS: {//响应成功
+
+                //发送装填
                 SendStatus sendStatus = SendStatus.SEND_OK;
                 switch (response.getCode()) {
                     case ResponseCode.FLUSH_DISK_TIMEOUT:
@@ -738,32 +751,42 @@ public class MQClientAPIImpl {
                         break;
                 }
 
+                //解码响应头
                 SendMessageResponseHeader responseHeader =
                     (SendMessageResponseHeader) response.decodeCommandCustomHeader(SendMessageResponseHeader.class);
 
-                //If namespace not null , reset Topic without namespace.
+                //获取原始主题
                 String topic = msg.getTopic();
                 if (StringUtils.isNotEmpty(this.clientConfig.getNamespace())) {
                     topic = NamespaceUtil.withoutNamespace(topic, this.clientConfig.getNamespace());
                 }
 
+                //实例化一个消息队列
                 MessageQueue messageQueue = new MessageQueue(topic, brokerName, responseHeader.getQueueId());
 
+                //获取消息唯一的id
                 String uniqMsgId = MessageClientIDSetter.getUniqID(msg);
-                if (msg instanceof MessageBatch) {
+                if (msg instanceof MessageBatch) {//批量的消息
                     StringBuilder sb = new StringBuilder();
                     for (Message message : (MessageBatch) msg) {
                         sb.append(sb.length() == 0 ? "" : ",").append(MessageClientIDSetter.getUniqID(message));
                     }
                     uniqMsgId = sb.toString();
                 }
+
+                //实例化一个发送结果对象
                 SendResult sendResult = new SendResult(sendStatus,
                     uniqMsgId,
                     responseHeader.getMsgId(), messageQueue, responseHeader.getQueueOffset());
+
+                //设置发送结果的事务id
                 sendResult.setTransactionId(responseHeader.getTransactionId());
+                //设置区域id
                 String regionId = response.getExtFields().get(MessageConst.PROPERTY_MSG_REGION);
+                //广播站打开
                 String traceOn = response.getExtFields().get(MessageConst.PROPERTY_TRACE_SWITCH);
                 if (regionId == null || regionId.isEmpty()) {
+                    //默认的区域id
                     regionId = MixAll.DEFAULT_TRACE_REGION_ID;
                 }
                 if (traceOn != null && traceOn.equals("false")) {
@@ -771,6 +794,8 @@ public class MQClientAPIImpl {
                 } else {
                     sendResult.setTraceOn(true);
                 }
+
+                //设置区域id
                 sendResult.setRegionId(regionId);
                 return sendResult;
             }
@@ -1084,14 +1109,28 @@ public class MQClientAPIImpl {
         this.remotingClient.invokeOneway(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
     }
 
+    /**
+     * 发送心跳
+     * @param addr 远程广播站地址
+     * @param heartbeatData 心跳数据
+     * @param timeoutMillis f发送心跳超时时间
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public int sendHearbeat(
         final String addr,
         final HeartbeatData heartbeatData,
         final long timeoutMillis
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //创建心跳的远程命令
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.HEART_BEAT, null);
+        //设置语言
         request.setLanguage(clientConfig.getLanguage());
+        //设置请求体
         request.setBody(heartbeatData.encode());
+        //执行远程命令 返回响应
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
         switch (response.getCode()) {

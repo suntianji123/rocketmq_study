@@ -42,10 +42,21 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * 客户顿管理处理器类
+ */
 public class ClientManageProcessor implements NettyRequestProcessor {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
+
+    /**
+     * 广播站控制器
+     */
     private final BrokerController brokerController;
 
+    /**
+     * 实例化一个客户端管理处理器
+     * @param brokerController 广播站控制器
+     */
     public ClientManageProcessor(final BrokerController brokerController) {
         this.brokerController = brokerController;
     }
@@ -71,9 +82,18 @@ public class ClientManageProcessor implements NettyRequestProcessor {
         return false;
     }
 
+    /**
+     * 处理生产者 消费者心跳请求
+     * @param ctx 与生产者 消费者建立的channel
+     * @param request 心跳请求
+     * @return
+     */
     public RemotingCommand heartBeat(ChannelHandlerContext ctx, RemotingCommand request) {
+        //创建响应的远程命令
         RemotingCommand response = RemotingCommand.createResponseCommand(null);
+        //解码客户端请求的心跳数据
         HeartbeatData heartbeatData = HeartbeatData.decode(request.getBody(), HeartbeatData.class);
+        //实例化一个客户端通道信息对象
         ClientChannelInfo clientChannelInfo = new ClientChannelInfo(
             ctx.channel(),
             heartbeatData.getClientID(),
@@ -81,7 +101,8 @@ public class ClientManageProcessor implements NettyRequestProcessor {
             request.getVersion()
         );
 
-        for (ConsumerData data : heartbeatData.getConsumerDataSet()) {
+
+        for (ConsumerData data : heartbeatData.getConsumerDataSet()) {//遍历消息者数据
             SubscriptionGroupConfig subscriptionGroupConfig =
                 this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(
                     data.getGroupName());
@@ -117,11 +138,14 @@ public class ClientManageProcessor implements NettyRequestProcessor {
             }
         }
 
-        for (ProducerData data : heartbeatData.getProducerDataSet()) {
+        for (ProducerData data : heartbeatData.getProducerDataSet()) {//遍历生产者数据 注册channelclientInfo
             this.brokerController.getProducerManager().registerProducer(data.getGroupName(),
                 clientChannelInfo);
         }
+
+        //设置响应
         response.setCode(ResponseCode.SUCCESS);
+        //设置标记
         response.setRemark(null);
         return response;
     }

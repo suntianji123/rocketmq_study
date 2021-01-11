@@ -433,14 +433,28 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             putMessageResult = this.brokerController.getMessageStore().putMessage(msgInner);
         }
 
+        //处理存放消息的结果对象
         return handlePutMessageResult(putMessageResult, response, request, msgInner, responseHeader, sendMessageContext, ctx, queueIdInt);
 
     }
 
+    /**
+     * 处理存放消息的结果 并返回给生产者
+     * @param putMessageResult 存放消息的结果对象
+     * @param response 响应的远程命令对象
+     * @param request 生产请求的远程命令对象
+     * @param msg 消息体
+     * @param responseHeader 响应头
+     * @param sendMessageContext
+     * @param ctx channelHandlerContext对象
+     * @param queueIdInt  主题消息编号
+     * @return
+     */
     private RemotingCommand handlePutMessageResult(PutMessageResult putMessageResult, RemotingCommand response,
                                                    RemotingCommand request, MessageExt msg,
                                                    SendMessageResponseHeader responseHeader, SendMessageContext sendMessageContext, ChannelHandlerContext ctx,
                                                    int queueIdInt) {
+        //存放消息的结果对象不为null
         if (putMessageResult == null) {
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark("store putMessage return null");
@@ -448,10 +462,12 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         }
         boolean sendOK = false;
 
-        switch (putMessageResult.getPutMessageStatus()) {
+        switch (putMessageResult.getPutMessageStatus()) {//判断存储消息的状态
             // Success
-            case PUT_OK:
+            case PUT_OK://存储成功
+                //设置发送
                 sendOK = true;
+                //设置响应码
                 response.setCode(ResponseCode.SUCCESS);
                 break;
             case FLUSH_DISK_TIMEOUT:
@@ -498,19 +514,31 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         }
 
         String owner = request.getExtFields().get(BrokerStatsManager.COMMERCIAL_OWNER);
-        if (sendOK) {
+        if (sendOK) {//存储消息成功
 
+            //增加统计主题存放消息的总数量和总次数
             this.brokerController.getBrokerStatsManager().incTopicPutNums(msg.getTopic(), putMessageResult.getAppendMessageResult().getMsgNum(), 1);
+
+            //增加统计主题存放消息的总字节数
             this.brokerController.getBrokerStatsManager().incTopicPutSize(msg.getTopic(),
                 putMessageResult.getAppendMessageResult().getWroteBytes());
+
+            //增加广播站存放消息的总数量
             this.brokerController.getBrokerStatsManager().incBrokerPutNums(putMessageResult.getAppendMessageResult().getMsgNum());
 
+            //设置附加标记为null
             response.setRemark(null);
 
+            //设置消息id storeHost + 偏移量
             responseHeader.setMsgId(putMessageResult.getAppendMessageResult().getMsgId());
+
+            //设置存储消息的主题队列编号
             responseHeader.setQueueId(queueIdInt);
+
+            //设置消息在主题队列中的位置
             responseHeader.setQueueOffset(putMessageResult.getAppendMessageResult().getLogicsOffset());
 
+            //发送响应
             doResponse(ctx, request, response);
 
             if (hasSendMessageHook()) {

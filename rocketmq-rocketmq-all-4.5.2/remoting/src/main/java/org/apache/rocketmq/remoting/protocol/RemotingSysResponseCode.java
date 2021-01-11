@@ -17,12 +17,24 @@
 
 package org.apache.rocketmq.remoting.protocol;
 
+/**
+ * 系统响应码
+ */
 public class RemotingSysResponseCode {
 
+    /**
+     * 响应码成功
+     */
     public static final int SUCCESS = 0;
 
+    /**
+     * 响应码系统错误
+     */
     public static final int SYSTEM_ERROR = 1;
 
+    /**
+     * 响应码系统繁忙
+     */
     public static final int SYSTEM_BUSY = 2;
 
     public static final int REQUEST_CODE_NOT_SUPPORTED = 3;
