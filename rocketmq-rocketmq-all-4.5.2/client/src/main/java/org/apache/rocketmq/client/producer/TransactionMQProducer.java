@@ -22,19 +22,39 @@ import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.protocol.NamespaceUtil;
 import org.apache.rocketmq.remoting.RPCHook;
 
+/**
+ * 事务生产者类
+ */
 public class TransactionMQProducer extends DefaultMQProducer {
     private TransactionCheckListener transactionCheckListener;
+    /**
+     * 带有事务的生产者实现的checkExecutor的最低工作线程数量
+     */
     private int checkThreadPoolMinSize = 1;
+
+    /**
+     * 带有事务的生产者实现的checkExecutor的最大工作线程数量
+     */
     private int checkThreadPoolMaxSize = 1;
     private int checkRequestHoldMax = 2000;
 
+    /**
+     * 本地事务执行器
+     */
     private ExecutorService executorService;
 
+    /**
+     * 事务监听器
+     */
     private TransactionListener transactionListener;
 
     public TransactionMQProducer() {
     }
 
+    /**
+     * 实例化一个事务生产者
+     * @param producerGroup 生产者组名
+     */
     public TransactionMQProducer(final String producerGroup) {
         this(null, producerGroup, null);
     }
@@ -47,12 +67,23 @@ public class TransactionMQProducer extends DefaultMQProducer {
         this(null, producerGroup, rpcHook);
     }
 
+    /**
+     * 实例化一个事务生产者
+     * @param namespace 命名空间
+     * @param producerGroup 生产者组名
+     * @param rpcHook
+     */
     public TransactionMQProducer(final String namespace, final String producerGroup, RPCHook rpcHook) {
         super(namespace, producerGroup, rpcHook);
     }
 
+    /**
+     * 启动带有事务的生产者
+     * @throws MQClientException
+     */
     @Override
     public void start() throws MQClientException {
+        //初始化事务生产者实现的本地事务执行器
         this.defaultMQProducerImpl.initTransactionEnv();
         super.start();
     }
@@ -79,14 +110,24 @@ public class TransactionMQProducer extends DefaultMQProducer {
         return this.defaultMQProducerImpl.sendMessageInTransaction(msg, tranExecuter, arg);
     }
 
+    /**
+     * 带有事务的生产者发送消息
+     * @param msg 消息.
+     * @param arg 与本地事务执行器一起的参数
+     * @return
+     * @throws MQClientException
+     */
     @Override
     public TransactionSendResult sendMessageInTransaction(final Message msg,
         final Object arg) throws MQClientException {
-        if (null == this.transactionListener) {
+        if (null == this.transactionListener) {//事务监听器不能为空
             throw new MQClientException("TransactionListener is null", null);
         }
 
+        //设置消息的主题 包装命名空间
         msg.setTopic(NamespaceUtil.wrapNamespace(this.getNamespace(), msg.getTopic()));
+
+        //使用带有事务的方式发送消息
         return this.defaultMQProducerImpl.sendMessageInTransaction(msg, null, arg);
     }
 

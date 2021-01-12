@@ -93,7 +93,7 @@ public class TopicPublishInfo {
     }
 
     /**
-     * 从主题发布信息的messagequeuelist中选择一个messagequeue
+     * 选择一个主题队列
      * @param lastBrokerName 上一次使用的广播站名
      * @return
      */

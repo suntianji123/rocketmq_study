@@ -18,20 +18,46 @@ package org.apache.rocketmq.store;
 
 import java.nio.ByteBuffer;
 
+/**
+ * 选择某个mappedFile的某段byteBuffer的结果类
+ */
 public class SelectMappedBufferResult {
 
+    /**
+     * 在整个commitLog中的偏移量
+     */
     private final long startOffset;
 
+    /**
+     * mappedFile的一段byteBuffer对象
+     */
     private final ByteBuffer byteBuffer;
 
+    /**
+     * 等待读取的字节数
+     */
     private int size;
 
+    /**
+     * mappedFile对象
+     */
     private MappedFile mappedFile;
 
+    /**
+     * 实例化一个选择mappedByteBufferResult对象
+     * @param startOffset 偏移量在整个commitlog中的偏移量
+     * @param byteBuffer mappedFile的切片byteBuffer对象
+     * @param size 读取字节的数量
+     * @param mappedFile mappedFile文件对象
+     */
     public SelectMappedBufferResult(long startOffset, ByteBuffer byteBuffer, int size, MappedFile mappedFile) {
+        //设置偏移量在整个commitLog中的偏移量
         this.startOffset = startOffset;
+        //设置切片byteBuffer对象
         this.byteBuffer = byteBuffer;
+        //设置读取的字节数
         this.size = size;
+        //设置mappedFile对象
         this.mappedFile = mappedFile;
     }
 

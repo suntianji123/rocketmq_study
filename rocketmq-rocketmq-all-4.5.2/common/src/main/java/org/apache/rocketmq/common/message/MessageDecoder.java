@@ -251,11 +251,26 @@ public class MessageDecoder {
         return byteBuffer.array();
     }
 
+    /**
+     * 解码消息
+     * @param byteBuffer bytebuffer对象
+     * @param readBody 是否解码消息体
+     * @param deCompressBody 是否解压消息体
+     * @return
+     */
     public static MessageExt decode(
         java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody) {
         return decode(byteBuffer, readBody, deCompressBody, false);
     }
 
+    /**
+     * 解码消息
+     * @param byteBuffer 存有消息字节数组的bytebuffer对象
+     * @param readBody 是否解码消息体
+     * @param deCompressBody 是否解压消息体
+     * @param isClient 是否为客户端的消息
+     * @return
+     */
     public static MessageExt decode(
         java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody, final boolean isClient) {
         try {
@@ -264,62 +279,77 @@ public class MessageDecoder {
             if (isClient) {
                 msgExt = new MessageClientExt();
             } else {
+                //实例化一个消息
                 msgExt = new MessageExt();
             }
 
-            // 1 TOTALSIZE
+            // 1 获取消息总大小
             int storeSize = byteBuffer.getInt();
+            //设置存在于commitlog中的总大小
             msgExt.setStoreSize(storeSize);
 
-            // 2 MAGICCODE
+            //获取魔数
             byteBuffer.getInt();
 
-            // 3 BODYCRC
+            // 获取crc值
             int bodyCRC = byteBuffer.getInt();
+            //设置crc值
             msgExt.setBodyCRC(bodyCRC);
 
-            // 4 QUEUEID
+            // 4 消息所在的主题队列编号
             int queueId = byteBuffer.getInt();
+            //设置消息所在的主题队列编号
             msgExt.setQueueId(queueId);
 
-            // 5 FLAG
+            // 5 获取生产者自定义的标志
             int flag = byteBuffer.getInt();
+            //设置消息自定义的标志
             msgExt.setFlag(flag);
 
-            // 6 QUEUEOFFSET
+            // 6 获取消息在主题队列中的偏移量
             long queueOffset = byteBuffer.getLong();
+            //设置消息在主题队列中的偏移量
             msgExt.setQueueOffset(queueOffset);
 
-            // 7 PHYSICALOFFSET
+            // 7 获取消息在commitlog中的偏移量
             long physicOffset = byteBuffer.getLong();
+            //设置消息在主题队列中的偏移量
             msgExt.setCommitLogOffset(physicOffset);
 
-            // 8 SYSFLAG
+            // 8 获取系统标志
             int sysFlag = byteBuffer.getInt();
+            //设置系统标志
             msgExt.setSysFlag(sysFlag);
 
-            // 9 BORNTIMESTAMP
+            // 9 获取生产者消息的时间
             long bornTimeStamp = byteBuffer.getLong();
+            //设置生产消息的时间
             msgExt.setBornTimestamp(bornTimeStamp);
 
-            // 10 BORNHOST
+            // 10 获取生产者的地址
             byte[] bornHost = new byte[4];
+            //设置生产者地址
             byteBuffer.get(bornHost, 0, 4);
+            //虎丘生产者端口号
             int port = byteBuffer.getInt();
+            //设置生产者地址
             msgExt.setBornHost(new InetSocketAddress(InetAddress.getByAddress(bornHost), port));
 
-            // 11 STORETIMESTAMP
+            // 11 获取存储消息的时间
             long storeTimestamp = byteBuffer.getLong();
+            //设置存储消息的时间
             msgExt.setStoreTimestamp(storeTimestamp);
 
-            // 12 STOREHOST
+            // 12 获取存储消息的地址
             byte[] storeHost = new byte[4];
             byteBuffer.get(storeHost, 0, 4);
             port = byteBuffer.getInt();
+            //设置存储消息的地址
             msgExt.setStoreHost(new InetSocketAddress(InetAddress.getByAddress(storeHost), port));
 
-            // 13 RECONSUMETIMES
+            // 13 获取重新消费的次数
             int reconsumeTimes = byteBuffer.getInt();
+            //设置重新消费的次数
             msgExt.setReconsumeTimes(reconsumeTimes);
 
             // 14 Prepared Transaction Offset
@@ -338,6 +368,7 @@ public class MessageDecoder {
                         body = UtilAll.uncompress(body);
                     }
 
+                    //设置消息体
                     msgExt.setBody(body);
                 } else {
                     byteBuffer.position(byteBuffer.position() + bodyLen);
@@ -348,20 +379,24 @@ public class MessageDecoder {
             byte topicLen = byteBuffer.get();
             byte[] topic = new byte[(int) topicLen];
             byteBuffer.get(topic);
+            //设置主题
             msgExt.setTopic(new String(topic, CHARSET_UTF8));
 
-            // 17 properties
+            // 17 properies map属性的数量
             short propertiesLength = byteBuffer.getShort();
             if (propertiesLength > 0) {
                 byte[] properties = new byte[propertiesLength];
                 byteBuffer.get(properties);
                 String propertiesString = new String(properties, CHARSET_UTF8);
                 Map<String, String> map = string2messageProperties(propertiesString);
+                //设置properties map属性
                 msgExt.setProperties(map);
             }
 
             ByteBuffer byteBufferMsgId = ByteBuffer.allocate(MSG_ID_LENGTH);
+            //消息id
             String msgId = createMessageId(byteBufferMsgId, msgExt.getStoreHostBytes(), msgExt.getCommitLogOffset());
+            //设置消息id
             msgExt.setMsgId(msgId);
 
             if (isClient) {

@@ -739,11 +739,16 @@ public class DefaultMessageStore implements MessageStore {
         return 0;
     }
 
+    /**
+     * 根据消息在commitLog中的偏移量查询消息
+     * @param commitLogOffset 消息在commitLog中的偏移量
+     * @return
+     */
     public MessageExt lookMessageByOffset(long commitLogOffset) {
         SelectMappedBufferResult sbr = this.commitLog.getMessage(commitLogOffset, 4);
         if (null != sbr) {
             try {
-                // 1 TOTALSIZE
+                //获取消息总的大小
                 int size = sbr.getByteBuffer().getInt();
                 return lookMessageByOffset(commitLogOffset, size);
             } finally {
@@ -1158,10 +1163,18 @@ public class DefaultMessageStore implements MessageStore {
         this.commitLog.setConfirmOffset(phyOffset);
     }
 
+    /**
+     * 获取消息对象
+     * @param commitLogOffset 消息在commitLog中起始偏移量
+     * @param size 消息大小
+     * @return
+     */
     public MessageExt lookMessageByOffset(long commitLogOffset, int size) {
+        //获取选择结果对象
         SelectMappedBufferResult sbr = this.commitLog.getMessage(commitLogOffset, size);
         if (null != sbr) {
             try {
+                //解码消息
                 return MessageDecoder.decode(sbr.getByteBuffer(), true, false);
             } finally {
                 sbr.release();

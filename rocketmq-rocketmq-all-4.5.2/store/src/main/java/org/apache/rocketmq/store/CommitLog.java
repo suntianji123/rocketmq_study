@@ -884,10 +884,19 @@ public class CommitLog {
         return -1;
     }
 
+    /**
+     * 根据消息在commitLog中的偏移量获取消息
+     * @param offset 偏移量
+     * @param size
+     * @return
+     */
     public SelectMappedBufferResult getMessage(final long offset, final int size) {
+        //获取一个commitLog子文件的最大字节数
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+        //根据偏移量查找mappedFile对象
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, offset == 0);
-        if (mappedFile != null) {
+        if (mappedFile != null) {//mappedFile不能为null
+            //获取消息在mappedFile中的偏移量
             int pos = (int) (offset % mappedFileSize);
             return mappedFile.selectMappedBuffer(pos, size);
         }
@@ -1353,7 +1362,7 @@ public class CommitLog {
                 CommitLog.this.topicQueueTable.put(key, queueOffset);
             }
 
-            // Transaction messages that require special handling
+            //设置事务消息在主题队列中的偏移量
             final int tranType = MessageSysFlag.getTransactionValue(msgInner.getSysFlag());
             switch (tranType) {
                 // Prepared and Rollback message is not consumed, will not enter the

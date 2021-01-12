@@ -34,7 +34,7 @@ public class Message implements Serializable {
     private String topic;
 
     /**
-     * 标志
+     * 生产者自定义的标志位
      */
     private int flag;
 
@@ -47,6 +47,10 @@ public class Message implements Serializable {
      * 消息体
      */
     private byte[] body;
+
+    /**
+     * 事务id
+     */
     private String transactionId;
 
     public Message() {
@@ -95,6 +99,13 @@ public class Message implements Serializable {
         this(topic, tags, "", 0, body, true);
     }
 
+    /**
+     * 实例化一个消息
+     * @param topic 主题
+     * @param tags 标签
+     * @param keys keys
+     * @param body 消息内容
+     */
     public Message(String topic, String tags, String keys, byte[] body) {
         this(topic, tags, keys, 0, body, true);
     }

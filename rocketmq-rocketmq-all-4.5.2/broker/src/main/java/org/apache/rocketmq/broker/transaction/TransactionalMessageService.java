@@ -39,10 +39,9 @@ public interface TransactionalMessageService {
     boolean deletePrepareMessage(MessageExt messageExt);
 
     /**
-     * Invoked to process commit prepare message.
-     *
-     * @param requestHeader Commit message request header.
-     * @return Operate result contains prepare message and relative error code.
+     * 提交消息的
+     * @param requestHeader
+     * @return
      */
     OperationResult commitMessage(EndTransactionRequestHeader requestHeader);
 

@@ -28,6 +28,10 @@ public class TransactionalMessageUtil {
         return MixAll.RMQ_SYS_TRANS_OP_HALF_TOPIC;
     }
 
+    /**
+     * half message 主题RMQ_SYS_TRANS_HALF_TOPIC
+     * @return
+     */
     public static String buildHalfTopic() {
         return MixAll.RMQ_SYS_TRANS_HALF_TOPIC;
     }

@@ -18,6 +18,9 @@ package org.apache.rocketmq.broker.transaction;
 
 import org.apache.rocketmq.common.message.MessageExt;
 
+/**
+ * 操作结束类
+ */
 public class OperationResult {
     private MessageExt prepareMessage;
 

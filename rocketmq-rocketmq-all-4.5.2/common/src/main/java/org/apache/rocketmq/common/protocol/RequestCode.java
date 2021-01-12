@@ -57,6 +57,9 @@ public class RequestCode {
 
     public static final int CONSUMER_SEND_MSG_BACK = 36;
 
+    /**
+     * 结束事务的远程命令码
+     */
     public static final int END_TRANSACTION = 37;
     public static final int GET_CONSUMER_LIST_BY_GROUP = 38;
 

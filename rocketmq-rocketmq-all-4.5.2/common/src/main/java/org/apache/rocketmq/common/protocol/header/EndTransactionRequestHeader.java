@@ -23,13 +23,32 @@ import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 结束事务请求头类
+ */
 public class EndTransactionRequestHeader implements CommandCustomHeader {
+
+    /**
+     * 发给事务的生产者组名
+     */
     @CFNotNull
     private String producerGroup;
+
+    /**
+     * half message在事务主题队列中的偏移量 一直未0
+     */
     @CFNotNull
     private Long tranStateTableOffset;
+
+    /**
+     * half message在commitLog文件系统中的偏移量
+     */
     @CFNotNull
     private Long commitLogOffset;
+
+    /**
+     *事务的状态类型
+     */
     @CFNotNull
     private Integer commitOrRollback; // TRANSACTION_COMMIT_TYPE
     // TRANSACTION_ROLLBACK_TYPE
@@ -38,9 +57,15 @@ public class EndTransactionRequestHeader implements CommandCustomHeader {
     @CFNullable
     private Boolean fromTransactionCheck = false;
 
+    /**
+     * half message的unioid id
+     */
     @CFNotNull
     private String msgId;
 
+    /**
+     * 事务id 消息的uniod
+     */
     private String transactionId;
 
     @Override

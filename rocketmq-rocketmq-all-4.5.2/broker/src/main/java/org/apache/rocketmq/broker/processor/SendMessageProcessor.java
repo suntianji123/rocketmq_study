@@ -417,11 +417,12 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
 
         //获取属性properties map
         Map<String, String> oriProps = MessageDecoder.string2messageProperties(requestHeader.getProperties());
-        //获取交易标志
+        //消息需要控制事务的标志
         String traFlag = oriProps.get(MessageConst.PROPERTY_TRANSACTION_PREPARED);
         if (traFlag != null && Boolean.parseBoolean(traFlag)) {
-            if (this.brokerController.getBrokerConfig().isRejectTransactionMessage()) {
+            if (this.brokerController.getBrokerConfig().isRejectTransactionMessage()) {//如果广播站拒绝处理事务消息
                 response.setCode(ResponseCode.NO_PERMISSION);
+                //添加附加标记：广播站拒绝处理事务性消息
                 response.setRemark(
                     "the broker[" + this.brokerController.getBrokerConfig().getBrokerIP1()
                         + "] sending transaction message is forbidden");

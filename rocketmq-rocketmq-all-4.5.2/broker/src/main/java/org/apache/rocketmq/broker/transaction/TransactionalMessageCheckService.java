@@ -22,11 +22,18 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
+/**
+ * 事务消息检查服务类
+ */
 public class TransactionalMessageCheckService extends ServiceThread {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
     private BrokerController brokerController;
 
+    /**
+     * 实例化一个事务消息检查服务
+     * @param brokerController 控制器
+     */
     public TransactionalMessageCheckService(BrokerController brokerController) {
         this.brokerController = brokerController;
     }

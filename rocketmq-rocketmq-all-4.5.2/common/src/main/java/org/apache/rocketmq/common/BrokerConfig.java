@@ -77,6 +77,9 @@ public class BrokerConfig {
 
     private int flushConsumerOffsetHistoryInterval = 1000 * 60;
 
+    /**
+     * 广播站是否拒绝处理事务性消息
+     */
     @ImportantField
     private boolean rejectTransactionMessage = false;
     @ImportantField

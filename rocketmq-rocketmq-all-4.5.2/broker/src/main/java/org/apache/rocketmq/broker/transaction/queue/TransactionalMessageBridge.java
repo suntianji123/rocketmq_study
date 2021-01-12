@@ -49,18 +49,42 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 事务消息桥梁类
+ */
 public class TransactionalMessageBridge {
     private static final InternalLogger LOGGER = InnerLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
     private final ConcurrentHashMap<MessageQueue, MessageQueue> opQueueMap = new ConcurrentHashMap<>();
+
+    /**
+     *广播站控制器
+     */
     private final BrokerController brokerController;
+
+    /**
+     * 广播站消息存储
+     */
     private final MessageStore store;
+
+    /**
+     * 事务消息存储端口
+     */
     private final SocketAddress storeHost;
 
+    /**
+     * 实例化一个事务消息桥梁对象
+     * @param brokerController 广播站控制器
+     * @param store 广播站消息存储对象
+     */
     public TransactionalMessageBridge(BrokerController brokerController, MessageStore store) {
         try {
+            //设置广播站控制器
             this.brokerController = brokerController;
+            //设置广播站消息存储对象
             this.store = store;
+
+            //设置时间消息存储端口
             this.storeHost =
                 new InetSocketAddress(brokerController.getBrokerConfig().getBrokerIP1(),
                     brokerController.getNettyServerConfig().getListenPort());
@@ -186,18 +210,35 @@ public class TransactionalMessageBridge {
         return foundList;
     }
 
+    /**
+     * 存放halfMessage
+     * @param messageInner 消息
+     * @return
+     */
     public PutMessageResult putHalfMessage(MessageExtBrokerInner messageInner) {
         return store.putMessage(parseHalfMessageInner(messageInner));
     }
 
+    /**
+     * 解析halfMessage
+     * @param msgInner 消息
+     * @return
+     */
     private MessageExtBrokerInner parseHalfMessageInner(MessageExtBrokerInner msgInner) {
+        //向msgInner的properties的保留真正的主题
         MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_REAL_TOPIC, msgInner.getTopic());
+        //向msgInner的properties保留原来的主题编号
         MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_REAL_QUEUE_ID,
             String.valueOf(msgInner.getQueueId()));
+
+        //设置commit rollback位的值为0
         msgInner.setSysFlag(
             MessageSysFlag.resetTransactionValue(msgInner.getSysFlag(), MessageSysFlag.TRANSACTION_NOT_TYPE));
+        //设置half message主题
         msgInner.setTopic(TransactionalMessageUtil.buildHalfTopic());
+        //设置half message的队列编号
         msgInner.setQueueId(0);
+        //设置properties字符串
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgInner.getProperties()));
         return msgInner;
     }
@@ -329,6 +370,11 @@ public class TransactionalMessageBridge {
         return opQueue;
     }
 
+    /**
+     * 根据消息在commitLog中的偏移量查询half message
+     * @param commitLogOffset 偏移量
+     * @return
+     */
     public MessageExt lookMessageByOffset(final long commitLogOffset) {
         return this.store.lookMessageByOffset(commitLogOffset);
     }

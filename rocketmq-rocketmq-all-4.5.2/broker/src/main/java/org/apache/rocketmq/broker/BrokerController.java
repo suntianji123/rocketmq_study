@@ -163,8 +163,20 @@ public class BrokerController {
     private BrokerFastFailure brokerFastFailure;
     private Configuration configuration;
     private FileWatchService fileWatchService;
+
+    /**
+     * 启动事务性消息检查服务
+     */
     private TransactionalMessageCheckService transactionalMessageCheckService;
+
+    /**
+     * 事务消息服务
+     */
     private TransactionalMessageService transactionalMessageService;
+
+    /**
+     * 事务消息检查监听器
+     */
     private AbstractTransactionalMessageCheckListener transactionalMessageCheckListener;
     private Future<?> slaveSyncFuture;
     private Map<Class,AccessValidator> accessValidatorMap = new HashMap<Class, AccessValidator>();
@@ -473,6 +485,8 @@ public class BrokerController {
                     log.warn("FileWatchService created error, can't load the certificate dynamically");
                 }
             }
+
+            //初始化事务性消息检查服务
             initialTransaction();
             initialAcl();
             initialRpcHooks();
@@ -480,18 +494,29 @@ public class BrokerController {
         return result;
     }
 
+    /**
+     * 初始化事务
+     */
     private void initialTransaction() {
+        //从配置文件加载一个指定的事务服务实现
         this.transactionalMessageService = ServiceProvider.loadClass(ServiceProvider.TRANSACTION_SERVICE_ID, TransactionalMessageService.class);
-        if (null == this.transactionalMessageService) {
+        if (null == this.transactionalMessageService) {//没有指定事务服务类
+            //使用默认的事务服务类
             this.transactionalMessageService = new TransactionalMessageServiceImpl(new TransactionalMessageBridge(this, this.getMessageStore()));
             log.warn("Load default transaction message hook service: {}", TransactionalMessageServiceImpl.class.getSimpleName());
         }
+
+        //从指定文件加载消息检查监听器
         this.transactionalMessageCheckListener = ServiceProvider.loadClass(ServiceProvider.TRANSACTION_LISTENER_ID, AbstractTransactionalMessageCheckListener.class);
         if (null == this.transactionalMessageCheckListener) {
+            //使用默认的事务消息检查监听器
             this.transactionalMessageCheckListener = new DefaultTransactionalMessageCheckListener();
             log.warn("Load default discard message hook service: {}", DefaultTransactionalMessageCheckListener.class.getSimpleName());
         }
+
+        //设置广播站控制器
         this.transactionalMessageCheckListener.setBrokerController(this);
+        //实例化事务消息检查服务
         this.transactionalMessageCheckService = new TransactionalMessageCheckService(this);
     }
 
@@ -593,9 +618,7 @@ public class BrokerController {
         this.fastRemotingServer.registerProcessor(RequestCode.UPDATE_CONSUMER_OFFSET, consumerManageProcessor, this.consumerManageExecutor);
         this.fastRemotingServer.registerProcessor(RequestCode.QUERY_CONSUMER_OFFSET, consumerManageProcessor, this.consumerManageExecutor);
 
-        /**
-         * EndTransactionProcessor
-         */
+        //结束事务
         this.remotingServer.registerProcessor(RequestCode.END_TRANSACTION, new EndTransactionProcessor(this), this.endTransactionExecutor);
         this.fastRemotingServer.registerProcessor(RequestCode.END_TRANSACTION, new EndTransactionProcessor(this), this.endTransactionExecutor);
 
@@ -861,7 +884,9 @@ public class BrokerController {
         }
 
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
+            //启动Ha服务
             startProcessorByHa(messageStoreConfig.getBrokerRole());
+            //处理从站同步
             handleSlaveSynchronize(messageStoreConfig.getBrokerRole());
         }
 
@@ -1230,8 +1255,13 @@ public class BrokerController {
         log.info("Finish to change to master brokerName={}", brokerConfig.getBrokerName());
     }
 
+    /**
+     * 启动高可用服务
+     * @param role 服务角色
+     */
     private void startProcessorByHa(BrokerRole role) {
-        if (BrokerRole.SLAVE != role) {
+        //只有主站才能启动高可用服务
+        if (BrokerRole.SLAVE != role) {//角色不能是从站
             if (this.transactionalMessageCheckService != null) {
                 this.transactionalMessageCheckService.start();
             }

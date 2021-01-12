@@ -62,7 +62,7 @@ public class SendMessageRequestHeader implements CommandCustomHeader {
     private Integer queueId;
 
     /**
-     * 消息的系统标志位  比如消息的消息体是否经过了zip压缩处理 消息是否有产权
+     * 消息的系统标志位  比如消息的消息体是否经过了zip压缩处理 消息是否需要控制事务
      */
     @CFNotNull
     private Integer sysFlag;

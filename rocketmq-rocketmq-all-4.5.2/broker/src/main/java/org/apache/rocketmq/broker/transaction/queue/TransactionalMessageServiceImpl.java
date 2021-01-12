@@ -42,6 +42,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 默认的事务服务类
+ */
 public class TransactionalMessageServiceImpl implements TransactionalMessageService {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
@@ -59,8 +62,14 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
 
     private ConcurrentHashMap<MessageQueue, MessageQueue> opQueueMap = new ConcurrentHashMap<>();
 
+    /**
+     * 准备事务消息
+     * @param messageInner half message
+     * @return
+     */
     @Override
     public PutMessageResult prepareMessage(MessageExtBrokerInner messageInner) {
+        //存放halfMessage
         return transactionalMessageBridge.putHalfMessage(messageInner);
     }
 
@@ -444,7 +453,13 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         return getResult;
     }
 
+    /**
+     * 获取half message
+     * @param commitLogOffset halfmessage在commitlog中的偏移量
+     * @return
+     */
     private OperationResult getHalfMessageByOffset(long commitLogOffset) {
+        //实例化一个操作结果对象
         OperationResult response = new OperationResult();
         MessageExt messageExt = this.transactionalMessageBridge.lookMessageByOffset(commitLogOffset);
         if (messageExt != null) {
@@ -468,6 +483,11 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         }
     }
 
+    /**
+     * 提交事务消息
+     * @param requestHeader 提交消息的请求头
+     * @return
+     */
     @Override
     public OperationResult commitMessage(EndTransactionRequestHeader requestHeader) {
         return getHalfMessageByOffset(requestHeader.getCommitLogOffset());

@@ -36,13 +36,25 @@ public class MessageConst {
     public static final String PROPERTY_WAIT_STORE_MSG_OK = "WAIT";
     public static final String PROPERTY_DELAY_TIME_LEVEL = "DELAY";
     public static final String PROPERTY_RETRY_TOPIC = "RETRY_TOPIC";
+
+    /**
+     * Message的真正的主题
+     */
     public static final String PROPERTY_REAL_TOPIC = "REAL_TOPIC";
+
+    /**
+     * Message的真正的主题队列
+     */
     public static final String PROPERTY_REAL_QUEUE_ID = "REAL_QID";
 
     /**
-     * 消息是否准备了产权
+     * 消息属性 是否使用了事务
      */
     public static final String PROPERTY_TRANSACTION_PREPARED = "TRAN_MSG";
+
+    /**
+     * 消息属性 生产者组名
+     */
     public static final String PROPERTY_PRODUCER_GROUP = "PGROUP";
     public static final String PROPERTY_MIN_OFFSET = "MIN_OFFSET";
     public static final String PROPERTY_MAX_OFFSET = "MAX_OFFSET";
@@ -68,7 +80,7 @@ public class MessageConst {
     public static final String PROPERTY_TRACE_SWITCH = "TRACE_ON";
 
     /**
-     * 设置消息唯一的id
+     * 设置消息唯一的id 事务ID
      */
     public static final String PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX = "UNIQ_KEY";
 

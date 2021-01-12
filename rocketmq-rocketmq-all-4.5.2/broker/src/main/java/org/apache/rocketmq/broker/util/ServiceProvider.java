@@ -18,6 +18,9 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 服务提供者类
+ */
 public class ServiceProvider {
 
     private final static Logger LOG = LoggerFactory
@@ -28,7 +31,7 @@ public class ServiceProvider {
     private static ClassLoader thisClassLoader;
 
     /**
-     * JDK1.3+ <a href= "http://java.sun.com/j2se/1.3/docs/guide/jar/jar.html#Service%20Provider" > 'Service Provider' specification</a>.
+     * 事务服务类的文件路径
      */
     public static final String TRANSACTION_SERVICE_ID = "META-INF/service/org.apache.rocketmq.broker.transaction.TransactionalMessageService";
 
@@ -72,9 +75,15 @@ public class ServiceProvider {
         }
     }
 
+    /**
+     * 获取类加载器
+     * @return
+     */
     protected static ClassLoader getContextClassLoader() {
         ClassLoader classLoader = null;
         try {
+
+            //获取当前线程的类加载器
             classLoader = Thread.currentThread().getContextClassLoader();
         } catch (SecurityException ex) {
             /**
@@ -83,13 +92,22 @@ public class ServiceProvider {
              * loader, or if security permissions are restricted.
              */
         }
+
+        //返回加载器
         return classLoader;
     }
 
+    /**
+     * 根据类加载器和文件名 将文件转为输入流
+     * @param loader 类加载器
+     * @param name 文件名
+     * @return
+     */
     protected static InputStream getResourceAsStream(ClassLoader loader, String name) {
-        if (loader != null) {
+        if (loader != null) {//使用类加载器加载文件
             return loader.getResourceAsStream(name);
         } else {
+            //使用系统的加载器加载文件
             return ClassLoader.getSystemResourceAsStream(name);
         }
     }
@@ -131,17 +149,30 @@ public class ServiceProvider {
         return services;
     }
 
+    /**
+     * 加载某个class类
+     * @param name 文件路径
+     * @param clazz 反序列的class类型
+     * @param <T> 类型
+     * @return
+     */
     public static <T> T loadClass(String name, Class<?> clazz) {
+        //将文件加载为输入流
         final InputStream is = getResourceAsStream(getContextClassLoader(), name);
-        if (is != null) {
+        if (is != null) {//输入流存在
+            //定义一个reader
             BufferedReader reader;
             try {
                 try {
+                    //将输入流转为reader
                     reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
                 } catch (java.io.UnsupportedEncodingException e) {
                     reader = new BufferedReader(new InputStreamReader(is));
                 }
+                //第一行服务的名字
                 String serviceName = reader.readLine();
+
+                //关闭输入流
                 reader.close();
                 if (serviceName != null && !"".equals(serviceName)) {
                     return initService(getContextClassLoader(), serviceName, clazz);
@@ -156,6 +187,14 @@ public class ServiceProvider {
         return null;
     }
 
+    /**
+     * 初始化服务
+     * @param classLoader 类加载器
+     * @param serviceName 服务名
+     * @param clazz  服务的class类型
+     * @param <T>
+     * @return
+     */
     protected static <T> T initService(ClassLoader classLoader, String serviceName, Class<?> clazz) {
         Class<?> serviceClazz = null;
         try {
@@ -163,7 +202,7 @@ public class ServiceProvider {
                 try {
                     // Warning: must typecast here & allow exception to be generated/caught & recast properly
                     serviceClazz = classLoader.loadClass(serviceName);
-                    if (clazz.isAssignableFrom(serviceClazz)) {
+                    if (clazz.isAssignableFrom(serviceClazz)) {//serviceClazz是clazz的实现类
                         LOG.info("Loaded class {} from classloader {}", serviceClazz.getName(),
                             objectId(classLoader));
                     } else {
@@ -173,6 +212,8 @@ public class ServiceProvider {
                             new Object[] {serviceClazz.getName(),
                                 objectId(serviceClazz.getClassLoader()), clazz.getName()});
                     }
+
+                    //实例化一个对象
                     return (T)serviceClazz.newInstance();
                 } catch (ClassNotFoundException ex) {
                     if (classLoader == thisClassLoader) {

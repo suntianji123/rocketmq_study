@@ -30,9 +30,15 @@ import org.apache.rocketmq.store.MessageExtBrokerInner;
 import org.apache.rocketmq.store.PutMessageResult;
 import org.apache.rocketmq.store.PutMessageStatus;
 
+/**
+ * 默认的事务消息检查监听器类
+ */
 public class DefaultTransactionalMessageCheckListener extends AbstractTransactionalMessageCheckListener {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
+    /**
+     * 实例化一个默认的事务消息检查监听器
+     */
     public DefaultTransactionalMessageCheckListener() {
         super();
     }

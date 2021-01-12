@@ -30,11 +30,23 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 带有事务的生产者
+ */
 public class TransactionProducer {
     public static void main(String[] args) throws MQClientException, InterruptedException {
+        //实例化一个事务实现
         TransactionListener transactionListener = new TransactionListenerImpl();
+        //实例化一个事务生产者
         TransactionMQProducer producer = new TransactionMQProducer("please_rename_unique_group_name");
+
+        producer.setNamesrvAddr("127.0.0.1:9876");
+
+        //实例化一个一个执行器
+        //最低2个工作线程 最大5个工作线程 超过100秒线程没有工作 销毁线程
         ExecutorService executorService = new ThreadPoolExecutor(2, 5, 100, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(2000), new ThreadFactory() {
+
+            //生产线程的工厂类
             @Override
             public Thread newThread(Runnable r) {
                 Thread thread = new Thread(r);
@@ -43,8 +55,11 @@ public class TransactionProducer {
             }
         });
 
+        //设置生产者的本地事务执行器
         producer.setExecutorService(executorService);
+        //设置生产者的事务监听器
         producer.setTransactionListener(transactionListener);
+        //启动生产者
         producer.start();
 
         String[] tags = new String[] {"TagA", "TagB", "TagC", "TagD", "TagE"};
@@ -53,6 +68,8 @@ public class TransactionProducer {
                 Message msg =
                     new Message("TopicTest1234", tags[i % tags.length], "KEY" + i,
                         ("Hello RocketMQ " + i).getBytes(RemotingHelper.DEFAULT_CHARSET));
+
+
                 SendResult sendResult = producer.sendMessageInTransaction(msg, null);
                 System.out.printf("%s%n", sendResult);
 

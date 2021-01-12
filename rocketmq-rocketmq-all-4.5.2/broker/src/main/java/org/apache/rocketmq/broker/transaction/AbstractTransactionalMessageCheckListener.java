@@ -32,9 +32,15 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 抽象的事务消息检查监听器类
+ */
 public abstract class AbstractTransactionalMessageCheckListener {
     private static final InternalLogger LOGGER = InternalLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
+    /**
+     * 广播站控制器
+     */
     private BrokerController brokerController;
 
     //queue nums of topic TRANS_CHECK_MAX_TIME_TOPIC
@@ -50,6 +56,10 @@ public abstract class AbstractTransactionalMessageCheckListener {
         }
     });
 
+
+    /**
+     * 实例化一个抽象的事务消息检查监听器
+     */
     public AbstractTransactionalMessageCheckListener() {
     }
 
@@ -98,9 +108,8 @@ public abstract class AbstractTransactionalMessageCheckListener {
     }
 
     /**
-     * Inject brokerController for this listener
-     *
-     * @param brokerController
+     * 设置广播站控制器
+     * @param brokerController 广播站控制器i
      */
     public void setBrokerController(BrokerController brokerController) {
         this.brokerController = brokerController;

@@ -18,10 +18,27 @@ package org.apache.rocketmq.common.message;
 
 import java.net.SocketAddress;
 
+/**
+ * 消息存储在广播站的id
+ * storeAddr + 偏移量
+ */
 public class MessageId {
+    /**
+     * 地址
+     */
     private SocketAddress address;
+
+    /**
+     * 偏移量
+     */
     private long offset;
 
+
+    /**
+     * 实例化一个消息id对象
+     * @param address 存储地址
+     * @param offset 偏移量
+     */
     public MessageId(SocketAddress address, long offset) {
         this.address = address;
         this.offset = offset;

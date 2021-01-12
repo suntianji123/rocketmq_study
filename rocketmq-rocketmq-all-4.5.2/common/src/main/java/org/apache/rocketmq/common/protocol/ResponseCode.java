@@ -33,6 +33,9 @@ public class ResponseCode extends RemotingSysResponseCode {
 
     public static final int VERSION_NOT_SUPPORTED = 15;
 
+    /**
+     * 响应码 没有权限（比如广播站拒绝事务消息）
+     */
     public static final int NO_PERMISSION = 16;
 
     /**

@@ -525,13 +525,23 @@ public class MappedFile extends ReferenceResource {
         return this.fileSize == this.wrotePosition.get();
     }
 
+    /**
+     * 在mappedFile文件中查找某一块mappedBuffer
+     * @param pos 在mappedFile中的偏移量
+     * @param size 可读的消息至少是多少个字节
+     * @return
+     */
     public SelectMappedBufferResult selectMappedBuffer(int pos, int size) {
+        //获取可读位置
         int readPosition = getReadPosition();
-        if ((pos + size) <= readPosition) {
-            if (this.hold()) {
+        if ((pos + size) <= readPosition) {//至少有size个字节可读
+            if (this.hold()) {//当前线程对mappedFile持有一个引用
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
+                //设置可读位置
                 byteBuffer.position(pos);
+                //新的切片对象
                 ByteBuffer byteBufferNew = byteBuffer.slice();
+                //设置数组的最大长度
                 byteBufferNew.limit(size);
                 return new SelectMappedBufferResult(this.fileFromOffset + pos, byteBufferNew, size, this);
             } else {
