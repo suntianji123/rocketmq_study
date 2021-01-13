@@ -55,6 +55,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TransactionalMessageBridge {
     private static final InternalLogger LOGGER = InnerLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
+    /**
+     * 主题队列 对应的操作队列
+     */
     private final ConcurrentHashMap<MessageQueue, MessageQueue> opQueueMap = new ConcurrentHashMap<>();
 
     /**
@@ -95,6 +98,11 @@ public class TransactionalMessageBridge {
 
     }
 
+    /**
+     * 返回消费half message的主题队列的消费者队列对应的偏移量
+     * @param mq half message主题队列
+     * @return
+     */
     public long fetchConsumeOffset(MessageQueue mq) {
         long offset = brokerController.getConsumerOffsetManager().queryOffset(TransactionalMessageUtil.buildConsumerGroup(),
             mq.getTopic(), mq.getQueueId());
@@ -104,15 +112,27 @@ public class TransactionalMessageBridge {
         return offset;
     }
 
+    /**
+     * 寻找某个主推对应的主题队列列表
+     * @param topic
+     * @return
+     */
     public Set<MessageQueue> fetchMessageQueues(String topic) {
+        //主题队列集合
         Set<MessageQueue> mqSet = new HashSet<>();
+        //获取half message主题配置
         TopicConfig topicConfig = selectTopicConfig(topic);
         if (topicConfig != null && topicConfig.getReadQueueNums() > 0) {
             for (int i = 0; i < topicConfig.getReadQueueNums(); i++) {
+                //实例化主题队列
                 MessageQueue mq = new MessageQueue();
+                //设置主题
                 mq.setTopic(topic);
+                //设置广播站名
                 mq.setBrokerName(brokerController.getBrokerConfig().getBrokerName());
+                //设置队列编号
                 mq.setQueueId(i);
+                //添加主题队列
                 mqSet.add(mq);
             }
         }
@@ -243,10 +263,17 @@ public class TransactionalMessageBridge {
         return msgInner;
     }
 
+    /**
+     * 操作事务消息
+     * @param messageExt 事务消息
+     * @param opType 操作类型
+     * @return
+     */
     public boolean putOpMessage(MessageExt messageExt, String opType) {
+        //实例化一个主题队列对象
         MessageQueue messageQueue = new MessageQueue(messageExt.getTopic(),
             this.brokerController.getBrokerConfig().getBrokerName(), messageExt.getQueueId());
-        if (TransactionalMessageUtil.REMOVETAG.equals(opType)) {
+        if (TransactionalMessageUtil.REMOVETAG.equals(opType)) {//如果是删除
             return addRemoveTagInTransactionOp(messageExt, messageQueue);
         }
         return true;
@@ -303,20 +330,39 @@ public class TransactionalMessageBridge {
         return msgInner;
     }
 
+    /**
+     * 创建一个操作消息对应的写入到磁盘的消息
+     * @param message 操作消息
+     * @param messageQueue 操作消息将要存放的队列
+     * @return
+     */
     private MessageExtBrokerInner makeOpMessageInner(Message message, MessageQueue messageQueue) {
+        //实例化一个消息
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
+        //设置操作消息主题
         msgInner.setTopic(message.getTopic());
+        //设置操作消息的消息体
         msgInner.setBody(message.getBody());
+        //设置队列编号
         msgInner.setQueueId(messageQueue.getQueueId());
+        //设置标签
         msgInner.setTags(message.getTags());
+        //设置标签的哈希值
         msgInner.setTagsCode(MessageExtBrokerInner.tagsString2tagsCode(msgInner.getTags()));
+        //设置系统标志
         msgInner.setSysFlag(0);
+        //设置properties map
         MessageAccessor.setProperties(msgInner, message.getProperties());
+        //设置properties map->String
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(message.getProperties()));
+        //设置生产消息的时间
         msgInner.setBornTimestamp(System.currentTimeMillis());
+        //设置生产消息的地址
         msgInner.setBornHost(this.storeHost);
+        //设置存储消息的地址
         msgInner.setStoreHost(this.storeHost);
         msgInner.setWaitStoreMsgOK(false);
+        //设置uninid
         MessageClientIDSetter.setUniqID(msgInner);
         return msgInner;
     }
@@ -331,41 +377,61 @@ public class TransactionalMessageBridge {
     }
 
     /**
-     * Use this function while transaction msg is committed or rollback write a flag 'd' to operation queue for the
-     * msg's offset
-     *
-     * @param messageExt Op message
-     * @param messageQueue Op message queue
-     * @return This method will always return true.
+     * 添加一个删除的消息在主题队列
+     * @param messageExt 将会被删除的half消息
+     * @param messageQueue 主题队列
+     * @return
      */
     private boolean addRemoveTagInTransactionOp(MessageExt messageExt, MessageQueue messageQueue) {
+        //实例化一个消息 主题：操作half message tag : d(删除) 消息体：在主题队列中的偏移量
         Message message = new Message(TransactionalMessageUtil.buildOpTopic(), TransactionalMessageUtil.REMOVETAG,
             String.valueOf(messageExt.getQueueOffset()).getBytes(TransactionalMessageUtil.charset));
+        //将操作消息 写入到主题队列
         writeOp(message, messageQueue);
         return true;
     }
 
+    /**
+     * 将操作消息添加操作消息对应的操作队列
+     * @param message 操作消息
+     * @param mq 将要被操作的消息位于的主题队列
+     */
     private void writeOp(Message message, MessageQueue mq) {
+        //获取操作队列
         MessageQueue opQueue;
-        if (opQueueMap.containsKey(mq)) {
+        if (opQueueMap.containsKey(mq)) {//主题队列之前创建过与之对应的操作队列
+            //获取操作队列
             opQueue = opQueueMap.get(mq);
-        } else {
+        } else {//之前没有创建过half message对应的操作队列
+            //创建一个操作队列
             opQueue = getOpQueueByHalf(mq);
+            //将创建队列放入opqueueMap
             MessageQueue oldQueue = opQueueMap.putIfAbsent(mq, opQueue);
             if (oldQueue != null) {
                 opQueue = oldQueue;
             }
         }
-        if (opQueue == null) {
+        if (opQueue == null) {//操作队列不存在 继续创建
             opQueue = new MessageQueue(TransactionalMessageUtil.buildOpTopic(), mq.getBrokerName(), mq.getQueueId());
         }
+
+        //将操作消息写入commitlog文件
         putMessage(makeOpMessageInner(message, opQueue));
     }
 
+    /**
+     * 通过half message所在的队列获取操作队列
+     * @param halfMQ half message所在的队列
+     * @return
+     */
     private MessageQueue getOpQueueByHalf(MessageQueue halfMQ) {
+        //实例化一个操作队列
         MessageQueue opQueue = new MessageQueue();
+        //设置操作队列的主题
         opQueue.setTopic(TransactionalMessageUtil.buildOpTopic());
+        //设置操作队列的广播站
         opQueue.setBrokerName(halfMQ.getBrokerName());
+        //设置操作队列的编号
         opQueue.setQueueId(halfMQ.getQueueId());
         return opQueue;
     }

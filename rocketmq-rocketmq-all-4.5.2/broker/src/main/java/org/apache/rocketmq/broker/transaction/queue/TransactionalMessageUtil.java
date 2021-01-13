@@ -20,10 +20,17 @@ import org.apache.rocketmq.common.MixAll;
 
 import java.nio.charset.Charset;
 
+/**
+ * 事务消息工具类
+ */
 public class TransactionalMessageUtil {
     public static final String REMOVETAG = "d";
     public static Charset charset = Charset.forName("utf-8");
 
+    /**
+     * 操作half message的主题
+     * @return
+     */
     public static String buildOpTopic() {
         return MixAll.RMQ_SYS_TRANS_OP_HALF_TOPIC;
     }
@@ -36,6 +43,10 @@ public class TransactionalMessageUtil {
         return MixAll.RMQ_SYS_TRANS_HALF_TOPIC;
     }
 
+    /**
+     * 消费half message的消费者组名
+     * @return
+     */
     public static String buildConsumerGroup() {
         return MixAll.CID_SYS_RMQ_TRANS;
     }

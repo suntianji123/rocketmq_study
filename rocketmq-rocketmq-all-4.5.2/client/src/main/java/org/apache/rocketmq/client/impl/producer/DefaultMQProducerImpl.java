@@ -1473,12 +1473,19 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             log.warn("local transaction execute " + localTransactionState + ", but end broker transaction failed", e);
         }
 
+        //实例化一个执行本地事务结果对象
         TransactionSendResult transactionSendResult = new TransactionSendResult();
+        //设置推送状态
         transactionSendResult.setSendStatus(sendResult.getSendStatus());
+        //设置主题队列
         transactionSendResult.setMessageQueue(sendResult.getMessageQueue());
+        //设置消息唯一id
         transactionSendResult.setMsgId(sendResult.getMsgId());
+        //设置消息在主题队列中的偏移量
         transactionSendResult.setQueueOffset(sendResult.getQueueOffset());
+        //设置事务id
         transactionSendResult.setTransactionId(sendResult.getTransactionId());
+        //设置事务状态
         transactionSendResult.setLocalTransactionState(localTransactionState);
         return transactionSendResult;
     }

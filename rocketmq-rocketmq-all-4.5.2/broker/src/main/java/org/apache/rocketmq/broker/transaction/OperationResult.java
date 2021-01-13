@@ -22,10 +22,20 @@ import org.apache.rocketmq.common.message.MessageExt;
  * 操作结束类
  */
 public class OperationResult {
+
+    /**
+     * half message
+     */
     private MessageExt prepareMessage;
 
+    /**
+     * 响应码
+     */
     private int responseCode;
 
+    /**
+     * 响应标记 附加信息
+     */
     private String responseRemark;
 
     public MessageExt getPrepareMessage() {

@@ -27,9 +27,15 @@ public class MessageExtBrokerInner extends MessageExt {
     private String propertiesString;
     private long tagsCode;
 
+    /**
+     * 获取tags的哈希值
+     * @param filter 主题过滤对象
+     * @param tags 标签
+     * @return
+     */
     public static long tagsString2tagsCode(final TopicFilterType filter, final String tags) {
         if (null == tags || tags.length() == 0) { return 0; }
-
+        //返回哈希值
         return tags.hashCode();
     }
 

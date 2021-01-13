@@ -162,7 +162,7 @@ public class BrokerConfig {
     private int registerNameServerPeriod = 1000 * 30;
 
     /**
-     * The minimum time of the transactional message  to be checked firstly, one message only exceed this time interval
+     * 首先检查事务性消息的最短时间，一条消息仅超过此时间间隔
      * that can be checked.
      */
     @ImportantField
@@ -175,7 +175,7 @@ public class BrokerConfig {
     private int transactionCheckMax = 15;
 
     /**
-     * Transaction message check interval.
+     * 检查half message的时间间隔
      */
     @ImportantField
     private long transactionCheckInterval = 60 * 1000;

@@ -55,6 +55,7 @@ public class TransactionalMessageCheckService extends ServiceThread {
 
     @Override
     protected void onWaitEnd() {
+        //事务的超时时间
         long timeout = brokerController.getBrokerConfig().getTransactionTimeOut();
         int checkMax = brokerController.getBrokerConfig().getTransactionCheckMax();
         long begin = System.currentTimeMillis();

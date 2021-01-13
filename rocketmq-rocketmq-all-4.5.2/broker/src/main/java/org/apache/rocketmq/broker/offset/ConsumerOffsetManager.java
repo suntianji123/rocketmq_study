@@ -37,6 +37,9 @@ public class ConsumerOffsetManager extends ConfigManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final String TOPIC_GROUP_SEPARATOR = "@";
 
+    /**
+     * 消费者主题对应的主题队列的偏移量
+     */
     private ConcurrentMap<String/* topic@group */, ConcurrentMap<Integer, Long>> offsetTable =
         new ConcurrentHashMap<String, ConcurrentMap<Integer, Long>>(512);
 
@@ -139,11 +142,20 @@ public class ConsumerOffsetManager extends ConfigManager {
         }
     }
 
+    /**
+     * 获取某个消费者主题的某个消费的主题队列的偏移量
+     * @param group 消费者组名
+     * @param topic 主题
+     * @param queueId 主题队列编号
+     * @return
+     */
     public long queryOffset(final String group, final String topic, final int queueId) {
         // topic@group
         String key = topic + TOPIC_GROUP_SEPARATOR + group;
+        //获取消费者主题所有的主题队列的偏移量
         ConcurrentMap<Integer, Long> map = this.offsetTable.get(key);
         if (null != map) {
+            //获取队列编号对应的偏移量
             Long offset = map.get(queueId);
             if (offset != null)
                 return offset;

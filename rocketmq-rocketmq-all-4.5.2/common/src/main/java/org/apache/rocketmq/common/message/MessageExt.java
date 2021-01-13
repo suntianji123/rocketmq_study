@@ -36,6 +36,9 @@ public class MessageExt extends Message {
 
     private int storeSize;
 
+    /**
+     * 在主题队列中的偏移量
+     */
     private long queueOffset;
     private int sysFlag;
     private long bornTimestamp;
@@ -59,6 +62,9 @@ public class MessageExt extends Message {
     private int bodyCRC;
     private int reconsumeTimes;
 
+    /**
+     * half message在commitlog中的偏移量
+     */
     private long preparedTransactionOffset;
 
     public MessageExt() {

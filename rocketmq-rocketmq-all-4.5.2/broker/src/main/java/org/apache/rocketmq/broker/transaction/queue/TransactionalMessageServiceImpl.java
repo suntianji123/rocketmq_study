@@ -126,11 +126,21 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         }
     }
 
+    /**
+     * 检查halfmessage
+     * @param transactionTimeout 事务超时时间
+     * exceed this time interval that can be checked.
+     * @param transactionCheckMax 每次检查的half message的最大数量
+     * message will be discarded.
+     * @param listener 检查事务的监听器
+     */
     @Override
     public void check(long transactionTimeout, int transactionCheckMax,
         AbstractTransactionalMessageCheckListener listener) {
         try {
+            //half消息主题
             String topic = MixAll.RMQ_SYS_TRANS_HALF_TOPIC;
+            //获取half message对应的主题队列列表
             Set<MessageQueue> msgQueues = transactionalMessageBridge.fetchMessageQueues(topic);
             if (msgQueues == null || msgQueues.size() == 0) {
                 log.warn("The queue of topic is empty :" + topic);
@@ -138,9 +148,16 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
             }
             log.debug("Check topic={}, queues={}", topic, msgQueues);
             for (MessageQueue messageQueue : msgQueues) {
+                //获取开始时间
                 long startTime = System.currentTimeMillis();
+
+                //获取half message主题队列对应的操作消息队列
                 MessageQueue opQueue = getOpQueue(messageQueue);
+
+                //获取消费half message主题队列的消费者主题队列对应的偏移量
                 long halfOffset = transactionalMessageBridge.fetchConsumeOffset(messageQueue);
+
+                //获取消费操作 half message主题队列的消费者主题队列对应的偏移量
                 long opOffset = transactionalMessageBridge.fetchConsumeOffset(opQueue);
                 log.info("Before check, the queue={} msgOffset={} opOffset={}", messageQueue, halfOffset, opOffset);
                 if (halfOffset < 0 || opOffset < 0) {
@@ -429,11 +446,18 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
 
     }
 
+    /**
+     * 获取half message队列对应的操作消息队列
+     * @param messageQueue half message队列
+     * @return
+     */
     private MessageQueue getOpQueue(MessageQueue messageQueue) {
+        //从缓存中寻找
         MessageQueue opQueue = opQueueMap.get(messageQueue);
-        if (opQueue == null) {
+        if (opQueue == null) {//实例化一个
             opQueue = new MessageQueue(TransactionalMessageUtil.buildOpTopic(), messageQueue.getBrokerName(),
                 messageQueue.getQueueId());
+            //放入列表
             opQueueMap.put(messageQueue, opQueue);
         }
         return opQueue;
@@ -462,8 +486,10 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         //实例化一个操作结果对象
         OperationResult response = new OperationResult();
         MessageExt messageExt = this.transactionalMessageBridge.lookMessageByOffset(commitLogOffset);
-        if (messageExt != null) {
+        if (messageExt != null) {//half message不为null
+            //设置half message
             response.setPrepareMessage(messageExt);
+            //设置响应码
             response.setResponseCode(ResponseCode.SUCCESS);
         } else {
             response.setResponseCode(ResponseCode.SYSTEM_ERROR);
@@ -472,8 +498,14 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         return response;
     }
 
+    /**
+     * 存储事务的最终消息后删除之前的事务消息
+     * @param msgExt 事务消息
+     * @return
+     */
     @Override
     public boolean deletePrepareMessage(MessageExt msgExt) {
+        //实例化一个删除half message的操作消息 位于操作队列 并写入commitlog文件
         if (this.transactionalMessageBridge.putOpMessage(msgExt, TransactionalMessageUtil.REMOVETAG)) {
             log.info("Transaction op message write successfully. messageId={}, queueId={} msgExt:{}", msgExt.getMsgId(), msgExt.getQueueId(), msgExt);
             return true;
@@ -493,6 +525,11 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         return getHalfMessageByOffset(requestHeader.getCommitLogOffset());
     }
 
+    /**
+     * 回滚事务
+     * @param requestHeader 生产者请求头
+     * @return
+     */
     @Override
     public OperationResult rollbackMessage(EndTransactionRequestHeader requestHeader) {
         return getHalfMessageByOffset(requestHeader.getCommitLogOffset());
