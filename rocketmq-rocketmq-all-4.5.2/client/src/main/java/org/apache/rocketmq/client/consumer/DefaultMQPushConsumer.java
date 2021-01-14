@@ -46,35 +46,19 @@ import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
- * In most scenarios, this is the mostly recommended class to consume messages.
- * </p>
- *
- * Technically speaking, this push client is virtually a wrapper of the underlying pull service. Specifically, on
- * arrival of messages pulled from brokers, it roughly invokes the registered callback handler to feed the messages.
- * </p>
- *
- * See quickstart/Consumer in the example module for a typical usage.
- * </p>
- *
- * <p>
- * <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
- * </p>
+ * 消费者类
  */
 public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsumer {
 
     private final InternalLogger log = ClientLogger.getLog();
 
     /**
-     * Internal implementation. Most of the functions herein are delegated to it.
+     * 默认的消费者实现
      */
     protected final transient DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
 
     /**
-     * Consumers of the same role is required to have exactly same subscriptions and consumerGroup to correctly achieve
-     * load balance. It's required and needs to be globally unique.
-     * </p>
-     *
-     * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
+     * 消费者组名
      */
     private String consumerGroup;
 
@@ -134,7 +118,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));
 
     /**
-     * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
+     * 分配消费者主题队列策略
      */
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
@@ -144,7 +128,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 
     /**
-     * Message listener
+     * 消息监听器
      */
     private MessageListener messageListener;
 
@@ -267,9 +251,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Constructor specifying consumer group.
-     *
-     * @param consumerGroup Consumer group.
+     * 实例化一个默认的消费者
+     * @param consumerGroup 消费者组名
      */
     public DefaultMQPushConsumer(final String consumerGroup) {
         this(null, consumerGroup, null, new AllocateMessageQueueAveragely());
@@ -319,17 +302,19 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Constructor specifying namespace, consumer group, RPC hook and message queue allocating algorithm.
-     *
-     * @param namespace Namespace for this MQ Producer instance.
-     * @param consumerGroup Consume queue.
-     * @param rpcHook RPC hook to execute before each remoting command.
-     * @param allocateMessageQueueStrategy Message queue allocating algorithm.
+     * 实例化默认的消费者
+     * @param namespace 命名空间
+     * @param consumerGroup 消费者组名
+     * @param rpcHook
+     * @param allocateMessageQueueStrategy 分配消费者主题队列的策略
      */
     public DefaultMQPushConsumer(final String namespace, final String consumerGroup, RPCHook rpcHook,
         AllocateMessageQueueStrategy allocateMessageQueueStrategy) {
+        //设置消费者组名
         this.consumerGroup = consumerGroup;
+        //设置命名空间
         this.namespace = namespace;
+        //设置分配消费者主题队列策略
         this.allocateMessageQueueStrategy = allocateMessageQueueStrategy;
         defaultMQPushConsumerImpl = new DefaultMQPushConsumerImpl(this, rpcHook);
     }
