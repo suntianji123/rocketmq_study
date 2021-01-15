@@ -20,10 +20,19 @@
  */
 package org.apache.rocketmq.common.protocol.heartbeat;
 
+/**
+ * 消费者获取消息的方式枚举
+ */
 public enum ConsumeType {
 
+    /**
+     * 主动从广播站拉取
+     */
     CONSUME_ACTIVELY("PULL"),
 
+    /**
+     * 广播站主动推送
+     */
     CONSUME_PASSIVELY("PUSH");
 
     private String typeCN;

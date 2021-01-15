@@ -36,22 +36,38 @@ public class FilterAPI {
         return simple;
     }
 
+    /**
+     * 构建订阅数据 解析表达式 将标签设置到标签集合
+     * @param consumerGroup 消费者组名
+     * @param topic 主题
+     * @param subString tag表达式
+     * @return
+     * @throws Exception
+     */
     public static SubscriptionData buildSubscriptionData(final String consumerGroup, String topic,
         String subString) throws Exception {
+        //实例化一个订阅数据对象
         SubscriptionData subscriptionData = new SubscriptionData();
+        //设置订阅数据的主题
         subscriptionData.setTopic(topic);
+        //设置订阅数据的tag匹配表达式
         subscriptionData.setSubString(subString);
 
         if (null == subString || subString.equals(SubscriptionData.SUB_ALL) || subString.length() == 0) {
+            //订阅所有的tag标签
             subscriptionData.setSubString(SubscriptionData.SUB_ALL);
         } else {
+            //解析tag
             String[] tags = subString.split("\\|\\|");
             if (tags.length > 0) {
-                for (String tag : tags) {
+                for (String tag : tags) {//遍历tag
                     if (tag.length() > 0) {
+                        //去除空间
                         String trimString = tag.trim();
                         if (trimString.length() > 0) {
+                            //将标签添加到订阅数据的标签集合
                             subscriptionData.getTagsSet().add(trimString);
+                            //将标签的hash值添加到订阅数据的标签的hash集合
                             subscriptionData.getCodeSet().add(trimString.hashCode());
                         }
                     }

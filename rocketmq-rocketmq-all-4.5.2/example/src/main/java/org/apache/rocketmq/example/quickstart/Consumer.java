@@ -32,9 +32,7 @@ public class Consumer {
 
     public static void main(String[] args) throws InterruptedException, MQClientException {
 
-        /*
-         * Instantiate with specified consumer group name.
-         */
+        //实例化一个默认的消费者
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("please_rename_unique_group_name_4");
 
         /*
@@ -55,14 +53,10 @@ public class Consumer {
          */
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
 
-        /*
-         * Subscribe one more more topics to consume.
-         */
+        //设置订阅的主题
         consumer.subscribe("TopicTest", "*");
 
-        /*
-         *  Register callback to execute on arrival of messages fetched from brokers.
-         */
+        //注册消息监听器
         consumer.registerMessageListener(new MessageListenerConcurrently() {
 
             @Override

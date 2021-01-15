@@ -46,13 +46,37 @@ import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 public abstract class RebalanceImpl {
     protected static final InternalLogger log = ClientLogger.getLog();
     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
+
+    /**
+     * 某个主题 对应的主题消息队列列表 broker-a-1 broker-a-2 broker-b-1 broker-b-2
+     */
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable =
         new ConcurrentHashMap<String, Set<MessageQueue>>();
+
+    /**
+     * 消费者订阅的主题 以及订阅数据列表
+     */
     protected final ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner =
         new ConcurrentHashMap<String, SubscriptionData>();
+
+    /**
+     * 消费者组名
+     */
     protected String consumerGroup;
+
+    /**
+     * 消息模型 默认为集群消息
+     */
     protected MessageModel messageModel;
+
+    /**
+     * 分配消息队列的策略
+     */
     protected AllocateMessageQueueStrategy allocateMessageQueueStrategy;
+
+    /**
+     * mqclient
+     */
     protected MQClientInstance mQClientFactory;
 
     public RebalanceImpl(String consumerGroup, MessageModel messageModel,
@@ -216,10 +240,16 @@ public abstract class RebalanceImpl {
         }
     }
 
+    /**
+     * 执行平衡
+     * @param isOrder
+     */
     public void doRebalance(final boolean isOrder) {
+        //获取订阅数据列表
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
-            for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
+            for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {//遍历主题 订阅数据
+                //获取主题
                 final String topic = entry.getKey();
                 try {
                     this.rebalanceByTopic(topic, isOrder);
@@ -238,6 +268,11 @@ public abstract class RebalanceImpl {
         return subscriptionInner;
     }
 
+    /**
+     * 通过主题来平衡
+     * @param topic 主题
+     * @param isOrder 消息是否为顺序的
+     */
     private void rebalanceByTopic(final String topic, final boolean isOrder) {
         switch (messageModel) {
             case BROADCASTING: {
@@ -257,8 +292,11 @@ public abstract class RebalanceImpl {
                 }
                 break;
             }
-            case CLUSTERING: {
+            case CLUSTERING: {//消息为集群模式
+                //获取主题对应的主题消息队列所有列表
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
+
+                //获取订阅这个主题的消费者远程客户端id列表
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
@@ -274,9 +312,12 @@ public abstract class RebalanceImpl {
                     List<MessageQueue> mqAll = new ArrayList<MessageQueue>();
                     mqAll.addAll(mqSet);
 
+                    //排序主题消息队列
                     Collections.sort(mqAll);
+                    //排序消费者远程客户端id列表
                     Collections.sort(cidAll);
 
+                    //获取分配主题队列的策略
                     AllocateMessageQueueStrategy strategy = this.allocateMessageQueueStrategy;
 
                     List<MessageQueue> allocateResult = null;
@@ -292,6 +333,7 @@ public abstract class RebalanceImpl {
                         return;
                     }
 
+                    //分配结果
                     Set<MessageQueue> allocateResultSet = new HashSet<MessageQueue>();
                     if (allocateResult != null) {
                         allocateResultSet.addAll(allocateResult);
@@ -328,6 +370,13 @@ public abstract class RebalanceImpl {
         }
     }
 
+    /**
+     * 更新消费者的主题消息队列列表
+     * @param topic 主题
+     * @param mqSet 新的消息队列列表
+     * @param isOrder 是否为顺序的
+     * @return
+     */
     private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet,
         final boolean isOrder) {
         boolean changed = false;
@@ -338,11 +387,14 @@ public abstract class RebalanceImpl {
             MessageQueue mq = next.getKey();
             ProcessQueue pq = next.getValue();
 
-            if (mq.getTopic().equals(topic)) {
-                if (!mqSet.contains(mq)) {
+            if (mq.getTopic().equals(topic)) {//这个主题的消息队列
+                if (!mqSet.contains(mq)) {//新的主题队列列表中不包含这个消息队列
+                    //设置队列对应的Process列表被删除
                     pq.setDropped(true);
-                    if (this.removeUnnecessaryMessageQueue(mq, pq)) {
+                    if (this.removeUnnecessaryMessageQueue(mq, pq)) {//删除这个处理中的队列
+                        //删除
                         it.remove();
+                        //发生改变
                         changed = true;
                         log.info("doRebalance, {}, remove unnecessary mq, {}", consumerGroup, mq);
                     }
@@ -374,7 +426,10 @@ public abstract class RebalanceImpl {
                     continue;
                 }
 
+                //从消费者的offset table中删除这个主题队列
                 this.removeDirtyOffset(mq);
+
+                //获取原来的主题消息队列对应的进行中的队列
                 ProcessQueue pq = new ProcessQueue();
                 long nextOffset = this.computePullFromWhere(mq);
                 if (nextOffset >= 0) {

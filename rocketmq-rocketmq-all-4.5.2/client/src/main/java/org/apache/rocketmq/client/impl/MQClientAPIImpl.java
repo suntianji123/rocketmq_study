@@ -2378,18 +2378,37 @@ public class MQClientAPIImpl {
         throw new MQClientException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 检查和广播站的通讯
+     * @param brokerAddr 广播站地址
+     * @param consumerGroup 消费者组名
+     * @param clientId mqclient clientid
+     * @param subscriptionData 订阅数据
+     * @param timeoutMillis 请求超时时间
+     * @throws InterruptedException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws RemotingConnectException
+     * @throws MQClientException
+     */
     public void checkClientInBroker(final String brokerAddr, final String consumerGroup,
         final String clientId, final SubscriptionData subscriptionData,
         final long timeoutMillis)
         throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException,
         RemotingConnectException, MQClientException {
+        //创建一个远程命令行 请求码 检查客户端配置
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.CHECK_CLIENT_CONFIG, null);
 
+        //请求体
         CheckClientRequestBody requestBody = new CheckClientRequestBody();
+        //设置客户端id
         requestBody.setClientId(clientId);
+        //设置消费者组名
         requestBody.setGroup(consumerGroup);
+        //设置订阅数据
         requestBody.setSubscriptionData(subscriptionData);
 
+        //设置请求体
         request.setBody(requestBody.encode());
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), brokerAddr), request, timeoutMillis);

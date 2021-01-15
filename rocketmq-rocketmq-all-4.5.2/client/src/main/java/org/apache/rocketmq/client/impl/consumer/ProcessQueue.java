@@ -35,7 +35,7 @@ import org.apache.rocketmq.common.message.MessageExt;
 import org.apache.rocketmq.common.protocol.body.ProcessQueueInfo;
 
 /**
- * Queue consumption snapshot
+ * 处理中的队列
  */
 public class ProcessQueue {
     public final static long REBALANCE_LOCK_MAX_LIVE_TIME =
@@ -54,6 +54,10 @@ public class ProcessQueue {
     private final TreeMap<Long, MessageExt> consumingMsgOrderlyTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong tryUnlockTimes = new AtomicLong(0);
     private volatile long queueOffsetMax = 0L;
+
+    /**
+     * 是否被丢弃
+     */
     private volatile boolean dropped = false;
     private volatile long lastPullTimestamp = System.currentTimeMillis();
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();

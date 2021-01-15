@@ -34,6 +34,9 @@ import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 public class SubscriptionGroupManager extends ConfigManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
+    /**
+     * 消费者订阅配置列表 消费者组名|订阅配置
+     */
     private final ConcurrentMap<String, SubscriptionGroupConfig> subscriptionGroupTable =
         new ConcurrentHashMap<String, SubscriptionGroupConfig>(1024);
     private final DataVersion dataVersion = new DataVersion();
@@ -117,17 +120,31 @@ public class SubscriptionGroupManager extends ConfigManager {
         }
     }
 
+    /**
+     * 查找某个消费者的订阅配置
+     * @param group 消费者组名
+     * @return
+     */
     public SubscriptionGroupConfig findSubscriptionGroupConfig(final String group) {
+        //从消费者订阅配置列表中根据消费者组名或者消费者订阅配置
         SubscriptionGroupConfig subscriptionGroupConfig = this.subscriptionGroupTable.get(group);
-        if (null == subscriptionGroupConfig) {
+        if (null == subscriptionGroupConfig) {//订阅配置不存在
             if (brokerController.getBrokerConfig().isAutoCreateSubscriptionGroup() || MixAll.isSysConsumerGroup(group)) {
+                //实例化一个订阅配置
                 subscriptionGroupConfig = new SubscriptionGroupConfig();
+                //设置消费者组名
                 subscriptionGroupConfig.setGroupName(group);
+
+                //将订阅配置 放入订阅配置列表
                 SubscriptionGroupConfig preConfig = this.subscriptionGroupTable.putIfAbsent(group, subscriptionGroupConfig);
                 if (null == preConfig) {
                     log.info("auto create a subscription group, {}", subscriptionGroupConfig.toString());
                 }
+
+                //设置版本号
                 this.dataVersion.nextVersion();
+
+                //序列化到沙河目录
                 this.persist();
             }
         }

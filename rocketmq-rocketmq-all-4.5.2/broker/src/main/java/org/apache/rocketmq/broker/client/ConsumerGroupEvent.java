@@ -16,10 +16,13 @@
  */
 package org.apache.rocketmq.broker.client;
 
+/**
+ * 消费者组时间
+ */
 public enum ConsumerGroupEvent {
 
     /**
-     * Some consumers in the group are changed.
+     * 某个进程的这个组名的消费者发生改变
      */
     CHANGE,
     /**

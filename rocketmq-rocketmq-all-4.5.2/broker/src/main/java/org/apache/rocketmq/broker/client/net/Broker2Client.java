@@ -51,6 +51,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * 广播站客户端类
+ */
 public class Broker2Client {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private final BrokerController brokerController;
@@ -80,16 +83,23 @@ public class Broker2Client {
         return this.brokerController.getRemotingServer().invokeSync(channel, request, 10000);
     }
 
+    /**
+     * 通知消费者集群中的某个消费者这个集群中有一个消费者发生改变
+     * @param channel 被通知的消费者客户端channel连接
+     * @param consumerGroup 消费者组名
+     */
     public void notifyConsumerIdsChanged(
         final Channel channel,
         final String consumerGroup) {
-        if (null == consumerGroup) {
+        if (null == consumerGroup) {//消费者组名不能为null
             log.error("notifyConsumerIdsChanged consumerGroup is null");
             return;
         }
 
+        //设置请求头
         NotifyConsumerIdsChangedRequestHeader requestHeader = new NotifyConsumerIdsChangedRequestHeader();
         requestHeader.setConsumerGroup(consumerGroup);
+        //设置请求头
         RemotingCommand request =
             RemotingCommand.createRequestCommand(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, requestHeader);
 

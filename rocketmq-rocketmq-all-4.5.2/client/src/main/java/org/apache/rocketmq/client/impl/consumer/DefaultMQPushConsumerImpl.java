@@ -79,6 +79,9 @@ import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
+/**
+ * 默认的消费者实现类
+ */
 public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     /**
      * Delay some time when exception occur
@@ -95,7 +98,15 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     private static final long BROKER_SUSPEND_MAX_TIME_MILLIS = 1000 * 15;
     private static final long CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND = 1000 * 30;
     private final InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 默认的消费者
+     */
     private final DefaultMQPushConsumer defaultMQPushConsumer;
+
+    /**
+     * 平衡主题队列算法实现对象
+     */
     private final RebalanceImpl rebalanceImpl = new RebalancePushImpl(this);
     private final ArrayList<FilterMessageHook> filterMessageHookList = new ArrayList<FilterMessageHook>();
     private final long consumerStartTimestamp = System.currentTimeMillis();
@@ -105,13 +116,30 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     private MQClientInstance mQClientFactory;
     private PullAPIWrapper pullAPIWrapper;
     private volatile boolean pause = false;
+
+    /**
+     * 消息是顺序的
+     */
     private boolean consumeOrderly = false;
+
+    /**
+     * 消息监听器 当接收到消息时候的处理
+     */
     private MessageListener messageListenerInner;
     private OffsetStore offsetStore;
+
+    /**
+     * 消息者消费消息的服务
+     */
     private ConsumeMessageService consumeMessageService;
     private long queueFlowControlTimes = 0;
     private long queueMaxSpanFlowControlTimes = 0;
 
+    /**
+     * 实例化一个默认的消费者实现
+     * @param defaultMQPushConsumer 默认的消费者
+     * @param rpcHook
+     */
     public DefaultMQPushConsumerImpl(DefaultMQPushConsumer defaultMQPushConsumer, RPCHook rpcHook) {
         this.defaultMQPushConsumer = defaultMQPushConsumer;
         this.rpcHook = rpcHook;
@@ -564,26 +592,42 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 启动消费者服务
+     * @throws MQClientException
+     */
     public synchronized void start() throws MQClientException {
         switch (this.serviceState) {
-            case CREATE_JUST:
+            case CREATE_JUST://服务的状态为只是创建
                 log.info("the consumer [{}] start beginning. messageModel={}, isUnitMode={}", this.defaultMQPushConsumer.getConsumerGroup(),
                     this.defaultMQPushConsumer.getMessageModel(), this.defaultMQPushConsumer.isUnitMode());
+                //设置服务的状态为启动失败
                 this.serviceState = ServiceState.START_FAILED;
 
+                //检查配置
                 this.checkConfig();
 
+                //将主题对应的订阅数据注册平衡算法列表中
                 this.copySubscription();
 
+                //如果消费者订阅的消息模式为集群模式  修改消费者实例名为进程的pid值
                 if (this.defaultMQPushConsumer.getMessageModel() == MessageModel.CLUSTERING) {
                     this.defaultMQPushConsumer.changeInstanceNameToPID();
                 }
 
+                //获取创建一个mqclient对象
                 this.mQClientFactory = MQClientManager.getInstance().getAndCreateMQClientInstance(this.defaultMQPushConsumer, this.rpcHook);
 
+                //设置平衡算法对象的消费者组名
                 this.rebalanceImpl.setConsumerGroup(this.defaultMQPushConsumer.getConsumerGroup());
+
+                //设置平衡算法的消息模型
                 this.rebalanceImpl.setMessageModel(this.defaultMQPushConsumer.getMessageModel());
+
+                //设置平衡算法的分配主题消息队列的策略
                 this.rebalanceImpl.setAllocateMessageQueueStrategy(this.defaultMQPushConsumer.getAllocateMessageQueueStrategy());
+
+                //设置mqclient对象
                 this.rebalanceImpl.setmQClientFactory(this.mQClientFactory);
 
                 this.pullAPIWrapper = new PullAPIWrapper(
@@ -618,8 +662,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         new ConsumeMessageConcurrentlyService(this, (MessageListenerConcurrently) this.getMessageListenerInner());
                 }
 
+                //起订消费消息的服务
                 this.consumeMessageService.start();
 
+                //将消费者注册到mqclientinstance
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
@@ -629,6 +675,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         null);
                 }
 
+                //启动mqclient
                 mQClientFactory.start();
                 log.info("the consumer [{}] start OK.", this.defaultMQPushConsumer.getConsumerGroup());
                 this.serviceState = ServiceState.RUNNING;
@@ -644,15 +691,28 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 break;
         }
 
+        //更新主题的配置信息 以及主题的广播站信息
         this.updateTopicSubscribeInfoWhenSubscriptionChanged();
+
+        //检查消息者配置
         this.mQClientFactory.checkClientInBroker();
+
+        //给所有的广播站发送心跳
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
+
+        //立即执行一次平衡
         this.mQClientFactory.rebalanceImmediately();
     }
 
+    /**
+     * 检查服务状态
+     * @throws MQClientException
+     */
     private void checkConfig() throws MQClientException {
+        //检查消费者组名
         Validators.checkGroup(this.defaultMQPushConsumer.getConsumerGroup());
 
+        //组名不能为空
         if (null == this.defaultMQPushConsumer.getConsumerGroup()) {
             throw new MQClientException(
                 "consumerGroup is null"
@@ -660,6 +720,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
+        //组名不能为默认的组名
         if (this.defaultMQPushConsumer.getConsumerGroup().equals(MixAll.DEFAULT_CONSUMER_GROUP)) {
             throw new MQClientException(
                 "consumerGroup can not equal "
@@ -669,6 +730,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
+        //消息模型 默认为集群
         if (null == this.defaultMQPushConsumer.getMessageModel()) {
             throw new MQClientException(
                 "messageModel is null"
@@ -676,6 +738,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
+        //什么时候开始消费 CONSUME_FROM_FIRST_OFFSET
         if (null == this.defaultMQPushConsumer.getConsumeFromWhere()) {
             throw new MQClientException(
                 "consumeFromWhere is null"
@@ -683,6 +746,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
+        //半小时前
         Date dt = UtilAll.parseDate(this.defaultMQPushConsumer.getConsumeTimestamp(), UtilAll.YYYYMMDDHHMMSS);
         if (null == dt) {
             throw new MQClientException(
@@ -691,7 +755,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     + " " + FAQUrl.suggestTodo(FAQUrl.CLIENT_PARAMETER_CHECK_URL), null);
         }
 
-        // allocateMessageQueueStrategy
+        // 分配消费者主题队列的策略不能为空
         if (null == this.defaultMQPushConsumer.getAllocateMessageQueueStrategy()) {
             throw new MQClientException(
                 "allocateMessageQueueStrategy is null"
@@ -699,7 +763,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
-        // subscription
+        // 消费者所订阅的主题及表达式列表不能为null
         if (null == this.defaultMQPushConsumer.getSubscription()) {
             throw new MQClientException(
                 "subscription is null"
@@ -707,7 +771,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
-        // messageListener
+        // 消费者接收消息的监听器不能为空
         if (null == this.defaultMQPushConsumer.getMessageListener()) {
             throw new MQClientException(
                 "messageListener is null"
@@ -715,16 +779,18 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
+        //消息是顺序的
         boolean orderly = this.defaultMQPushConsumer.getMessageListener() instanceof MessageListenerOrderly;
+        //消息是实时的
         boolean concurrently = this.defaultMQPushConsumer.getMessageListener() instanceof MessageListenerConcurrently;
-        if (!orderly && !concurrently) {
+        if (!orderly && !concurrently) {//判断消息监听器的类型是否正确
             throw new MQClientException(
                 "messageListener must be instanceof MessageListenerOrderly or MessageListenerConcurrently"
                     + FAQUrl.suggestTodo(FAQUrl.CLIENT_PARAMETER_CHECK_URL),
                 null);
         }
 
-        // consumeThreadMin
+        // 最低消费者线程数量必须大于等于1 并且不能超过1000
         if (this.defaultMQPushConsumer.getConsumeThreadMin() < 1
             || this.defaultMQPushConsumer.getConsumeThreadMin() > 1000) {
             throw new MQClientException(
@@ -733,7 +799,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
-        // consumeThreadMax
+        // 最大消费者线程数量 1-1000之间
         if (this.defaultMQPushConsumer.getConsumeThreadMax() < 1 || this.defaultMQPushConsumer.getConsumeThreadMax() > 1000) {
             throw new MQClientException(
                 "consumeThreadMax Out of range [1, 1000]"
@@ -741,7 +807,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 null);
         }
 
-        // consumeThreadMin can't be larger than consumeThreadMax
+        // 最低消费者线程数量小于等于最大消费者线程数量
         if (this.defaultMQPushConsumer.getConsumeThreadMin() > this.defaultMQPushConsumer.getConsumeThreadMax()) {
             throw new MQClientException(
                 "consumeThreadMin (" + this.defaultMQPushConsumer.getConsumeThreadMin() + ") "
@@ -820,30 +886,45 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 将消费者的订阅主题 以及主题标签 、
+     * 默认添加%RETYR%ConsumerGroup类型的retry类型的主题
+     * 放入平衡主题队列的算法中
+     * @throws MQClientException
+     */
     private void copySubscription() throws MQClientException {
         try {
+            //获取消费者所有的主题以及对应的主题表达式
             Map<String, String> sub = this.defaultMQPushConsumer.getSubscription();
             if (sub != null) {
-                for (final Map.Entry<String, String> entry : sub.entrySet()) {
+                for (final Map.Entry<String, String> entry : sub.entrySet()) {//遍历主题表达式列表
+                    //获取主题
                     final String topic = entry.getKey();
+                    //获取表达式
                     final String subString = entry.getValue();
+                    //实例化一个订阅数据
                     SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(),
                         topic, subString);
+                    //将订阅数据放入主题队列平衡算法对象
                     this.rebalanceImpl.getSubscriptionInner().put(topic, subscriptionData);
                 }
             }
 
+            //设置收到消息的监听器
             if (null == this.messageListenerInner) {
                 this.messageListenerInner = this.defaultMQPushConsumer.getMessageListener();
             }
 
-            switch (this.defaultMQPushConsumer.getMessageModel()) {
+            switch (this.defaultMQPushConsumer.getMessageModel()) {//判断消息模型
                 case BROADCASTING:
                     break;
                 case CLUSTERING:
+                    //获取RETRY类型的主题
                     final String retryTopic = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
+                    //构建消费者RETRY类型的主题对应的订阅数据
                     SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(),
                         retryTopic, SubscriptionData.SUB_ALL);
+                    //将RETRY类型的主题注册到平衡算法维护的主题列表
                     this.rebalanceImpl.getSubscriptionInner().put(retryTopic, subscriptionData);
                     break;
                 default:
@@ -858,10 +939,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return messageListenerInner;
     }
 
+    /**
+     * 更新主题对应的广播站信息 以及读写主题队列配置信息
+     */
     private void updateTopicSubscribeInfoWhenSubscriptionChanged() {
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
-            for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
+            for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {//遍历每一个主题 更新主题配置 以及广播站信息
                 final String topic = entry.getKey();
                 this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
             }
@@ -872,10 +956,18 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return this.rebalanceImpl.getSubscriptionInner();
     }
 
+    /**
+     * 消费者订阅一个主题
+     * @param topic 主题
+     * @param subExpression tag匹配表达式
+     * @throws MQClientException
+     */
     public void subscribe(String topic, String subExpression) throws MQClientException {
         try {
+            //实例化一个订阅数据
             SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(),
                 topic, subExpression);
+            //将主题对应的订阅数据放入平衡主题的列表中
             this.rebalanceImpl.getSubscriptionInner().put(topic, subscriptionData);
             if (this.mQClientFactory != null) {
                 this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
@@ -1003,9 +1095,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return subSet;
     }
 
+    /**
+     * 每20秒执行一次平衡
+     */
     @Override
     public void doRebalance() {
-        if (!this.pause) {
+        if (!this.pause) {//没有暂停
+            //平衡算法对象 执行平衡
             this.rebalanceImpl.doRebalance(this.isConsumeOrderly());
         }
     }
@@ -1024,11 +1120,16 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 更新消费者的订阅的主题订阅信息
+     * @param topic 主题
+     * @param info 主题消息队列列表
+     */
     @Override
     public void updateTopicSubscribeInfo(String topic, Set<MessageQueue> info) {
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
-            if (subTable.containsKey(topic)) {
+            if (subTable.containsKey(topic)) {//这个消息如果订阅了这个主体
                 this.rebalanceImpl.topicSubscribeInfoTable.put(topic, info);
             }
         }

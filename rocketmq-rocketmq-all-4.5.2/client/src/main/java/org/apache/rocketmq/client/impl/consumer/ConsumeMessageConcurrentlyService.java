@@ -48,36 +48,70 @@ import org.apache.rocketmq.common.protocol.body.ConsumeMessageDirectlyResult;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 
+/**
+ * 实时消息的消费服务类
+ */
 public class ConsumeMessageConcurrentlyService implements ConsumeMessageService {
     private static final InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 消费者实现
+     */
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
+    /**
+     * 默认的消息者
+     */
     private final DefaultMQPushConsumer defaultMQPushConsumer;
+
+    /**
+     * 主题消息监听器
+     */
     private final MessageListenerConcurrently messageListener;
     private final BlockingQueue<Runnable> consumeRequestQueue;
     private final ThreadPoolExecutor consumeExecutor;
     private final String consumerGroup;
 
+    /**
+     * 定时执行器
+     */
     private final ScheduledExecutorService scheduledExecutorService;
+
+    /**
+     * 定时清理超时的消息的执行器
+     */
     private final ScheduledExecutorService cleanExpireMsgExecutors;
 
+    /**
+     * 实时消息的消费实现
+     * @param defaultMQPushConsumerImpl 消费者实现
+     * @param messageListener 消息监听器
+     */
     public ConsumeMessageConcurrentlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl,
         MessageListenerConcurrently messageListener) {
+        //设置消费者实现
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
+        //设置消息监听器
         this.messageListener = messageListener;
 
+        //设置消费者
         this.defaultMQPushConsumer = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer();
+        //设置消费者组名
         this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
+        //消费消息的请求任务队列
         this.consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
 
+        //消费消息的执行器
         this.consumeExecutor = new ThreadPoolExecutor(
-            this.defaultMQPushConsumer.getConsumeThreadMin(),
-            this.defaultMQPushConsumer.getConsumeThreadMax(),
-            1000 * 60,
+            this.defaultMQPushConsumer.getConsumeThreadMin(),//最小工作线程数量20
+            this.defaultMQPushConsumer.getConsumeThreadMax(),//最大工作线程数量
+            1000 * 60,//超过60秒 多余的线程不工作 销毁
             TimeUnit.MILLISECONDS,
-            this.consumeRequestQueue,
-            new ThreadFactoryImpl("ConsumeMessageThread_"));
+            this.consumeRequestQueue,//消息消息的任务队列
+            new ThreadFactoryImpl("ConsumeMessageThread_"));//创建线程的工厂类
 
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
+
+        //设置定时清理超时的消息的执行器
         this.cleanExpireMsgExecutors = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CleanExpireMsgScheduledThread_"));
     }
 
@@ -329,12 +363,19 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         return false;
     }
 
+    /**
+     * 提交一个消费请求
+     * @param msgs 消息列表
+     * @param processQueue 处理中的主题任务队列
+     * @param messageQueue 消息队列
+     */
     private void submitConsumeRequestLater(
         final List<MessageExt> msgs,
         final ProcessQueue processQueue,
         final MessageQueue messageQueue
     ) {
 
+        //五秒之后 提交一个任务到消费的消息列表
         this.scheduledExecutorService.schedule(new Runnable() {
 
             @Override

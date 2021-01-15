@@ -208,6 +208,7 @@ public class MQClientInstance {
 
         this.pullMessageService = new PullMessageService(this);
 
+        //平衡服务
         this.rebalanceService = new RebalanceService(this);
 
         this.defaultMQProducer = new DefaultMQProducer(MixAll.CLIENT_INNER_PRODUCER_GROUP);
@@ -288,18 +289,27 @@ public class MQClientInstance {
         return info;
     }
 
+    /**
+     * 将主题路径转为订阅数据
+     * @param topic 主题
+     * @param route 主题路径配置
+     * @return
+     */
     public static Set<MessageQueue> topicRouteData2TopicSubscribeInfo(final String topic, final TopicRouteData route) {
         Set<MessageQueue> mqList = new HashSet<MessageQueue>();
+        //获取主题广播站配置
         List<QueueData> qds = route.getQueueDatas();
         for (QueueData qd : qds) {
-            if (PermName.isReadable(qd.getPerm())) {
+            if (PermName.isReadable(qd.getPerm())) {//可读
                 for (int i = 0; i < qd.getReadQueueNums(); i++) {
+                    //主题消息队列
                     MessageQueue mq = new MessageQueue(topic, qd.getBrokerName(), i);
                     mqList.add(mq);
                 }
             }
         }
 
+        //返回主题消息队列列表
         return mqList;
     }
 
@@ -815,12 +825,15 @@ public class MQClientInstance {
                                 }
                             }
 
-                            // Update sub info
+                            //更新订阅信息
                             {
+                                //获取主题对应的主题消息队列列表
                                 Set<MessageQueue> subscribeInfo = topicRouteData2TopicSubscribeInfo(topic, topicRouteData);
+                                //获取消费者列表
                                 Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
                                 while (it.hasNext()) {
                                     Entry<String, MQConsumerInner> entry = it.next();
+                                    //获取消费者
                                     MQConsumerInner impl = entry.getValue();
                                     if (impl != null) {
                                         impl.updateTopicSubscribeInfo(topic, subscribeInfo);
@@ -861,18 +874,26 @@ public class MQClientInstance {
         //设置客户端id
         heartbeatData.setClientID(this.clientId);
 
-        //消费者
+        //消费者 遍历消费者列表
         for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
+            //获取消费者
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
+                //实例化一个消费者数据对象
                 ConsumerData consumerData = new ConsumerData();
+                //设置消费者组名
                 consumerData.setGroupName(impl.groupName());
+                //设置获取消息的广播站主动推送  或者 消费者自动去拉取
                 consumerData.setConsumeType(impl.consumeType());
+                //设置消息的模式 默认为集群
                 consumerData.setMessageModel(impl.messageModel());
+                //设置消费者从哪开始消息
                 consumerData.setConsumeFromWhere(impl.consumeFromWhere());
+                //设置消费者订阅数据列表
                 consumerData.getSubscriptionDataSet().addAll(impl.subscriptions());
+                //设置是否为单元模式
                 consumerData.setUnitMode(impl.isUnitMode());
-
+                //将心跳数据添加到消费者数据列表
                 heartbeatData.getConsumerDataSet().add(consumerData);
             }
         }
@@ -1045,11 +1066,18 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 将消费者注册到mqclientinstance维护的消费者列表
+     * @param group 消费者组名
+     * @param consumer 消费者
+     * @return
+     */
     public boolean registerConsumer(final String group, final MQConsumerInner consumer) {
-        if (null == group || null == consumer) {
+        if (null == group || null == consumer) {//消费者组名 消费者不能为空
             return false;
         }
 
+        //获取之气那已经注册过的消费者
         MQConsumerInner prev = this.consumerTable.putIfAbsent(group, consumer);
         if (prev != null) {
             log.warn("the consumer group[" + group + "] exist already.");
@@ -1153,15 +1181,23 @@ public class MQClientInstance {
         this.adminExtTable.remove(group);
     }
 
+    /**
+     * 启动平衡服务
+     */
     public void rebalanceImmediately() {
         this.rebalanceService.wakeup();
     }
 
+    /**
+     * 执行平衡的逻辑
+     */
     public void doRebalance() {
-        for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
+        for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {//遍历消费者列表
+            //获取消费者
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
                 try {
+                    //执行消费者的平衡
                     impl.doRebalance();
                 } catch (Throwable e) {
                     log.error("doRebalance exception", e);
@@ -1263,6 +1299,12 @@ public class MQClientInstance {
         return 0;
     }
 
+    /**
+     * 从某个广播站获取
+     * @param topic
+     * @param group
+     * @return
+     */
     public List<String> findConsumerIdList(final String topic, final String group) {
         String brokerAddr = this.findBrokerAddrByTopic(topic);
         if (null == brokerAddr) {
@@ -1281,13 +1323,23 @@ public class MQClientInstance {
         return null;
     }
 
+    /**
+     * 从主题对应的广播站列表中随机选择一个广播站
+     * @param topic 主题
+     * @return
+     */
     public String findBrokerAddrByTopic(final String topic) {
+        //主题配置信息
         TopicRouteData topicRouteData = this.topicRouteTable.get(topic);
         if (topicRouteData != null) {
+            //获取可发布这个主题的广播站列表
             List<BrokerData> brokers = topicRouteData.getBrokerDatas();
             if (!brokers.isEmpty()) {
+                //随机一个下标
                 int index = random.nextInt(brokers.size());
+                //随机选择一个广播站数据
                 BrokerData bd = brokers.get(index % brokers.size());
+                //选择广播站地址
                 return bd.selectBrokerAddr();
             }
         }

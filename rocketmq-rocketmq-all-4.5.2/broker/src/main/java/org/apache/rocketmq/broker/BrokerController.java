@@ -122,6 +122,10 @@ public class BrokerController {
     private final PullMessageProcessor pullMessageProcessor;
     private final PullRequestHoldService pullRequestHoldService;
     private final MessageArrivingListener messageArrivingListener;
+
+    /**
+     * 广播站客户端
+     */
     private final Broker2Client broker2Client;
     private final SubscriptionGroupManager subscriptionGroupManager;
     private final ConsumerIdsChangeListener consumerIdsChangeListener;
@@ -201,6 +205,7 @@ public class BrokerController {
         this.consumerFilterManager = new ConsumerFilterManager(this);
         this.producerManager = new ProducerManager();
         this.clientHousekeepingService = new ClientHousekeepingService(this);
+        //设置广播站客户端类
         this.broker2Client = new Broker2Client(this);
         this.subscriptionGroupManager = new SubscriptionGroupManager(this);
         this.brokerOuterAPI = new BrokerOuterAPI(nettyClientConfig);

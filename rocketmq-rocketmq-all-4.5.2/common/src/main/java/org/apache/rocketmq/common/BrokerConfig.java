@@ -48,6 +48,10 @@ public class BrokerConfig {
     private boolean clusterTopicEnable = true;
 
     private boolean brokerTopicEnable = true;
+
+    /**
+     * 是否可以自动创建消息者订阅信息配置
+     */
     @ImportantField
     private boolean autoCreateSubscriptionGroup = true;
     private String messageStorePlugIn = "";

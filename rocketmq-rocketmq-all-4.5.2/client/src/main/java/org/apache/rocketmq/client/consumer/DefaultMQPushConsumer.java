@@ -110,20 +110,17 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET;
 
     /**
-     * Backtracking consumption time with second precision. Time format is
-     * 20131223171201<br>
-     * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
-     * Default backtracking consumption time Half an hour ago.
+     * 消费时间 半小时前
      */
     private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));
 
     /**
-     * 分配消费者主题队列策略
+     * 消息者 从主题对应的主题队列列表 获取一块主题队列列表 从中获取消息
      */
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
     /**
-     * Subscription relationship
+     * 消费者所订阅的所有主题 以及每一个主题对应的主题标签（默认为标签格式）
      */
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 
@@ -138,12 +135,12 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private OffsetStore offsetStore;
 
     /**
-     * Minimum consumer thread number
+     * 最低消费者线程数量 默认为20
      */
     private int consumeThreadMin = 20;
 
     /**
-     * Max consumer thread number
+     * 最大消费者线程数量  默认为20
      */
     private int consumeThreadMax = 20;
 
@@ -234,7 +231,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private long suspendCurrentQueueTimeMillis = 1000;
 
     /**
-     * Maximum amount of time in minutes a message may block the consuming thread.
+     * 消费消息线程 消费单个消息的最大定时检查周期
      */
     private long consumeTimeout = 15;
 
@@ -316,6 +313,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
         this.namespace = namespace;
         //设置分配消费者主题队列策略
         this.allocateMessageQueueStrategy = allocateMessageQueueStrategy;
+        //默认的消费者实现
         defaultMQPushConsumerImpl = new DefaultMQPushConsumerImpl(this, rpcHook);
     }
 
@@ -668,13 +666,14 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * This method gets internal infrastructure readily to serve. Instances must call this method after configuration.
-     *
-     * @throws MQClientException if there is any client error.
+     * 启动消费者服务
+     * @throws MQClientException
      */
     @Override
     public void start() throws MQClientException {
+        //设置消费者组名为包含了命名空间的组名
         setConsumerGroup(NamespaceUtil.wrapNamespace(this.getNamespace(), this.consumerGroup));
+        //启动默认的消费者服务
         this.defaultMQPushConsumerImpl.start();
         if (null != traceDispatcher) {
             try {
@@ -726,15 +725,15 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Subscribe a topic to consuming subscription.
-     *
-     * @param topic topic to subscribe.
-     * @param subExpression subscription expression.it only support or operation such as "tag1 || tag2 || tag3" <br>
-     * if null or * expression,meaning subscribe all
-     * @throws MQClientException if there is any client error.
+     * 消费者订阅一个主题
+     * @param topic 主题
+     * @param subExpression 主题下面的标签匹配器
+     * null or * expression,meaning subscribe
+     * @throws MQClientException
      */
     @Override
     public void subscribe(String topic, String subExpression) throws MQClientException {
+        //将主题带有命名空间的主题
         this.defaultMQPushConsumerImpl.subscribe(withNamespace(topic), subExpression);
     }
 

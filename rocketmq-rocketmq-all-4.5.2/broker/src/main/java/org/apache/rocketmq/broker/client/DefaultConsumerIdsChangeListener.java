@@ -31,19 +31,29 @@ public class DefaultConsumerIdsChangeListener implements ConsumerIdsChangeListen
         this.brokerController = brokerController;
     }
 
+    /**
+     * 处理消费者组时间
+     * @param event 时间类型
+     * @param group 消费者组名
+     * @param args 参数
+     */
     @Override
     public void handle(ConsumerGroupEvent event, String group, Object... args) {
-        if (event == null) {
+        if (event == null) { //事件类型不能为null
             return;
         }
-        switch (event) {
+        switch (event) {//判断事件类型
             case CHANGE:
                 if (args == null || args.length < 1) {
                     return;
                 }
+
+                //获取这个消费组名下的所有的消费者channel连接
                 List<Channel> channels = (List<Channel>) args[0];
+
+                //通知改变
                 if (channels != null && brokerController.getBrokerConfig().isNotifyConsumerIdsChangedEnable()) {
-                    for (Channel chl : channels) {
+                    for (Channel chl : channels) {//遍历每一个启动有这个组名的消费者 通知消费者集群的某个消费者发生改变
                         this.brokerController.getBroker2Client().notifyConsumerIdsChanged(chl, group);
                     }
                 }

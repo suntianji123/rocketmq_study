@@ -68,6 +68,9 @@ public class RequestCode {
      */
     public static final int CHECK_TRANSACTION_STATE = 39;
 
+    /**
+     * broker通知消费者客户端 某个组名的消费者集群中的某个消费者发生改变
+     */
     public static final int NOTIFY_CONSUMER_IDS_CHANGED = 40;
 
     public static final int LOCK_BATCH_MQ = 41;
@@ -77,6 +80,9 @@ public class RequestCode {
 
     public static final int GET_ALL_DELAY_OFFSET = 45;
 
+    /**
+     * 检查客户端配置
+     */
     public static final int CHECK_CLIENT_CONFIG = 46;
 
     public static final int UPDATE_AND_CREATE_ACL_CONFIG = 50;

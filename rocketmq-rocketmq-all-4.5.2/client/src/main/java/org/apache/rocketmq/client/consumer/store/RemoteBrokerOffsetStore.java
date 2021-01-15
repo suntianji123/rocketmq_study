@@ -37,12 +37,24 @@ import org.apache.rocketmq.common.protocol.header.UpdateConsumerOffsetRequestHea
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
- * Remote storage implementation
+ * 远程广播站存
  */
 public class RemoteBrokerOffsetStore implements OffsetStore {
     private final static InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * mqclientinstance对象
+     */
     private final MQClientInstance mQClientFactory;
+
+    /**
+     * 消费者组名
+     */
     private final String groupName;
+
+    /**
+     * 消息队列
+     */
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();
 
@@ -165,6 +177,10 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         }
     }
 
+    /**
+     * 删除某个主题消息队列偏移统计
+     * @param mq
+     */
     public void removeOffset(MessageQueue mq) {
         if (mq != null) {
             this.offsetTable.remove(mq);

@@ -103,23 +103,29 @@ public class ClientManageProcessor implements NettyRequestProcessor {
 
 
         for (ConsumerData data : heartbeatData.getConsumerDataSet()) {//遍历消息者数据
+            //获取消费者订阅配置数据
             SubscriptionGroupConfig subscriptionGroupConfig =
                 this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(
                     data.getGroupName());
             boolean isNotifyConsumerIdsChangedEnable = true;
             if (null != subscriptionGroupConfig) {
                 isNotifyConsumerIdsChangedEnable = subscriptionGroupConfig.isNotifyConsumerIdsChangedEnable();
+                //主题系统配置
                 int topicSysFlag = 0;
                 if (data.isUnitMode()) {
                     topicSysFlag = TopicSysFlag.buildSysFlag(false, true);
                 }
+
+                //为消息者创建一个retry的主题
                 String newTopic = MixAll.getRetryTopic(data.getGroupName());
+                //创建一个新的主题配置 写入到沙河文件
                 this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(
                     newTopic,
                     subscriptionGroupConfig.getRetryQueueNums(),
                     PermName.PERM_WRITE | PermName.PERM_READ, topicSysFlag);
             }
 
+            //注册消费者
             boolean changed = this.brokerController.getConsumerManager().registerConsumer(
                 data.getGroupName(),
                 clientChannelInfo,
@@ -188,17 +194,27 @@ public class ClientManageProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * 检查消费者客户端配置
+     * @param ctx
+     * @param request 请求远程命令行对象
+     * @return
+     * @throws RemotingCommandException
+     */
     public RemotingCommand checkClientConfig(ChannelHandlerContext ctx, RemotingCommand request)
         throws RemotingCommandException {
+        //创建响应的远程命令
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
 
+        //解码请求体
         CheckClientRequestBody requestBody = CheckClientRequestBody.decode(request.getBody(),
             CheckClientRequestBody.class);
 
         if (requestBody != null && requestBody.getSubscriptionData() != null) {
+            //获取客户端订阅数据
             SubscriptionData subscriptionData = requestBody.getSubscriptionData();
 
-            if (ExpressionType.isTagType(subscriptionData.getExpressionType())) {
+            if (ExpressionType.isTagType(subscriptionData.getExpressionType())) {//表达式类型为tag类型
                 response.setCode(ResponseCode.SUCCESS);
                 response.setRemark(null);
                 return response;

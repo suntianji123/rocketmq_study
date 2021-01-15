@@ -106,6 +106,12 @@ public class MixAll {
         return wsAddr;
     }
 
+    /**
+     * 获取某个消费者 对应的retry类型的主题
+     * %RETRY%消费者组名
+     * @param consumerGroup 消费者组名
+     * @return
+     */
     public static String getRetryTopic(final String consumerGroup) {
         return RETRY_GROUP_TOPIC_PREFIX + consumerGroup;
     }

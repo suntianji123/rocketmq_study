@@ -131,9 +131,18 @@ public class ClientRemotingProcessor implements NettyRequestProcessor {
         return null;
     }
 
+    /**
+     * 接收到广播站通知的消费者集群中的某个消费者发生改变
+     * @param ctx channelhandlercontext
+     * @param request 远程命令对象
+     * @return
+     * @throws RemotingCommandException
+     */
     public RemotingCommand notifyConsumerIdsChanged(ChannelHandlerContext ctx,
         RemotingCommand request) throws RemotingCommandException {
         try {
+
+            //解码请求头
             final NotifyConsumerIdsChangedRequestHeader requestHeader =
                 (NotifyConsumerIdsChangedRequestHeader) request.decodeCommandCustomHeader(NotifyConsumerIdsChangedRequestHeader.class);
             log.info("receive broker's notification[{}], the consumer group: {} changed, rebalance immediately",

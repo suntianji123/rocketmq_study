@@ -325,6 +325,16 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         this.invokeAsyncImpl(channel, request, timeoutMillis, invokeCallback);
     }
 
+    /**
+     * 给客户端发送远程命令
+     * @param channel 与客户端建立的channel连接
+     * @param request 远程命令
+     * @param timeoutMillis 请求超时时间
+     * @throws InterruptedException
+     * @throws RemotingTooMuchRequestException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     */
     @Override
     public void invokeOneway(Channel channel, RemotingCommand request, long timeoutMillis) throws InterruptedException,
         RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {

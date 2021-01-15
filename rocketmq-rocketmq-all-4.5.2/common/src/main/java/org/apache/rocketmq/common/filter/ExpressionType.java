@@ -17,6 +17,9 @@
 
 package org.apache.rocketmq.common.filter;
 
+/**
+ * 表达式类型
+ */
 public class ExpressionType {
 
     /**
@@ -52,9 +55,7 @@ public class ExpressionType {
     public static final String SQL92 = "SQL92";
 
     /**
-     * Only support or operation such as
-     * "tag1 || tag2 || tag3", <br>
-     * If null or * expression,meaning subscribe all.
+     * 标签
      */
     public static final String TAG = "TAG";
 
