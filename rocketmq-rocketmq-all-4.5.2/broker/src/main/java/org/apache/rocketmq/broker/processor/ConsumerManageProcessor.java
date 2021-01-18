@@ -37,24 +37,41 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * 消费者管理处理器
+ */
 public class ConsumerManageProcessor implements NettyRequestProcessor {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
+    /**
+     * 广播站控制器
+     */
     private final BrokerController brokerController;
 
+    /**
+     * 实例化一个消费者管理处理器
+     * @param brokerController 广播站控制器
+     */
     public ConsumerManageProcessor(final BrokerController brokerController) {
         this.brokerController = brokerController;
     }
 
+    /**
+     * 处理远程请求
+     * @param ctx channel连接
+     * @param request 远程请求
+     * @return
+     * @throws RemotingCommandException
+     */
     @Override
     public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request)
         throws RemotingCommandException {
         switch (request.getCode()) {
             case RequestCode.GET_CONSUMER_LIST_BY_GROUP:
                 return this.getConsumerListByGroup(ctx, request);
-            case RequestCode.UPDATE_CONSUMER_OFFSET:
+            case RequestCode.UPDATE_CONSUMER_OFFSET://同步消费者某个主题消费队列的消费偏移量
                 return this.updateConsumerOffset(ctx, request);
-            case RequestCode.QUERY_CONSUMER_OFFSET:
+            case RequestCode.QUERY_CONSUMER_OFFSET://查询消费者某个主题消息队列在广播站中的偏移量
                 return this.queryConsumerOffset(ctx, request);
             default:
                 break;
@@ -101,6 +118,9 @@ public class ConsumerManageProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * 同步消费者某个主题消息队列的消费偏移量
+     */
     private RemotingCommand updateConsumerOffset(ChannelHandlerContext ctx, RemotingCommand request)
         throws RemotingCommandException {
         final RemotingCommand response =
@@ -115,16 +135,30 @@ public class ConsumerManageProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * 查询消费者某个主题消息队列的偏移量
+     * @param ctx channelhandlercontext对象
+     * @param request 远程命令行请求
+     * @return
+     * @throws RemotingCommandException
+     */
     private RemotingCommand queryConsumerOffset(ChannelHandlerContext ctx, RemotingCommand request)
         throws RemotingCommandException {
+
+        //创建一个远程命令行响应对象
         final RemotingCommand response =
             RemotingCommand.createResponseCommand(QueryConsumerOffsetResponseHeader.class);
+
+        //获取响应头
         final QueryConsumerOffsetResponseHeader responseHeader =
             (QueryConsumerOffsetResponseHeader) response.readCustomHeader();
+
+        //解码请求头
         final QueryConsumerOffsetRequestHeader requestHeader =
             (QueryConsumerOffsetRequestHeader) request
                 .decodeCommandCustomHeader(QueryConsumerOffsetRequestHeader.class);
 
+        //获取偏移量
         long offset =
             this.brokerController.getConsumerOffsetManager().queryOffset(
                 requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId());
@@ -134,6 +168,7 @@ public class ConsumerManageProcessor implements NettyRequestProcessor {
             response.setCode(ResponseCode.SUCCESS);
             response.setRemark(null);
         } else {
+            //ConsimerOffsetManager 维护的offsettable中不包含topic@consumerGroupName对应的队列编号
             long minOffset =
                 this.brokerController.getMessageStore().getMinOffsetInQueue(requestHeader.getTopic(),
                     requestHeader.getQueueId());

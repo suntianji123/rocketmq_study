@@ -24,7 +24,14 @@ import org.apache.rocketmq.remoting.CommandCustomHeader;
 import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 查询消费者某个主题消息队列的偏移量响应头
+ */
 public class QueryConsumerOffsetResponseHeader implements CommandCustomHeader {
+
+    /**
+     * 偏移量
+     */
     @CFNotNull
     private Long offset;
 

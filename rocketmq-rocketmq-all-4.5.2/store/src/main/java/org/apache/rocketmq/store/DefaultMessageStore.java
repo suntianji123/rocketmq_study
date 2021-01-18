@@ -703,7 +703,14 @@ public class DefaultMessageStore implements MessageStore {
         return 0;
     }
 
+    /**
+     * 获取最小偏移量
+     * @param topic 主题
+     * @param queueId 主题队列队列编号
+     * @return
+     */
     public long getMinOffsetInQueue(String topic, int queueId) {
+        //获取消费者队列
         ConsumeQueue logic = this.findConsumeQueue(topic, queueId);
         if (logic != null) {
             return logic.getMinOffsetInQueue();
@@ -1112,11 +1119,20 @@ public class DefaultMessageStore implements MessageStore {
         return messageIds;
     }
 
+    /**
+     * 检查硬盘上消息偏移量
+     * @param topic 主题
+     * @param queueId 消息队列id
+     * @param consumeOffset 消费偏移量
+     * @return
+     */
     @Override
     public boolean checkInDiskByConsumeOffset(final String topic, final int queueId, long consumeOffset) {
 
+        //获取最大偏移量
         final long maxOffsetPy = this.commitLog.getMaxOffset();
 
+        //查找消费者队列
         ConsumeQueue consumeQueue = findConsumeQueue(topic, queueId);
         if (consumeQueue != null) {
             SelectMappedBufferResult bufferConsumeQueue = consumeQueue.getIndexBuffer(consumeOffset);
@@ -1184,9 +1200,16 @@ public class DefaultMessageStore implements MessageStore {
         return null;
     }
 
+    /**
+     * 查找消费者队列
+     * @param topic 主题
+     * @param queueId 主题消息队列编号
+     * @return
+     */
     public ConsumeQueue findConsumeQueue(String topic, int queueId) {
+        //从消费者队列列表中获取某个主题的消息队列编号 对应的消费者队列
         ConcurrentMap<Integer, ConsumeQueue> map = consumeQueueTable.get(topic);
-        if (null == map) {
+        if (null == map) {//如果之前这个主题消息队列对应的消费者队列 实例化一个map放入map
             ConcurrentMap<Integer, ConsumeQueue> newMap = new ConcurrentHashMap<Integer, ConsumeQueue>(128);
             ConcurrentMap<Integer, ConsumeQueue> oldMap = consumeQueueTable.putIfAbsent(topic, newMap);
             if (oldMap != null) {
@@ -1196,8 +1219,11 @@ public class DefaultMessageStore implements MessageStore {
             }
         }
 
+        //获取主题队列编号对应的消费者队列
         ConsumeQueue logic = map.get(queueId);
-        if (null == logic) {
+        if (null == logic) {//消费者队列为null
+
+            //实例化一个消费者队列
             ConsumeQueue newLogic = new ConsumeQueue(
                 topic,
                 queueId,

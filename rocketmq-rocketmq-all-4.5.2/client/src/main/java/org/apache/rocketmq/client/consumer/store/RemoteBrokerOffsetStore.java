@@ -67,6 +67,12 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     public void load() {
     }
 
+    /**
+     * 更新某个主题消息队列的消费偏移量
+     * @param mq 主题消息队列
+     * @param offset 消费偏移量
+     * @param increaseOnly 是否只是增加
+     */
     @Override
     public void updateOffset(MessageQueue mq, long offset, boolean increaseOnly) {
         if (mq != null) {
@@ -85,6 +91,12 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         }
     }
 
+    /**
+     * 获取某个主题消息队列对应的偏移量
+     * @param mq 主题消息队列
+     * @param type 读偏移量
+     * @return
+     */
     @Override
     public long readOffset(final MessageQueue mq, final ReadOffsetType type) {
         if (mq != null) {
@@ -98,8 +110,9 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
                         return -1;
                     }
                 }
-                case READ_FROM_STORE: {
+                case READ_FROM_STORE: {//READ_FROM_STORE
                     try {
+                        //从广播站获取主题队列的消费偏移量
                         long brokerOffset = this.fetchConsumeOffsetFromBroker(mq);
                         AtomicLong offset = new AtomicLong(brokerOffset);
                         this.updateOffset(mq, offset.get(), false);
@@ -160,11 +173,17 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         }
     }
 
+    /**
+     * 将本地的主题消息队列的消费偏移量同步到远程广播站
+     * @param mq 主题消息队列
+     */
     @Override
     public void persist(MessageQueue mq) {
+        //获取本地主题消息队列的消费偏移量
         AtomicLong offset = this.offsetTable.get(mq);
         if (offset != null) {
             try {
+                //将本地的主题消息队列的消费偏移量同步到远程广播站
                 this.updateConsumeOffsetToBroker(mq, offset.get());
                 log.info("[persist] Group: {} ClientId: {} updateConsumeOffsetToBroker {} {}",
                     this.groupName,
@@ -202,34 +221,54 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         return cloneOffsetTable;
     }
 
+
     /**
-     * Update the Consumer Offset in one way, once the Master is off, updated to Slave,
-     * here need to be optimized.
+     * 将本地的主题消息队列的消费偏移量同步到远程广播站
+     * @param mq 消息队列
+     * @param offset 消费偏移量
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     * @throws MQClientException
      */
     private void updateConsumeOffsetToBroker(MessageQueue mq, long offset) throws RemotingException,
         MQBrokerException, InterruptedException, MQClientException {
         updateConsumeOffsetToBroker(mq, offset, true);
     }
 
+
     /**
-     * Update the Consumer Offset synchronously, once the Master is off, updated to Slave,
-     * here need to be optimized.
+     * 将本地的主题消费队列的消费偏移量同步到远程广播站
+     * @param mq 主题消息队列
+     * @param offset 消费偏移量
+     * @param isOneway 是否是需要广播站回复的请求
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     * @throws MQClientException
      */
     @Override
     public void updateConsumeOffsetToBroker(MessageQueue mq, long offset, boolean isOneway) throws RemotingException,
         MQBrokerException, InterruptedException, MQClientException {
+
+        //获取消息队列广播站主站地址
         FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(mq.getBrokerName());
         if (null == findBrokerResult) {
-
+            //从中心服务器更新一次广播站列表
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(mq.getTopic());
             findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(mq.getBrokerName());
         }
 
         if (findBrokerResult != null) {
+            //更新某个消息队列的消费偏移量请求头
             UpdateConsumerOffsetRequestHeader requestHeader = new UpdateConsumerOffsetRequestHeader();
+            //设置主题
             requestHeader.setTopic(mq.getTopic());
+            //设置消费者组名
             requestHeader.setConsumerGroup(this.groupName);
+            //设置主题消息队列编号
             requestHeader.setQueueId(mq.getQueueId());
+            //设置新的偏移量
             requestHeader.setCommitOffset(offset);
 
             if (isOneway) {
@@ -244,19 +283,33 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         }
     }
 
+    /**
+     * 寻找消费者的某个主题消息队列偏移量
+     * @param mq 主题消息队列
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     * @throws MQClientException
+     */
     private long fetchConsumeOffsetFromBroker(MessageQueue mq) throws RemotingException, MQBrokerException,
         InterruptedException, MQClientException {
+        //寻找一个广播站
         FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(mq.getBrokerName());
-        if (null == findBrokerResult) {
-
+        if (null == findBrokerResult) {//如果没有寻找到广播站  从中心服务更新一次
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(mq.getTopic());
             findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(mq.getBrokerName());
         }
 
+        //寻找到了广播站
         if (findBrokerResult != null) {
+            //实例化一个消费者偏移量的请求头
             QueryConsumerOffsetRequestHeader requestHeader = new QueryConsumerOffsetRequestHeader();
+            //设置主题
             requestHeader.setTopic(mq.getTopic());
+            //设置消费者组名
             requestHeader.setConsumerGroup(this.groupName);
+            //设置主题队列编号
             requestHeader.setQueueId(mq.getQueueId());
 
             return this.mQClientFactory.getMQClientAPIImpl().queryConsumerOffset(

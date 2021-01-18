@@ -244,7 +244,7 @@ public abstract class RebalanceImpl {
      * 执行平衡
      * @param isOrder
      */
-    public void doRebalance(final boolean isOrder) {
+    public void  doRebalance(final boolean isOrder) {
         //获取订阅数据列表
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
@@ -322,6 +322,7 @@ public abstract class RebalanceImpl {
 
                     List<MessageQueue> allocateResult = null;
                     try {
+                        //获取当前消费者分配的消息队列列表 比如 broker-a-0 broker-a-1 broker-b-0
                         allocateResult = strategy.allocate(
                             this.consumerGroup,
                             this.mQClientFactory.getClientId(),
@@ -333,7 +334,7 @@ public abstract class RebalanceImpl {
                         return;
                     }
 
-                    //分配结果
+                    //分配结果 去除重复
                     Set<MessageQueue> allocateResultSet = new HashSet<MessageQueue>();
                     if (allocateResult != null) {
                         allocateResultSet.addAll(allocateResult);
@@ -389,9 +390,10 @@ public abstract class RebalanceImpl {
 
             if (mq.getTopic().equals(topic)) {//这个主题的消息队列
                 if (!mqSet.contains(mq)) {//新的主题队列列表中不包含这个消息队列
-                    //设置队列对应的Process列表被删除
+                    //设置进行中的队列已经被删除
                     pq.setDropped(true);
-                    if (this.removeUnnecessaryMessageQueue(mq, pq)) {//删除这个处理中的队列
+                    //当前消费者不再消费这个消息队列的消息 这个消息队列的消息分配给其他消费者去消息 因此需要将本地保存的已经消费的消息偏移量同步到广播站
+                    if (this.removeUnnecessaryMessageQueue(mq, pq)) {
                         //删除
                         it.remove();
                         //发生改变
@@ -419,7 +421,7 @@ public abstract class RebalanceImpl {
         }
 
         List<PullRequest> pullRequestList = new ArrayList<PullRequest>();
-        for (MessageQueue mq : mqSet) {
+        for (MessageQueue mq : mqSet) {//遍历每一个消息队列
             if (!this.processQueueTable.containsKey(mq)) {
                 if (isOrder && !this.lock(mq)) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
@@ -429,20 +431,30 @@ public abstract class RebalanceImpl {
                 //从消费者的offset table中删除这个主题队列
                 this.removeDirtyOffset(mq);
 
-                //获取原来的主题消息队列对应的进行中的队列
+                //实例化一个进行中的主题队列
                 ProcessQueue pq = new ProcessQueue();
+
+                //获取主题消息队列的消费偏移量（已经消费到的位置在广播站的mappedFile中写到的位置）
                 long nextOffset = this.computePullFromWhere(mq);
-                if (nextOffset >= 0) {
+                if (nextOffset >= 0) {//可以消息
+
+                    //添加一个消费请求
                     ProcessQueue pre = this.processQueueTable.putIfAbsent(mq, pq);
                     if (pre != null) {
                         log.info("doRebalance, {}, mq already exists, {}", consumerGroup, mq);
                     } else {
                         log.info("doRebalance, {}, add a new mq, {}", consumerGroup, mq);
+                        //实例化一个等待广播站推送消息的请求
                         PullRequest pullRequest = new PullRequest();
+                        //设置消费者组名
                         pullRequest.setConsumerGroup(consumerGroup);
+                        //设置广播站已经消费消息到的位置
                         pullRequest.setNextOffset(nextOffset);
+                        //设置消费的消息队列
                         pullRequest.setMessageQueue(mq);
+                        //设置进行中的消息队列
                         pullRequest.setProcessQueue(pq);
+                        //将等待推送的请求添加到列表
                         pullRequestList.add(pullRequest);
                         changed = true;
                     }

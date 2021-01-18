@@ -1214,6 +1214,11 @@ public class MQClientInstance {
         return this.consumerTable.get(group);
     }
 
+    /**
+     * 寻找广播站地址 如果有主站 返回主站 没有主站 返回第一个从站地址
+     * @param brokerName 广播站名
+     * @return
+     */
     public FindBrokerResult findBrokerAddressInAdmin(final String brokerName) {
         String brokerAddr = null;
         boolean slave = false;
@@ -1289,6 +1294,12 @@ public class MQClientInstance {
         return null;
     }
 
+    /**
+     * 寻找某个广播站的地址
+     * @param brokerName 广播站名
+     * @param brokerAddr 广播站地址
+     * @return
+     */
     public int findBrokerVersion(String brokerName, String brokerAddr) {
         if (this.brokerVersionTable.containsKey(brokerName)) {
             if (this.brokerVersionTable.get(brokerName).containsKey(brokerAddr)) {

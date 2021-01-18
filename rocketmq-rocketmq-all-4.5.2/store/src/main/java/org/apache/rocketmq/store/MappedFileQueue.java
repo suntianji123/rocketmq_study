@@ -356,6 +356,10 @@ public class MappedFileQueue {
         return -1;
     }
 
+    /**
+     * 获取最大偏移量 最后一个mappedFile的起始偏移量 + 已经写到的位置
+     * @return
+     */
     public long getMaxOffset() {
         MappedFile mappedFile = getLastMappedFile();
         if (mappedFile != null) {

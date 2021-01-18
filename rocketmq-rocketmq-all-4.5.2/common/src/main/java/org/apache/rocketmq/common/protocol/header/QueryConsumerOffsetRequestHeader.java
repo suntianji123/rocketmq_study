@@ -24,11 +24,26 @@ import org.apache.rocketmq.remoting.CommandCustomHeader;
 import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 查询消息费偏移量的请求头
+ */
 public class QueryConsumerOffsetRequestHeader implements CommandCustomHeader {
+
+    /**
+     * 消费者组名
+     */
     @CFNotNull
     private String consumerGroup;
+
+    /**
+     * 主题
+     */
     @CFNotNull
     private String topic;
+
+    /**
+     * 主题队列编号
+     */
     @CFNotNull
     private Integer queueId;
 

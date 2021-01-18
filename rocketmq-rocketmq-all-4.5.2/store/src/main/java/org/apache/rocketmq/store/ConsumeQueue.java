@@ -24,42 +24,77 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
+/**
+ * 消费者队列类
+ */
 public class ConsumeQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     public static final int CQ_STORE_UNIT_SIZE = 20;
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
+    /**
+     * message store对象
+     */
     private final DefaultMessageStore defaultMessageStore;
 
     private final MappedFileQueue mappedFileQueue;
+
+    /**
+     * 主题
+     */
     private final String topic;
+
+    /**
+     * 主题消息队列编号
+     */
     private final int queueId;
     private final ByteBuffer byteBufferIndex;
 
+    /**
+     * 存储文件的根目录（不包含topic/0）
+     */
     private final String storePath;
+
+    /**
+     * mappedFile文件大小的最大值（默认30W）
+     */
     private final int mappedFileSize;
     private long maxPhysicOffset = -1;
     private volatile long minLogicOffset = 0;
     private ConsumeQueueExt consumeQueueExt = null;
 
+    /**
+     * 实例化一个消费者队列对象
+     * @param topic 主题
+     * @param queueId 主题消息队列编号
+     * @param storePath 存储位置
+     * @param mappedFileSize mappedFile文件大小
+     * @param defaultMessageStore messageStore
+     */
     public ConsumeQueue(
         final String topic,
         final int queueId,
         final String storePath,
         final int mappedFileSize,
         final DefaultMessageStore defaultMessageStore) {
+        //设置存储文件位置
         this.storePath = storePath;
+        //设置存储文件的最大值
         this.mappedFileSize = mappedFileSize;
+        //message store对象
         this.defaultMessageStore = defaultMessageStore;
-
+        //主题
         this.topic = topic;
+        //队列编号
         this.queueId = queueId;
 
+        //mappedFile文件的父目录
         String queueDir = this.storePath
             + File.separator + topic
             + File.separator + queueId;
 
+        //实例化一个映射文件队列对象
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
         this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE);

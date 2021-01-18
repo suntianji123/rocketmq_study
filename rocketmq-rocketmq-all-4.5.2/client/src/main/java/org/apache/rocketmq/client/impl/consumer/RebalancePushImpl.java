@@ -47,17 +47,24 @@ public class RebalancePushImpl extends RebalanceImpl {
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
     }
 
+    /**
+     * 当前消费者分配的主题消息队列发生改变
+     * @param topic 主题
+     * @param mqAll 消费者组订阅的主题的消息队列列表
+     * @param mqDivided 当前消费者分配的主题消息队列列表
+     */
     @Override
     public void messageQueueChanged(String topic, Set<MessageQueue> mqAll, Set<MessageQueue> mqDivided) {
-        /**
-         * When rebalance result changed, should update subscription's version to notify broker.
-         * Fix: inconsistency subscription may lead to consumer miss messages.
-         */
+
+        //主题订阅数据对象
         SubscriptionData subscriptionData = this.subscriptionInner.get(topic);
+        //新版本
         long newVersion = System.currentTimeMillis();
         log.info("{} Rebalance changed, also update version: {}, {}", topic, subscriptionData.getSubVersion(), newVersion);
+        //设置订阅的新版本
         subscriptionData.setSubVersion(newVersion);
 
+        //获取等待广播站推送消息的消息队列的数量
         int currentQueueCount = this.processQueueTable.size();
         if (currentQueueCount != 0) {
             int pullThresholdForTopic = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getPullThresholdForTopic();
@@ -81,9 +88,17 @@ public class RebalancePushImpl extends RebalanceImpl {
         this.getmQClientFactory().sendHeartbeatToAllBrokerWithLock();
     }
 
+    /**
+     * 删除没必要的消息队列
+     * @param mq 消息队列
+     * @param pq 进行中的消息队列
+     * @return
+     */
     @Override
     public boolean removeUnnecessaryMessageQueue(MessageQueue mq, ProcessQueue pq) {
+        //本地消费者不再消息这个消息队列的消息 需要将本地已经消费的偏移量同步到远程广播站
         this.defaultMQPushConsumerImpl.getOffsetStore().persist(mq);
+        //删除本地记录的消息队列的消费偏移量
         this.defaultMQPushConsumerImpl.getOffsetStore().removeOffset(mq);
         if (this.defaultMQPushConsumerImpl.isConsumeOrderly()
             && MessageModel.CLUSTERING.equals(this.defaultMQPushConsumerImpl.messageModel())) {
@@ -137,9 +152,15 @@ public class RebalancePushImpl extends RebalanceImpl {
         this.defaultMQPushConsumerImpl.getOffsetStore().removeOffset(mq);
     }
 
+    /**
+     * 计算从哪开始拉取
+     * @param mq 主题队列
+     * @return
+     */
     @Override
     public long computePullFromWhere(MessageQueue mq) {
         long result = -1;
+        //CONSUME_FROM_FIRST_OFFSET
         final ConsumeFromWhere consumeFromWhere = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getConsumeFromWhere();
         final OffsetStore offsetStore = this.defaultMQPushConsumerImpl.getOffsetStore();
         switch (consumeFromWhere) {
@@ -168,6 +189,7 @@ public class RebalancePushImpl extends RebalanceImpl {
                 break;
             }
             case CONSUME_FROM_FIRST_OFFSET: {
+                //获取广播站的这个主题消息队列的消费偏移量
                 long lastOffset = offsetStore.readOffset(mq, ReadOffsetType.READ_FROM_STORE);
                 if (lastOffset >= 0) {
                     result = lastOffset;
@@ -211,6 +233,10 @@ public class RebalancePushImpl extends RebalanceImpl {
         return result;
     }
 
+    /**
+     * 分发等待广播站推送消息的请求
+     * @param pullRequestList 等待广播站推送消息的请求列表
+     */
     @Override
     public void dispatchPullRequest(List<PullRequest> pullRequestList) {
         for (PullRequest pullRequest : pullRequestList) {

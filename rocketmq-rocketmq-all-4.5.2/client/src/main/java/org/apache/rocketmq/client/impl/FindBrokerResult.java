@@ -16,9 +16,23 @@
  */
 package org.apache.rocketmq.client.impl;
 
+/**
+ * 查找广播站结果类
+ */
 public class FindBrokerResult {
+    /**
+     * 广播站地址
+     */
     private final String brokerAddr;
+
+    /**
+     * 广播站是否为从站
+     */
     private final boolean slave;
+
+    /**
+     * 广播站版本
+     */
     private final int brokerVersion;
 
     public FindBrokerResult(String brokerAddr, boolean slave) {
@@ -27,6 +41,12 @@ public class FindBrokerResult {
         this.brokerVersion = 0;
     }
 
+    /**
+     * 实例化一个查找广播站结果对象
+     * @param brokerAddr 广播站地址
+     * @param slave 是否为从站
+     * @param brokerVersion 广播站版本
+     */
     public FindBrokerResult(String brokerAddr, boolean slave, int brokerVersion) {
         this.brokerAddr = brokerAddr;
         this.slave = slave;

@@ -56,6 +56,10 @@ public class PullMessageService extends ServiceThread {
         }
     }
 
+    /**
+     * 立刻执行等待广播站推送消息的请求
+     * @param pullRequest 等待广播站推送消息的请求
+     */
     public void executePullRequestImmediately(final PullRequest pullRequest) {
         try {
             this.pullRequestQueue.put(pullRequest);
@@ -76,6 +80,10 @@ public class PullMessageService extends ServiceThread {
         return scheduledExecutorService;
     }
 
+    /**
+     * 从广播站拉取消息
+     * @param pullRequest 拉取消息请求
+     */
     private void pullMessage(final PullRequest pullRequest) {
         final MQConsumerInner consumer = this.mQClientFactory.selectConsumer(pullRequest.getConsumerGroup());
         if (consumer != null) {
@@ -92,6 +100,7 @@ public class PullMessageService extends ServiceThread {
 
         while (!this.isStopped()) {
             try {
+                //等待广播站推送消息的请求
                 PullRequest pullRequest = this.pullRequestQueue.take();
                 this.pullMessage(pullRequest);
             } catch (InterruptedException ignored) {

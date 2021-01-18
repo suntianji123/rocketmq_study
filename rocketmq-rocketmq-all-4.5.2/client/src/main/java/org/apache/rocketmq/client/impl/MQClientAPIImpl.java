@@ -1053,13 +1053,26 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 查询消费者的某个主题消息队列的偏移量
+     * @param addr 远程广播站地址
+     * @param requestHeader 查询请求头
+     * @param timeoutMillis 请求超时时间
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public long queryConsumerOffset(
         final String addr,
         final QueryConsumerOffsetRequestHeader requestHeader,
         final long timeoutMillis
     ) throws RemotingException, MQBrokerException, InterruptedException {
+
+        //创建一个远程命令
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.QUERY_CONSUMER_OFFSET, requestHeader);
 
+        //同步请求 返回响应
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
             request, timeoutMillis);
         assert response != null;
@@ -1077,13 +1090,23 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 更新某个广播站上某个主题消息队列的消费偏移量
+     * @param addr 远程广播站地址
+     * @param requestHeader 请求头
+     * @param timeoutMillis 请求超时时间
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public void updateConsumerOffset(
         final String addr,
         final UpdateConsumerOffsetRequestHeader requestHeader,
         final long timeoutMillis
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //创建请求
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_CONSUMER_OFFSET, requestHeader);
-
+        //执行请求 获取响应
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
             request, timeoutMillis);
         assert response != null;
@@ -1098,14 +1121,27 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 更新某个广播站上某个主题消息队列的消费偏移量
+     * @param addr 远程广播站地址
+     * @param requestHeader 请求头
+     * @param timeoutMillis 请求超时时间
+     * @throws RemotingConnectException
+     * @throws RemotingTooMuchRequestException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws InterruptedException
+     */
     public void updateConsumerOffsetOneway(
         final String addr,
         final UpdateConsumerOffsetRequestHeader requestHeader,
         final long timeoutMillis
     ) throws RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException,
         InterruptedException {
+        //创建一个请求
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_CONSUMER_OFFSET, requestHeader);
 
+        //执行远程请求
         this.remotingClient.invokeOneway(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
     }
 

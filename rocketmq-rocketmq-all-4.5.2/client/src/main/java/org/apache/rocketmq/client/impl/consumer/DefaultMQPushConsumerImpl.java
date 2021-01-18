@@ -126,6 +126,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      * 消息监听器 当接收到消息时候的处理
      */
     private MessageListener messageListenerInner;
+
+    /**
+     * 存储主题消息队列消费偏移量
+     */
     private OffsetStore offsetStore;
 
     /**
@@ -501,6 +505,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return this.mQClientFactory.getConsumerStatsManager();
     }
 
+    /**
+     * 立刻执行等待广播推送消息的请求
+     * @param pullRequest
+     */
     public void executePullRequestImmediately(final PullRequest pullRequest) {
         this.mQClientFactory.getPullMessageService().executePullRequestImmediately(pullRequest);
     }

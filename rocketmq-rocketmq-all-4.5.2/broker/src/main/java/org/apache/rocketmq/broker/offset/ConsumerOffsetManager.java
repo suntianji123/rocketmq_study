@@ -121,6 +121,14 @@ public class ConsumerOffsetManager extends ConfigManager {
         return groups;
     }
 
+    /**
+     * 更新某个主题消息队列的消费偏移量
+     * @param clientHost 请求同步的客户端地址
+     * @param group 消费者组
+     * @param topic 主题
+     * @param queueId 主题消息队列编号
+     * @param offset 便宜来了
+     */
     public void commitOffset(final String clientHost, final String group, final String topic, final int queueId,
         final long offset) {
         // topic@group
@@ -128,13 +136,23 @@ public class ConsumerOffsetManager extends ConfigManager {
         this.commitOffset(clientHost, key, queueId, offset);
     }
 
+    /**
+     * 修改某个主题消息队列的消费偏移量
+     * @param clientHost 客户端
+     * @param key 主题@消费者组
+     * @param queueId 主题消费队列编号
+     * @param offset 偏移量
+     */
     private void commitOffset(final String clientHost, final String key, final int queueId, final long offset) {
         ConcurrentMap<Integer, Long> map = this.offsetTable.get(key);
         if (null == map) {
+            //实例化一个map
             map = new ConcurrentHashMap<Integer, Long>(32);
+            //将队列编号 对应的偏移量放入map
             map.put(queueId, offset);
             this.offsetTable.put(key, map);
         } else {
+            //虎丘偏移量
             Long storeOffset = map.put(queueId, offset);
             if (storeOffset != null && offset < storeOffset) {
                 log.warn("[NOTIFYME]update consumer offset less than store. clientHost={}, key={}, queueId={}, requestOffset={}, storeOffset={}", clientHost, key, queueId, offset, storeOffset);
