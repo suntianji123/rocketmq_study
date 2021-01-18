@@ -52,6 +52,9 @@ public class TopicConfigManager extends ConfigManager {
      */
     private transient final Lock lockTopicConfigTable = new ReentrantLock();
 
+    /**
+     * 主题配置表
+     */
     private final ConcurrentMap<String, TopicConfig> topicConfigTable =
         new ConcurrentHashMap<String, TopicConfig>(1024);
     private final DataVersion dataVersion = new DataVersion();
@@ -155,6 +158,11 @@ public class TopicConfigManager extends ConfigManager {
         return !topic.equals(MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC);
     }
 
+    /**
+     * 获取主题配置
+     * @param topic 主题
+     * @return
+     */
     public TopicConfig selectTopicConfig(final String topic) {
         return this.topicConfigTable.get(topic);
     }

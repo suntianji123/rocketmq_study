@@ -29,6 +29,9 @@ public class SubscriptionGroupConfig {
      */
     private String groupName;
 
+    /**
+     * 这个消费者组下的消费者是否可以消费消息
+     */
     private boolean consumeEnable = true;
     private boolean consumeFromMinEnable = true;
 

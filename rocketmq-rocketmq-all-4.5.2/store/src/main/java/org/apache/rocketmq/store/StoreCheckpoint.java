@@ -37,6 +37,10 @@ public class StoreCheckpoint {
      * 将mappedFile中的字节数组刷新到磁盘的时间
      */
     private volatile long physicMsgTimestamp = 0;
+
+    /**
+     * 上一次将生产者生产的某个消息的位置信息写入消费队列
+     */
     private volatile long logicsMsgTimestamp = 0;
     private volatile long indexMsgTimestamp = 0;
 

@@ -202,12 +202,12 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private int consumeMessageBatchMaxSize = 1;
 
     /**
-     * Batch pull size
+     * 每次批量拉取消息的最大值
      */
     private int pullBatchSize = 32;
 
     /**
-     * Whether update subscription relationship when every pull
+     * 每次从广播站拉取消息时 是否更新订阅关系 默认为false
      */
     private boolean postSubscriptionWhenPull = false;
 

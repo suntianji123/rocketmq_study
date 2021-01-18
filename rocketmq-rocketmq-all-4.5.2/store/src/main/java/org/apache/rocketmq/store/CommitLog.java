@@ -153,17 +153,29 @@ public class CommitLog {
     }
 
     /**
-     * Read CommitLog data, use data replication
+     * 从指定位置获取commitlog中的bytebuffer
+     * @param offset 指定位置
+     * @return
      */
     public SelectMappedBufferResult getData(final long offset) {
         return this.getData(offset, offset == 0);
     }
 
+    /**
+     * 从指定位置开始读取commitlog文件系统 返回bytebuffer对象
+     * @param offset 指定位置
+     * @param returnFirstOnNotFound 指定位置不在commitlog文件的可读位置范围内
+     * @return
+     */
     public SelectMappedBufferResult getData(final long offset, final boolean returnFirstOnNotFound) {
+        //获取单个commitlog文件的可写字节数的最大值
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+        //获取指定位置处的mappedFile对象
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, returnFirstOnNotFound);
         if (mappedFile != null) {
+            //获取起始位置
             int pos = (int) (offset % mappedFileSize);
+            //获取指定位置的bytebuffer对象
             SelectMappedBufferResult result = mappedFile.selectMappedBuffer(pos);
             return result;
         }
@@ -248,14 +260,16 @@ public class CommitLog {
     }
 
     /**
-     * check the message and returns the message size
-     *
-     * @return 0 Come the end of the file // >0 Normal messages // -1 Message checksum failure
+     * 检查mappedFile的一段byte字节流
+     * @param byteBuffer mappedFile的某段ByteBuffer对象
+     * @param checkCRC 是否检测crc
+     * @param readBody 是否读
+     * @return
      */
     public DispatchRequest checkMessageAndReturnSize(java.nio.ByteBuffer byteBuffer, final boolean checkCRC,
         final boolean readBody) {
         try {
-            // 1 TOTAL SIZE
+            //获取消息大小
             int totalSize = byteBuffer.getInt();
 
             // 2 MAGIC CODE
@@ -272,33 +286,45 @@ public class CommitLog {
 
             byte[] bytesContent = new byte[totalSize];
 
+            //获取crc值
             int bodyCRC = byteBuffer.getInt();
 
+            //获取主题消息队列编号
             int queueId = byteBuffer.getInt();
 
+            //获取生产者自定义标志位
             int flag = byteBuffer.getInt();
 
+            //消息在主题消息队列中的偏移量
             long queueOffset = byteBuffer.getLong();
 
+            //'消息在整个commitlog文件系统的偏移量
             long physicOffset = byteBuffer.getLong();
 
+            //系统标志位
             int sysFlag = byteBuffer.getInt();
 
+            //消息生产时间
             long bornTimeStamp = byteBuffer.getLong();
 
+            //消息体
             ByteBuffer byteBuffer1 = byteBuffer.get(bytesContent, 0, 8);
 
+            //消息存储到commitlog的时间
             long storeTimestamp = byteBuffer.getLong();
 
             ByteBuffer byteBuffer2 = byteBuffer.get(bytesContent, 0, 8);
 
+            //消息被重新消费的次数
             int reconsumeTimes = byteBuffer.getInt();
 
+            //half message在commitlog文件系统中的偏移量
             long preparedTransactionOffset = byteBuffer.getLong();
 
+            //消息体长度
             int bodyLen = byteBuffer.getInt();
             if (bodyLen > 0) {
-                if (readBody) {
+                if (readBody) {//可读
                     byteBuffer.get(bytesContent, 0, bodyLen);
 
                     if (checkCRC) {
@@ -313,12 +339,17 @@ public class CommitLog {
                 }
             }
 
+            //主题长度
             byte topicLen = byteBuffer.get();
             byteBuffer.get(bytesContent, 0, topicLen);
+            //获取主题
             String topic = new String(bytesContent, 0, topicLen, MessageDecoder.CHARSET_UTF8);
 
+            //获取tags
             long tagsCode = 0;
             String keys = "";
+
+            //事务id
             String uniqKey = null;
 
             short propertiesLength = byteBuffer.getShort();
@@ -332,6 +363,7 @@ public class CommitLog {
 
                 uniqKey = propertiesMap.get(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX);
 
+                //获取标签
                 String tags = propertiesMap.get(MessageConst.PROPERTY_TAGS);
                 if (tags != null && tags.length() > 0) {
                     tagsCode = MessageExtBrokerInner.tagsString2tagsCode(MessageExt.parseTopicFilterType(sysFlag), tags);

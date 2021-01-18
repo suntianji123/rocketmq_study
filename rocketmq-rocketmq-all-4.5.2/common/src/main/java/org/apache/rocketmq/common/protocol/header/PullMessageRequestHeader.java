@@ -25,27 +25,73 @@ import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 拉取消息的请求头
+ */
 public class PullMessageRequestHeader implements CommandCustomHeader {
+
+    /**
+     * 消费者组名
+     */
     @CFNotNull
     private String consumerGroup;
+
+    /**
+     * 消费主题
+     */
     @CFNotNull
     private String topic;
+
+    /**
+     * 主题消息队列编号
+     */
     @CFNotNull
     private Integer queueId;
+
+    //拉取消息在主题队列中的起始偏移量
     @CFNotNull
     private Long queueOffset;
+
+
+    /**
+     * 单次发送请求 批量拉取消息的最大值
+     */
     @CFNotNull
     private Integer maxMsgNums;
+
+    /**
+     * 系统标志位
+     */
     @CFNotNull
     private Integer sysFlag;
+
+    /**
+     * 如果修改远程广播站的消息队列的消费偏移量 更改之后的值
+     */
     @CFNotNull
     private Long commitOffset;
+
+    /**
+     * 当广播站的这个消息队列没有消息时 广播站将请求缓存的超时时间
+     */
     @CFNotNull
     private Long suspendTimeoutMillis;
+
+    /**
+     * 消费消息 更新后主题表达式
+     */
     @CFNullable
     private String subscription;
+
+    /**
+     * 主题更新后的版本
+     */
     @CFNotNull
     private Long subVersion;
+
+    /**
+     * 表达式类型
+     */
     private String expressionType;
 
     @Override

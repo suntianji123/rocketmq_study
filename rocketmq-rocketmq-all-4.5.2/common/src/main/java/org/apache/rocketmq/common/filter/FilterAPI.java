@@ -80,6 +80,14 @@ public class FilterAPI {
         return subscriptionData;
     }
 
+    /**
+     * 构建一个订阅数据
+     * @param topic 主题
+     * @param subString 主题表达式
+     * @param type 主题表达式类型
+     * @return
+     * @throws Exception
+     */
     public static SubscriptionData build(final String topic, final String subString,
         final String type) throws Exception {
         if (ExpressionType.TAG.equals(type) || type == null) {
@@ -90,9 +98,13 @@ public class FilterAPI {
             throw new IllegalArgumentException("Expression can't be null! " + type);
         }
 
+        //实例一个订阅数据
         SubscriptionData subscriptionData = new SubscriptionData();
+        //设置主题
         subscriptionData.setTopic(topic);
+        //设置表达式
         subscriptionData.setSubString(subString);
+        //设置表达式类型
         subscriptionData.setExpressionType(type);
 
         return subscriptionData;

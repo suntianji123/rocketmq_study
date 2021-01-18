@@ -40,16 +40,40 @@ public class IndexService {
      */
     private static final int MAX_TRY_IDX_CREATE = 3;
     private final DefaultMessageStore defaultMessageStore;
+
+    /**
+     * 哈希槽号 最大值为500w
+     */
     private final int hashSlotNum;
+
+    /**
+     * 最大下标数量 最大为500w * 4
+     */
     private final int indexNum;
+
+    /**
+     * 根目录
+     */
     private final String storePath;
     private final ArrayList<IndexFile> indexFileList = new ArrayList<IndexFile>();
+
+    /**
+     * 读写锁
+     */
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
+    /**
+     * 实例化一个Index服务
+     * @param store
+     */
     public IndexService(final DefaultMessageStore store) {
+        //指定消息存储服务
         this.defaultMessageStore = store;
+        //设置哈希槽值
         this.hashSlotNum = store.getMessageStoreConfig().getMaxHashSlotNum();
+        //设置最大下标数量
         this.indexNum = store.getMessageStoreConfig().getMaxIndexNum();
+        //设置indexFile文件的根目录
         this.storePath =
             StorePathConfigHelper.getStorePathIndex(store.getMessageStoreConfig().getStorePathRootDir());
     }
@@ -198,9 +222,15 @@ public class IndexService {
         return topic + "#" + key;
     }
 
+    /**
+     * 为commitlog中的某个消息构建下标信息
+     * @param req 消息的分发请求
+     */
     public void buildIndex(DispatchRequest req) {
+        //获取或者创建一个IndexFile文件
         IndexFile indexFile = retryGetAndCreateIndexFile();
         if (indexFile != null) {
+            //结束为止
             long endPhyOffset = indexFile.getEndPhyOffset();
             DispatchRequest msg = req;
             String topic = msg.getTopic();
@@ -261,14 +291,15 @@ public class IndexService {
     }
 
     /**
-     * Retries to get or create index file.
-     *
-     * @return {@link IndexFile} or null on failure.
+     * 创建消息的下标文件
+     * @return
      */
     public IndexFile retryGetAndCreateIndexFile() {
         IndexFile indexFile = null;
 
+        //重试次数
         for (int times = 0; null == indexFile && times < MAX_TRY_IDX_CREATE; times++) {
+            //获取或者创建一个IndexFile
             indexFile = this.getAndCreateLastIndexFile();
             if (null != indexFile)
                 break;
@@ -289,6 +320,10 @@ public class IndexService {
         return indexFile;
     }
 
+    /**
+     * 获取获取创建indexFile
+     * @return
+     */
     public IndexFile getAndCreateLastIndexFile() {
         IndexFile indexFile = null;
         IndexFile prevIndexFile = null;
@@ -300,10 +335,14 @@ public class IndexService {
             if (!this.indexFileList.isEmpty()) {
                 IndexFile tmp = this.indexFileList.get(this.indexFileList.size() - 1);
                 if (!tmp.isWriteFull()) {
+                    //没有写满
                     indexFile = tmp;
                 } else {
+                    //最后一个IndexFile文件写满了 新创建的IndexFile的最后一次更新的物理偏移 还有更新的时间戳
                     lastUpdateEndPhyOffset = tmp.getEndPhyOffset();
                     lastUpdateIndexTimestamp = tmp.getEndTimestamp();
+
+                    //前一个IndexFile
                     prevIndexFile = tmp;
                 }
             }
@@ -313,9 +352,12 @@ public class IndexService {
 
         if (indexFile == null) {
             try {
+                //获取indexFile 文件名
                 String fileName =
                     this.storePath + File.separator
                         + UtilAll.timeMillisToHumanString(System.currentTimeMillis());
+
+                //实例化一个indexFile
                 indexFile =
                     new IndexFile(fileName, this.hashSlotNum, this.indexNum, lastUpdateEndPhyOffset,
                         lastUpdateIndexTimestamp);
@@ -329,6 +371,8 @@ public class IndexService {
 
             if (indexFile != null) {
                 final IndexFile flushThisFile = prevIndexFile;
+
+                //开启一个守护线程 刷新前一个indexFile
                 Thread flushThread = new Thread(new Runnable() {
                     @Override
                     public void run() {

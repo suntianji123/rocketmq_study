@@ -20,6 +20,9 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 下标的头部
+ */
 public class IndexHeader {
     public static final int INDEX_HEADER_SIZE = 40;
     private static int beginTimestampIndex = 0;
@@ -28,6 +31,10 @@ public class IndexHeader {
     private static int endPhyoffsetIndex = 24;
     private static int hashSlotcountIndex = 32;
     private static int indexCountIndex = 36;
+
+    /**
+     * indexFile的byteBuffer对象
+     */
     private final ByteBuffer byteBuffer;
     private AtomicLong beginTimestamp = new AtomicLong(0);
     private AtomicLong endTimestamp = new AtomicLong(0);
@@ -37,6 +44,10 @@ public class IndexHeader {
 
     private AtomicInteger indexCount = new AtomicInteger(1);
 
+    /**
+     * 实例化一个下标的头部对象
+     * @param byteBuffer IndexFile的ByteBuffer对象
+     */
     public IndexHeader(final ByteBuffer byteBuffer) {
         this.byteBuffer = byteBuffer;
     }

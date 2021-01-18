@@ -119,7 +119,15 @@ public class MessageStoreConfig {
     private int accessMessageInMemoryMaxRatio = 40;
     @ImportantField
     private boolean messageIndexEnable = true;
+
+    /**
+     * indexFile 最大哈希槽值
+     */
     private int maxHashSlotNum = 5000000;
+
+    /**
+     * 最大下标数量
+     */
     private int maxIndexNum = 5000000 * 4;
     private int maxMsgsNumBatch = 64;
     @ImportantField

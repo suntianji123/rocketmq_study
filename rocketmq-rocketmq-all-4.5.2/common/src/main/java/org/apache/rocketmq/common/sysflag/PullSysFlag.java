@@ -16,10 +16,28 @@
  */
 package org.apache.rocketmq.common.sysflag;
 
+/**
+ * 拉取消息的系统标志位
+ */
 public class PullSysFlag {
+    /**
+     * 是否更改主题消息队列的消费偏移量
+     */
     private final static int FLAG_COMMIT_OFFSET = 0x1;
+
+    /**
+     * 广播站没有消息时 是否将消费者的拉取请求缓存起来 等广播站接收到生产者生产的消息时候再处理
+     */
     private final static int FLAG_SUSPEND = 0x1 << 1;
+
+    /**
+     * 是否更新广播站的主题订阅表达式
+     */
     private final static int FLAG_SUBSCRIPTION = 0x1 << 2;
+
+    /**
+     * 过滤class
+     */
     private final static int FLAG_CLASS_FILTER = 0x1 << 3;
 
     public static int buildSysFlag(final boolean commitOffset, final boolean suspend,
@@ -45,6 +63,11 @@ public class PullSysFlag {
         return flag;
     }
 
+    /**
+     * 清理掉可修改主题消息队列的消费偏移量的标志位
+     * @param sysFlag 系统标志值
+     * @return
+     */
     public static int clearCommitOffsetFlag(final int sysFlag) {
         return sysFlag & (~FLAG_COMMIT_OFFSET);
     }

@@ -806,6 +806,18 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 远程广播站拉取消息
+     * @param addr 远程广播站地址
+     * @param requestHeader 拉取消息的请求头
+     * @param timeoutMillis 请求超时时间
+     * @param communicationMode 与远程广播站的通讯模式
+     * @param pullCallback 拉取消息之后的回调处理
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public PullResult pullMessage(
         final String addr,
         final PullMessageRequestHeader requestHeader,
@@ -815,14 +827,14 @@ public class MQClientAPIImpl {
     ) throws RemotingException, MQBrokerException, InterruptedException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.PULL_MESSAGE, requestHeader);
 
-        switch (communicationMode) {
-            case ONEWAY:
+        switch (communicationMode) {//判断与远程广播站的通讯模式
+            case ONEWAY://单向
                 assert false;
                 return null;
-            case ASYNC:
+            case ASYNC://异步
                 this.pullMessageAsync(addr, request, timeoutMillis, pullCallback);
                 return null;
-            case SYNC:
+            case SYNC://同步
                 return this.pullMessageSync(addr, request, timeoutMillis);
             default:
                 assert false;
@@ -832,6 +844,15 @@ public class MQClientAPIImpl {
         return null;
     }
 
+    /**
+     * 异步从远程广播站的某个消息队列拉取消息
+     * @param addr 远程广播站地址
+     * @param request 拉取消息的请求
+     * @param timeoutMillis 请求超时时间
+     * @param pullCallback 接收到广播站的消息之后的回调处理
+     * @throws RemotingException
+     * @throws InterruptedException
+     */
     private void pullMessageAsync(
         final String addr,
         final RemotingCommand request,
@@ -840,17 +861,19 @@ public class MQClientAPIImpl {
     ) throws RemotingException, InterruptedException {
         this.remotingClient.invokeAsync(addr, request, timeoutMillis, new InvokeCallback() {
             @Override
-            public void operationComplete(ResponseFuture responseFuture) {
+            public void operationComplete(ResponseFuture responseFuture) {//异步操作完成之后的回调处理
+                //获取响应
                 RemotingCommand response = responseFuture.getResponseCommand();
-                if (response != null) {
+                if (response != null) {//广播站已经响应
                     try {
                         PullResult pullResult = MQClientAPIImpl.this.processPullResponse(response);
                         assert pullResult != null;
                         pullCallback.onSuccess(pullResult);
                     } catch (Exception e) {
+                        //异常处理
                         pullCallback.onException(e);
                     }
-                } else {
+                } else {//广播站还没有响应
                     if (!responseFuture.isSendRequestOK()) {
                         pullCallback.onException(new MQClientException("send request failed to " + addr + ". Request: " + request, responseFuture.getCause()));
                     } else if (responseFuture.isTimeout()) {

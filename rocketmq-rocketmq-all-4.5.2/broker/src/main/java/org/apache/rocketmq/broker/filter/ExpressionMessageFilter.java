@@ -31,15 +31,39 @@ import org.apache.rocketmq.store.MessageFilter;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+/**
+ * 表达式消息过滤器类
+ */
 public class ExpressionMessageFilter implements MessageFilter {
 
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.FILTER_LOGGER_NAME);
 
+    /**
+     * 订阅数据
+     */
     protected final SubscriptionData subscriptionData;
+
+    /**
+     * 消费者过滤数据
+     */
     protected final ConsumerFilterData consumerFilterData;
+
+    /**
+     * 消费者过滤管理器
+     */
     protected final ConsumerFilterManager consumerFilterManager;
+
+    /**
+     * bloom数据是否有效
+     */
     protected final boolean bloomDataValid;
 
+    /**
+     * 实例化一个表达式类型的消息过滤器
+     * @param subscriptionData 订阅数据
+     * @param consumerFilterData 消费者过滤数据
+     * @param consumerFilterManager 消费者过滤管理器
+     */
     public ExpressionMessageFilter(SubscriptionData subscriptionData, ConsumerFilterData consumerFilterData,
         ConsumerFilterManager consumerFilterManager) {
         this.subscriptionData = subscriptionData;

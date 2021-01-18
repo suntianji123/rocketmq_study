@@ -27,26 +27,68 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.MappedFile;
 
+/**
+ * indexFile类
+ */
 public class IndexFile {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static int hashSlotSize = 4;
     private static int indexSize = 20;
     private static int invalidIndex = 0;
+
+    /**
+     * 哈希槽值
+     */
     private final int hashSlotNum;
+
+    /**
+     * 下标数量
+     */
     private final int indexNum;
+
+    /**
+     * mappedFile文件
+     */
     private final MappedFile mappedFile;
+
+    /**
+     * 文件通道
+     */
     private final FileChannel fileChannel;
+
+    /**
+     * 文件的byteBuffer对象
+     */
     private final MappedByteBuffer mappedByteBuffer;
+
+    /**
+     * 头部
+     */
     private final IndexHeader indexHeader;
 
+    /**
+     * 实例化一个indexFile对象
+     * @param fileName 文件名
+     * @param hashSlotNum 最大哈希槽值
+     * @param indexNum 最大下标值数量
+     * @param endPhyOffset  结束的物理偏移量
+     * @param endTimestamp 上次写入下标信息的时间戳
+     * @throws IOException
+     */
     public IndexFile(final String fileName, final int hashSlotNum, final int indexNum,
         final long endPhyOffset, final long endTimestamp) throws IOException {
+        //文件总的大小
         int fileTotalSize =
             IndexHeader.INDEX_HEADER_SIZE + (hashSlotNum * hashSlotSize) + (indexNum * indexSize);
+        //实例化一个mappedFile文件
         this.mappedFile = new MappedFile(fileName, fileTotalSize);
+        //获取fileChannel
         this.fileChannel = this.mappedFile.getFileChannel();
+        //获取bytebuffer
         this.mappedByteBuffer = this.mappedFile.getMappedByteBuffer();
+        //设置哈希槽值
         this.hashSlotNum = hashSlotNum;
+        //设置下标数量
         this.indexNum = indexNum;
 
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();

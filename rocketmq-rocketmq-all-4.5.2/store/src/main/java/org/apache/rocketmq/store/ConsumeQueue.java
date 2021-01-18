@@ -30,6 +30,9 @@ import org.apache.rocketmq.store.config.StorePathConfigHelper;
 public class ConsumeQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    /**
+     * commitlog中每一个消息对应的位置信息在消费者队列中的大小
+     */
     public static final int CQ_STORE_UNIT_SIZE = 20;
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
@@ -49,6 +52,10 @@ public class ConsumeQueue {
      * 主题消息队列编号
      */
     private final int queueId;
+
+    /**
+     将commitlog中的消息的位置信息写入到消费队列文件的临时bytebuffer对象
+     */
     private final ByteBuffer byteBufferIndex;
 
     /**
@@ -60,6 +67,10 @@ public class ConsumeQueue {
      * mappedFile文件大小的最大值（默认30W）
      */
     private final int mappedFileSize;
+
+    /**
+     * 已经写了commitlog系统中的消息的偏移量
+     */
     private long maxPhysicOffset = -1;
     private volatile long minLogicOffset = 0;
     private ConsumeQueueExt consumeQueueExt = null;
@@ -97,6 +108,7 @@ public class ConsumeQueue {
         //实例化一个映射文件队列对象
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
+        //将commitlog中的消息的位置信息写入到消费队列文件的临时bytebuffer对象
         this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE);
 
         if (defaultMessageStore.getMessageStoreConfig().isEnableConsumeQueueExt()) {
@@ -410,10 +422,19 @@ public class ConsumeQueue {
         return this.minLogicOffset / CQ_STORE_UNIT_SIZE;
     }
 
+    /**
+     * 向主题消息队列对应的消费队列中写入某个消息的在commitlog文件系统中的位置信息
+     * @param request 消息请求对象
+     */
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
+        //最大重试次数
         final int maxRetries = 30;
+
+        //可写
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
         for (int i = 0; i < maxRetries && canWrite; i++) {
+
+            //获取消息主题标签的哈希值
             long tagsCode = request.getTagsCode();
             if (isExtWriteEnable()) {
                 ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
@@ -429,6 +450,8 @@ public class ConsumeQueue {
                         topic, queueId, request.getCommitLogOffset());
                 }
             }
+
+            //将消息的位置信息写入到消费队列对应的mappedFile文件
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                 request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             if (result) {
@@ -452,6 +475,14 @@ public class ConsumeQueue {
         this.defaultMessageStore.getRunningFlags().makeLogicsQueueError();
     }
 
+    /**
+     * 向主题消息队列对应的消费队列中写入某个消息的位置信息 写入到mappedFile文件
+     * @param offset 消息在commitlog文件系统中的偏移量
+     * @param size 消息的大小
+     * @param tagsCode 消息的哈希值
+     * @param cqOffset 消息在主题消息队列中的偏移量
+     * @return
+     */
     private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
         final long cqOffset) {
 
@@ -460,17 +491,23 @@ public class ConsumeQueue {
             return true;
         }
 
+        //改为写
         this.byteBufferIndex.flip();
+        //设置bytebuffer的大小
         this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE);
+        //写入消息的偏移量
         this.byteBufferIndex.putLong(offset);
+        //写入消息的大小
         this.byteBufferIndex.putInt(size);
+        //写入消息标签的哈希值
         this.byteBufferIndex.putLong(tagsCode);
 
+        //消息在消费队列文件中的起始偏移量
         final long expectLogicOffset = cqOffset * CQ_STORE_UNIT_SIZE;
 
+        //根据偏移量获取一个mappedFile文件
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(expectLogicOffset);
         if (mappedFile != null) {
-
             if (mappedFile.isFirstCreateInQueue() && cqOffset != 0 && mappedFile.getWrotePosition() == 0) {
                 this.minLogicOffset = expectLogicOffset;
                 this.mappedFileQueue.setFlushedWhere(expectLogicOffset);
@@ -481,6 +518,7 @@ public class ConsumeQueue {
             }
 
             if (cqOffset != 0) {
+                //消息对应的位置信息在消费队列的文件系统中的偏移量
                 long currentLogicOffset = mappedFile.getWrotePosition() + mappedFile.getFileFromOffset();
 
                 if (expectLogicOffset < currentLogicOffset) {
@@ -500,7 +538,10 @@ public class ConsumeQueue {
                     );
                 }
             }
+
+            //重设已经写入了commitlog文件中消息的位置
             this.maxPhysicOffset = offset + size;
+            //向消费队列的mappedFile文件中添加消息
             return mappedFile.appendMessage(this.byteBufferIndex.array());
         }
         return false;

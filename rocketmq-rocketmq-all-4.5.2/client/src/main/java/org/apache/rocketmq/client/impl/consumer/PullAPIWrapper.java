@@ -139,6 +139,26 @@ public class PullAPIWrapper {
         }
     }
 
+    /**
+     * 从广播站拉取消息的核心实现
+     * @param mq 主题消息队列
+     * @param subExpression 主题tag表达式（拉取时 需要更新的主题tag表达式）
+     * @param expressionType 表达式类型
+     * @param subVersion 表达式版本
+     * @param offset 拉取消息的起始偏移量
+     * @param maxNums 批量拉取消息的最大值
+     * @param sysFlag 系统标志
+     * @param commitOffset 修改主题消息队列的消费偏移量值
+     * @param brokerSuspendMaxTimeMillis 广播站缓存这个请求的最大超时时间
+     * @param timeoutMillis 请求超时时间
+     * @param communicationMode 与远程广播站的通讯模式 单向、同步、异步
+     * @param pullCallback 收到消息后的回调处理
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public PullResult pullKernelImpl(
         final MessageQueue mq,
         final String subExpression,
@@ -153,6 +173,8 @@ public class PullAPIWrapper {
         final CommunicationMode communicationMode,
         final PullCallback pullCallback
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
+        //寻找广播站
         FindBrokerResult findBrokerResult =
             this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(),
                 this.recalculatePullFromWhichNode(mq), false);
@@ -165,34 +187,50 @@ public class PullAPIWrapper {
 
         if (findBrokerResult != null) {
             {
-                // check version
+                // 主题的表达式类型必须为tag类型
                 if (!ExpressionType.isTagType(expressionType)
                     && findBrokerResult.getBrokerVersion() < MQVersion.Version.V4_1_0_SNAPSHOT.ordinal()) {
                     throw new MQClientException("The broker[" + mq.getBrokerName() + ", "
                         + findBrokerResult.getBrokerVersion() + "] does not upgrade to support for filter message by " + expressionType, null);
                 }
             }
+
+            //系统标志位
             int sysFlagInner = sysFlag;
 
+            //远程广播站是从站
             if (findBrokerResult.isSlave()) {
+                //清理掉系统标志位中 可以修改主题消息队列的偏移量的标志位
                 sysFlagInner = PullSysFlag.clearCommitOffsetFlag(sysFlagInner);
             }
 
+            //实例化一个拉取消息的请求头
             PullMessageRequestHeader requestHeader = new PullMessageRequestHeader();
+            //设置生产者组名
             requestHeader.setConsumerGroup(this.consumerGroup);
+            //设置主题
             requestHeader.setTopic(mq.getTopic());
+            //设置消息存储的主题消息队列编号
             requestHeader.setQueueId(mq.getQueueId());
+            //设置将要拉取的消息在消息队列中的起始偏移量
             requestHeader.setQueueOffset(offset);
+            //设置从主题消息队列中单次批量拉取消息的数量最大值
             requestHeader.setMaxMsgNums(maxNums);
+            //设置系统标志
             requestHeader.setSysFlag(sysFlagInner);
+            //如果sysflag有修改主题消息队列的消费消息的偏移量标志 这个值用于
             requestHeader.setCommitOffset(commitOffset);
+            //设置悬挂消息的超时时间
             requestHeader.setSuspendTimeoutMillis(brokerSuspendMaxTimeMillis);
+            //设置修改后的主题表达式
             requestHeader.setSubscription(subExpression);
+            //设置修改后的主题版本号
             requestHeader.setSubVersion(subVersion);
+            //设置椎体表达式类型
             requestHeader.setExpressionType(expressionType);
 
             String brokerAddr = findBrokerResult.getBrokerAddr();
-            if (PullSysFlag.hasClassFilterFlag(sysFlagInner)) {
+            if (PullSysFlag.hasClassFilterFlag(sysFlagInner)) {//如果需要过滤class 过滤当前广播站地址 从可选的广播站地址中选择一个地址
                 brokerAddr = computPullFromWhichFilterServer(mq.getTopic(), brokerAddr);
             }
 
@@ -222,14 +260,23 @@ public class PullAPIWrapper {
         return MixAll.MASTER_ID;
     }
 
+    /**
+     *
+     * @param topic
+     * @param brokerAddr
+     * @return
+     * @throws MQClientException
+     */
     private String computPullFromWhichFilterServer(final String topic, final String brokerAddr)
         throws MQClientException {
         ConcurrentMap<String, TopicRouteData> topicRouteTable = this.mQClientFactory.getTopicRouteTable();
         if (topicRouteTable != null) {
             TopicRouteData topicRouteData = topicRouteTable.get(topic);
+
+            //获取过滤当前广播站地址时 可选的广播站地址列表
             List<String> list = topicRouteData.getFilterServerTable().get(brokerAddr);
 
-            if (list != null && !list.isEmpty()) {
+            if (list != null && !list.isEmpty()) {//从可选的广播站地址列表中选择一个地址
                 return list.get(randomNum() % list.size());
             }
         }

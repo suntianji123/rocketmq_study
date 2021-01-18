@@ -47,6 +47,11 @@ public class MessageSysFlag {
      */
     public final static int TRANSACTION_ROLLBACK_TYPE = 0x3 << 2;
 
+    /**
+     * 获取消息事务的最终状态rollback or commit
+     * @param flag 系统标志
+     * @return
+     */
     public static int getTransactionValue(final int flag) {
         return flag & TRANSACTION_ROLLBACK_TYPE;
     }

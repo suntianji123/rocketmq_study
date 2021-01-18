@@ -59,6 +59,10 @@ public class ProcessQueue {
      * 是否被丢弃
      */
     private volatile boolean dropped = false;
+
+    /**
+     * 上一次拉取的时间
+     */
     private volatile long lastPullTimestamp = System.currentTimeMillis();
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
     private volatile boolean locked = false;

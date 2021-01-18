@@ -354,12 +354,21 @@ public class MappedFile extends ReferenceResource {
         return this.fileFromOffset;
     }
 
+    /**
+     * 将字节数组写入mappedFile文件
+     * @param data 字节数组
+     * @return
+     */
     public boolean appendMessage(final byte[] data) {
+        //当前已经写到的位置
         int currentPos = this.wrotePosition.get();
 
+        //有可用空间
         if ((currentPos + data.length) <= this.fileSize) {
             try {
+                //设置位置
                 this.fileChannel.position(currentPos);
+                //写入字节数组
                 this.fileChannel.write(ByteBuffer.wrap(data));
             } catch (Throwable e) {
                 log.error("Error occurred when append message to mappedFile.", e);
@@ -557,11 +566,13 @@ public class MappedFile extends ReferenceResource {
     }
 
     public SelectMappedBufferResult selectMappedBuffer(int pos) {
+        //已经写到的位置
         int readPosition = getReadPosition();
         if (pos < readPosition && pos >= 0) {
             if (this.hold()) {
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
                 byteBuffer.position(pos);
+                //可读字节数
                 int size = readPosition - pos;
                 ByteBuffer byteBufferNew = byteBuffer.slice();
                 byteBufferNew.limit(size);

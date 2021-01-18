@@ -22,9 +22,25 @@ import org.apache.rocketmq.common.message.MessageQueue;
  * 等待广播站推送消息的类
  */
 public class PullRequest {
+
+    /**
+     * 消费者组
+     */
     private String consumerGroup;
+
+    /**
+     * 主题消息队列
+     */
     private MessageQueue messageQueue;
+
+    /**
+     * 处理中的队列
+     */
     private ProcessQueue processQueue;
+
+    /**
+     * 将要消费的消息的起始偏移量
+     */
     private long nextOffset;
     private boolean lockedFirst = false;
 

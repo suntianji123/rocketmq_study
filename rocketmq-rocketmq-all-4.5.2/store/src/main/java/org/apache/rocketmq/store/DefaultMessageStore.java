@@ -98,7 +98,7 @@ public class DefaultMessageStore implements MessageStore {
     private final TransientStorePool transientStorePool;
 
     /**
-     * 消息存储对象运行标志位对象
+     * 消息存储对象运行标志位对象 是否可读 是否可写
      */
     private final RunningFlags runningFlags = new RunningFlags();
     private final SystemClock systemClock = new SystemClock();
@@ -118,6 +118,9 @@ public class DefaultMessageStore implements MessageStore {
      */
     private AtomicLong printTimes = new AtomicLong(0);
 
+    /**
+     *  分发器列表 ： 从commitlog文件系统中读取消息后的分发处理器列表
+     */
     private final LinkedList<CommitLogDispatcher> dispatcherList;
 
     private RandomAccessFile lockFile;
@@ -164,8 +167,11 @@ public class DefaultMessageStore implements MessageStore {
 
         this.indexService.start();
 
+        //实例化分发器列表
         this.dispatcherList = new LinkedList<>();
+        //向分发器列表中添加构建消费队列的分发器
         this.dispatcherList.addLast(new CommitLogDispatcherBuildConsumeQueue());
+        //向分发器列表中添加构建下标的分发器
         this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
 
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
@@ -526,33 +532,57 @@ public class DefaultMessageStore implements MessageStore {
         return commitLog;
     }
 
+    /**
+     * 从某个主题消息队列获取消息
+     * @param group 消费者组
+     * @param topic 主题
+     * @param queueId 主题消息队列编号
+     * @param offset 开始获取消息的起始偏移量
+     * @param maxMsgNums 单次请求 批量获取消息的最大数量
+     * @param messageFilter 消息过滤器
+     * @return
+     */
     public GetMessageResult getMessage(final String group, final String topic, final int queueId, final long offset,
         final int maxMsgNums,
         final MessageFilter messageFilter) {
+        //服务已经关闭
         if (this.shutdown) {
             log.warn("message store has shutdown, so getMessage is forbidden");
             return null;
         }
 
+        //服务不可读
         if (!this.runningFlags.isReadable()) {
             log.warn("message store is not readable, so getMessage is forbidden " + this.runningFlags.getFlagBits());
             return null;
         }
 
+        //开始时间
         long beginTime = this.getSystemClock().now();
 
+        //队列中没有消息
         GetMessageStatus status = GetMessageStatus.NO_MESSAGE_IN_QUEUE;
+
+        //开始偏移量
         long nextBeginOffset = offset;
+
+        //主题消息队列的消费队列最小偏移量
         long minOffset = 0;
+        //主题消息队列的消费队列最大偏移量
         long maxOffset = 0;
 
+        //实例化一个获取消息的结果对象
         GetMessageResult getResult = new GetMessageResult();
 
+        //已经写入到commitlog文件系统的消息的最大偏移量
         final long maxOffsetPy = this.commitLog.getMaxOffset();
 
+        //获取主题消息队列的消费队列对象
         ConsumeQueue consumeQueue = findConsumeQueue(topic, queueId);
         if (consumeQueue != null) {
+            //设置消费队列的最小偏移量
             minOffset = consumeQueue.getMinOffsetInQueue();
+            //谁知消费队列的最大偏移量
             maxOffset = consumeQueue.getMaxOffsetInQueue();
 
             if (maxOffset == 0) {
@@ -1500,14 +1530,25 @@ public class DefaultMessageStore implements MessageStore {
         return runningFlags;
     }
 
+    /**
+     * 从commitlog文件中读出消息后 分发处理
+     * @param req 消息的分发请求
+     */
     public void doDispatch(DispatchRequest req) {
-        for (CommitLogDispatcher dispatcher : this.dispatcherList) {
+        for (CommitLogDispatcher dispatcher : this.dispatcherList) {//遍历分发器
+            //分发器的分发处理
             dispatcher.dispatch(req);
         }
     }
 
+    /**
+     * 写入消息在commitlog文件系统的位置信息
+     * @param dispatchRequest 分发消息的请求
+     */
     public void putMessagePositionInfo(DispatchRequest dispatchRequest) {
+        //查找主题消息队列对应的消费队列
         ConsumeQueue cq = this.findConsumeQueue(dispatchRequest.getTopic(), dispatchRequest.getQueueId());
+        //向主题的消费队列写入消息的位置信息
         cq.putMessagePositionInfoWrapper(dispatchRequest);
     }
 
@@ -1562,16 +1603,21 @@ public class DefaultMessageStore implements MessageStore {
 
     class CommitLogDispatcherBuildConsumeQueue implements CommitLogDispatcher {
 
+        /**
+         * 分发从commitlog中读出的消息的
+         * @param request 消息的分发请求
+         */
         @Override
         public void dispatch(DispatchRequest request) {
+            //获取事务状态值
             final int tranType = MessageSysFlag.getTransactionValue(request.getSysFlag());
             switch (tranType) {
-                case MessageSysFlag.TRANSACTION_NOT_TYPE:
-                case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
+                case MessageSysFlag.TRANSACTION_NOT_TYPE://没有事务
+                case MessageSysFlag.TRANSACTION_COMMIT_TYPE://事务成功
                     DefaultMessageStore.this.putMessagePositionInfo(request);
                     break;
-                case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
-                case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE:
+                case MessageSysFlag.TRANSACTION_PREPARED_TYPE://还没有进行二次处理 不处理
+                case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE://rollback的消息 不处理
                     break;
             }
         }
@@ -1858,6 +1904,9 @@ public class DefaultMessageStore implements MessageStore {
 
     class ReputMessageService extends ServiceThread {
 
+        /**
+         * 上一次执行reput 读到的commitlog文件系统的位置
+         */
         private volatile long reputFromOffset = 0;
 
         public long getReputFromOffset() {
@@ -1889,35 +1938,49 @@ public class DefaultMessageStore implements MessageStore {
             return DefaultMessageStore.this.commitLog.getMaxOffset() - this.reputFromOffset;
         }
 
+        /**
+         * commitlog文件系统是否写入了新的内容
+         * @return
+         */
         private boolean isCommitLogAvailable() {
             return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
         }
 
+        /**
+         * 执行输入
+         */
         private void doReput() {
+            //重新设置输入的起始位置
             if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()) {
                 log.warn("The reputFromOffset={} is smaller than minPyOffset={}, this usually indicate that the dispatch behind too much and the commitlog has expired.",
                     this.reputFromOffset, DefaultMessageStore.this.commitLog.getMinOffset());
                 this.reputFromOffset = DefaultMessageStore.this.commitLog.getMinOffset();
             }
-            for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {
-
+            for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {//commitlog文件系统写入了新的内容
                 if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable()
                     && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
                     break;
                 }
 
+                //从上次读到的位置开始 读取单个mappedFile的一段byteBuffer
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {
+                        //从新设置上次读到位置的起始偏移量
                         this.reputFromOffset = result.getStartOffset();
 
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
+
+                            //从mappedFile文件中读出一条消息 构造为分发请求
                             DispatchRequest dispatchRequest =
                                 DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
+
+                            //获取消息大小
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
 
-                            if (dispatchRequest.isSuccess()) {
-                                if (size > 0) {
+                            if (dispatchRequest.isSuccess()) {//分发请求成功
+                                if (size > 0) {//分发请求中包含一个请求
+                                    //分发请求
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()
