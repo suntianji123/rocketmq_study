@@ -113,11 +113,17 @@ public class IndexFile {
         this.indexHeader.load();
     }
 
+    /**
+     * 将indexFile的mappedByteBuffer字节刷新到磁盘
+     */
     public void flush() {
         long beginTime = System.currentTimeMillis();
         if (this.mappedFile.hold()) {
+            //更新bytebuffer的前面40个字节
             this.indexHeader.updateByteBuffer();
+            //刷新bytebuffer
             this.mappedByteBuffer.force();
+            //释放mappedFile
             this.mappedFile.release();
             log.info("flush index file elapsed time(ms) " + (System.currentTimeMillis() - beginTime));
         }
@@ -131,25 +137,37 @@ public class IndexFile {
         return this.mappedFile.destroy(intervalForcibly);
     }
 
+
+    /**
+     * 向indexFile中写入索引 Header 20个字节 + 索引的位置（哈希槽位置写入索引信息的位置）+ 索引信息
+     * @param key 索引关键字 topic#msgId
+     * @param phyOffset 对应于commitlog中消息的物理偏移量
+     * @param storeTimestamp 消息生产的时间
+     * @return
+     */
     public boolean putKey(final String key, final long phyOffset, final long storeTimestamp) {
-        if (this.indexHeader.getIndexCount() < this.indexNum) {
+        if (this.indexHeader.getIndexCount() < this.indexNum) {//如果indexFile中已经写入的索引的数量超过最大值
+            //获取索引的哈希值
             int keyHash = indexKeyHashMethod(key);
+            //获取索引的哈希值槽位
             int slotPos = keyHash % this.hashSlotNum;
+
+            //获取消息的索引信息实际存放的位置
             int absSlotPos = IndexHeader.INDEX_HEADER_SIZE + slotPos * hashSlotSize;
 
             FileLock fileLock = null;
 
             try {
 
-                // fileLock = this.fileChannel.lock(absSlotPos, hashSlotSize,
-                // false);
+                //获取当前索引在indexFile中的位置 第n个索引
                 int slotValue = this.mappedByteBuffer.getInt(absSlotPos);
                 if (slotValue <= invalidIndex || slotValue > this.indexHeader.getIndexCount()) {
                     slotValue = invalidIndex;
                 }
-
+                //生产时间 - 开始写入indexFile的时间
                 long timeDiff = storeTimestamp - this.indexHeader.getBeginTimestamp();
 
+                //获取时间
                 timeDiff = timeDiff / 1000;
 
                 if (this.indexHeader.getBeginTimestamp() <= 0) {
@@ -160,25 +178,41 @@ public class IndexFile {
                     timeDiff = 0;
                 }
 
+                //索引存放的起始位置
                 int absIndexPos =
                     IndexHeader.INDEX_HEADER_SIZE + this.hashSlotNum * hashSlotSize
                         + this.indexHeader.getIndexCount() * indexSize;
 
+                //在索引起始位置写入4个字节的哈希值
                 this.mappedByteBuffer.putInt(absIndexPos, keyHash);
+
+                //然后再写入8个字节的消息在commitlog中的偏移量
                 this.mappedByteBuffer.putLong(absIndexPos + 4, phyOffset);
+
+                //然后再4个字节写入时间差值
                 this.mappedByteBuffer.putInt(absIndexPos + 4 + 8, (int) timeDiff);
+                //在写入4个字节的哈希值所在的槽下标
                 this.mappedByteBuffer.putInt(absIndexPos + 4 + 8 + 4, slotValue);
 
+                //在哈希槽位写入 索引信息的位置
                 this.mappedByteBuffer.putInt(absSlotPos, this.indexHeader.getIndexCount());
 
                 if (this.indexHeader.getIndexCount() <= 1) {
+                    //设置beginPhyOffset对应commitlog中的偏移量
                     this.indexHeader.setBeginPhyOffset(phyOffset);
+                    //开始时间 对应于消息的存储时间
                     this.indexHeader.setBeginTimestamp(storeTimestamp);
                 }
 
+                //增减已经用掉的哈希槽数量
                 this.indexHeader.incHashSlotCount();
+
+                //增加已经写入索引信息的数量
                 this.indexHeader.incIndexCount();
+
+                //设置最后一次将消息的索引信息写入到indexFile 对应于消息在commitlog中的偏移量
                 this.indexHeader.setEndPhyOffset(phyOffset);
+                //设置最后一次将消息的索引信息写入indexFile 记录消息的生产时间
                 this.indexHeader.setEndTimestamp(storeTimestamp);
 
                 return true;
@@ -201,8 +235,15 @@ public class IndexFile {
         return false;
     }
 
+    /**
+     * 索引key的哈希值
+     * @param key 索引key topic#msgId
+     * @return
+     */
     public int indexKeyHashMethod(final String key) {
+        //获取索引的哈希值
         int keyHash = key.hashCode();
+        //取绝对值
         int keyHashPositive = Math.abs(keyHash);
         if (keyHashPositive < 0)
             keyHashPositive = 0;
@@ -217,6 +258,10 @@ public class IndexFile {
         return this.indexHeader.getEndTimestamp();
     }
 
+    /**
+     * 获取已经写到的物理偏移量（对应于commitlog中的物理偏移量）
+     * @return
+     */
     public long getEndPhyOffset() {
         return this.indexHeader.getEndPhyOffset();
     }

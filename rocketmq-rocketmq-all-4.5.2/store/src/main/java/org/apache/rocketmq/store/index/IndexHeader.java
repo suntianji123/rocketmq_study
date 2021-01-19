@@ -36,12 +36,35 @@ public class IndexHeader {
      * indexFile的byteBuffer对象
      */
     private final ByteBuffer byteBuffer;
+
+    /**
+     * 第一次将某个消息的索引信息写入到indexFile 记录的是消息的生产时间
+     */
     private AtomicLong beginTimestamp = new AtomicLong(0);
+
+    /**
+     * 最后一次将某个消息的索引信息写入到indexFile 记录的是消息的生产时间
+     */
     private AtomicLong endTimestamp = new AtomicLong(0);
+
+    /**
+     * 第一次将某个消息的索引信息写入到indexFile 记录的是消息在commitlog中的偏移量
+     */
     private AtomicLong beginPhyOffset = new AtomicLong(0);
+
+    /**
+     * 已经写到的偏移量（对应于commitlog中的偏移量）
+     */
     private AtomicLong endPhyOffset = new AtomicLong(0);
+
+    /**
+     * 已经用掉的哈希槽数量
+     */
     private AtomicInteger hashSlotCount = new AtomicInteger(0);
 
+    /**
+     * 已经写入的索引的数量
+     */
     private AtomicInteger indexCount = new AtomicInteger(1);
 
     /**
@@ -66,12 +89,21 @@ public class IndexHeader {
         }
     }
 
+    /**
+     * 更新byteBuffer
+     */
     public void updateByteBuffer() {
+        //将第一个写入到索引文件的消息的生产时间写入到byteBuffer
         this.byteBuffer.putLong(beginTimestampIndex, this.beginTimestamp.get());
+        //将最后一个写入到索引文件的消息的生产时间写入到byteBuffer
         this.byteBuffer.putLong(endTimestampIndex, this.endTimestamp.get());
+        //将第一个写入到索引文件的消息的在commitlog的偏移量写入到byteBuffer
         this.byteBuffer.putLong(beginPhyoffsetIndex, this.beginPhyOffset.get());
+        //将最后一个写入到索引文件的消息在commitlog的偏移量写入到byteBuffer
         this.byteBuffer.putLong(endPhyoffsetIndex, this.endPhyOffset.get());
+        //将已经用掉的哈希槽的数量写入到索引文件
         this.byteBuffer.putInt(hashSlotcountIndex, this.hashSlotCount.get());
+        //将已经写入的索引信息写入到索引文件
         this.byteBuffer.putInt(indexCountIndex, this.indexCount.get());
     }
 

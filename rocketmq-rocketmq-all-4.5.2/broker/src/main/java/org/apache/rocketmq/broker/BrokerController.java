@@ -125,6 +125,10 @@ public class BrokerController {
      */
     private final PullMessageProcessor pullMessageProcessor;
     private final PullRequestHoldService pullRequestHoldService;
+
+    /**
+     * 将commitlog文件中的某个消息的位置信息写入到CosumeQueue和indexFile文件之后调用
+     */
     private final MessageArrivingListener messageArrivingListener;
 
     /**

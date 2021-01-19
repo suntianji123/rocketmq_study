@@ -34,6 +34,10 @@ public class PullRequestHoldService extends ServiceThread {
     private static final String TOPIC_QUEUEID_SEPARATOR = "@";
     private final BrokerController brokerController;
     private final SystemClock systemClock = new SystemClock();
+
+    /**
+     * 某个主题消息队列中等待拉取消息的请求
+     */
     private ConcurrentMap<String/* topic@queueId */, ManyPullRequest> pullRequestTable =
         new ConcurrentHashMap<String, ManyPullRequest>(1024);
 
@@ -55,6 +59,12 @@ public class PullRequestHoldService extends ServiceThread {
         mpr.addPullRequest(pullRequest);
     }
 
+    /**
+     * 构建主题消息队列key topic@queueId
+     * @param topic 主题
+     * @param queueId 消息队列编号
+     * @return
+     */
     private String buildKey(final String topic, final int queueId) {
         StringBuilder sb = new StringBuilder();
         sb.append(topic);
@@ -113,9 +123,23 @@ public class PullRequestHoldService extends ServiceThread {
         notifyMessageArriving(topic, queueId, maxOffset, null, 0, null, null);
     }
 
+    /**
+     * 通知消息到来
+     * @param topic 主题
+     * @param queueId 消息所在的主题消息队列编号
+     * @param maxOffset 消息在主题消息队列中的偏移量
+     * @param tagsCode 消息的标签哈希值
+     * @param msgStoreTime 消息存储时间
+     * @param filterBitMap 过滤器位
+     * @param properties 消息属性map
+     */
     public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset, final Long tagsCode,
         long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
+
+        //构建主题消息队列key
         String key = this.buildKey(topic, queueId);
+
+        //获取这个主题消息队列等待拉取消息的请求对象
         ManyPullRequest mpr = this.pullRequestTable.get(key);
         if (mpr != null) {
             List<PullRequest> requestList = mpr.cloneListAndClear();

@@ -39,9 +39,13 @@ public class StoreCheckpoint {
     private volatile long physicMsgTimestamp = 0;
 
     /**
-     * 上一次将生产者生产的某个消息的位置信息写入消费队列
+     * 上一次将生产者生产的某个消息的位置信息写入消费队列文件
      */
     private volatile long logicsMsgTimestamp = 0;
+
+    /**
+     * 某个索引indexFile写满了 刷新到磁盘时 记录最后一条写入到indexFile的消息的生产时间
+     */
     private volatile long indexMsgTimestamp = 0;
 
     public StoreCheckpoint(final String scpPath) throws IOException {
@@ -83,9 +87,16 @@ public class StoreCheckpoint {
         }
     }
 
+    /**
+     * 刷新记录点
+     */
     public void flush() {
+        //将commitlog的mappedFile文件刷新到磁盘的时间
         this.mappedByteBuffer.putLong(0, this.physicMsgTimestamp);
+
+        //将上一个从commitlog读出 写入到消费队列文件的消息的生产时间记录
         this.mappedByteBuffer.putLong(8, this.logicsMsgTimestamp);
+        //当将某个消息的索引信息写到indexFile indexFile满了 记录那个消息的生产日期
         this.mappedByteBuffer.putLong(16, this.indexMsgTimestamp);
         this.mappedByteBuffer.force();
     }

@@ -106,6 +106,10 @@ public class DefaultMessageStore implements MessageStore {
     private final ScheduledExecutorService scheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("StoreScheduledThread"));
     private final BrokerStatsManager brokerStatsManager;
+
+    /**
+     * 消息到达的回调处理 将消息写入到消费队列和索引文件后 执行
+     */
     private final MessageArrivingListener messageArrivingListener;
     private final BrokerConfig brokerConfig;
 
@@ -1948,6 +1952,8 @@ public class DefaultMessageStore implements MessageStore {
 
         /**
          * 执行输入
+         * 获取commitlog中的消息 将消息的位置信息 写入到ConumeQueue消费队列和IndexFile文件
+         * 获取消费队列的请求列表 将消息推送给消费者
          */
         private void doReput() {
             //重新设置输入的起始位置
@@ -1970,7 +1976,6 @@ public class DefaultMessageStore implements MessageStore {
                         this.reputFromOffset = result.getStartOffset();
 
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
-
                             //从mappedFile文件中读出一条消息 构造为分发请求
                             DispatchRequest dispatchRequest =
                                 DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
@@ -1981,18 +1986,26 @@ public class DefaultMessageStore implements MessageStore {
                             if (dispatchRequest.isSuccess()) {//分发请求成功
                                 if (size > 0) {//分发请求中包含一个请求
                                     //分发请求
+                                    //将消息分发到ConusumeQueue消息队列文件、IndexFile文件
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
+                                    //如果站点是主站
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()
                                         && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
+
+                                        //处理消息 如果有主题消息队列有消费者有拉取消息的请求 将消息推送给消费者
                                         DefaultMessageStore.this.messageArrivingListener.arriving(dispatchRequest.getTopic(),
                                             dispatchRequest.getQueueId(), dispatchRequest.getConsumeQueueOffset() + 1,
                                             dispatchRequest.getTagsCode(), dispatchRequest.getStoreTimestamp(),
                                             dispatchRequest.getBitMap(), dispatchRequest.getPropertiesMap());
                                     }
 
+                                    //增加已经输入的位置
                                     this.reputFromOffset += size;
+                                    //增加已经读取的消息总大小
                                     readSize += size;
+
+                                    //从站处理 增加主题写入消息的总次数、总大小
                                     if (DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE) {
                                         DefaultMessageStore.this.storeStatsService
                                             .getSinglePutMessageTopicTimesTotal(dispatchRequest.getTopic()).incrementAndGet();

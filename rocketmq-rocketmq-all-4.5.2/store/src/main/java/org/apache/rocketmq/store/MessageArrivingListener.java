@@ -19,7 +19,21 @@ package org.apache.rocketmq.store;
 
 import java.util.Map;
 
+/**
+ * 消息到达监听器
+ */
 public interface MessageArrivingListener {
+
+    /**
+     * 消息到达处理方法
+     * @param topic 消息
+     * @param queueId 消息位于的主题消息队列
+     * @param logicOffset 消息在消息队列的偏移量
+     * @param tagsCode 消息的tag 哈希值
+     * @param msgStoreTime 消息的存储到commitlog的时间
+     * @param filterBitMap
+     * @param properties 消息的属性
+     */
     void arriving(String topic, int queueId, long logicOffset, long tagsCode,
         long msgStoreTime, byte[] filterBitMap, Map<String, String> properties);
 }

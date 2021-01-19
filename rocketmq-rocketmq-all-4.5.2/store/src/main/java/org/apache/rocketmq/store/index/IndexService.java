@@ -218,27 +218,40 @@ public class IndexService {
         return new QueryOffsetResult(phyOffsets, indexLastUpdateTimestamp, indexLastUpdatePhyoffset);
     }
 
+    /**
+     * 索引关键字
+     * @param topic 主题
+     * @param key 消息id
+     * @return
+     */
     private String buildKey(final String topic, final String key) {
+        //返回 主题#消息id
         return topic + "#" + key;
     }
 
     /**
-     * 为commitlog中的某个消息构建下标信息
+     * 将消息的uniod和key分别计算哈希值 计算消息在commitlog中的位置信息在indexFile的位置
      * @param req 消息的分发请求
      */
     public void buildIndex(DispatchRequest req) {
         //获取或者创建一个IndexFile文件
         IndexFile indexFile = retryGetAndCreateIndexFile();
         if (indexFile != null) {
-            //结束为止
+            //获取结束的物理偏移量
             long endPhyOffset = indexFile.getEndPhyOffset();
+            //获取request
             DispatchRequest msg = req;
+            //获取主题
             String topic = msg.getTopic();
+            //获取keys
             String keys = msg.getKeys();
+
+            //如果消息的物理偏移量 小于已经写到的物理偏移量
             if (msg.getCommitLogOffset() < endPhyOffset) {
                 return;
             }
 
+            //获取事务类型
             final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
             switch (tranType) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
@@ -249,7 +262,9 @@ public class IndexService {
                     return;
             }
 
+            //获取消息的唯一id
             if (req.getUniqKey() != null) {
+                //将消息的索引信息写入到indexFile文件
                 indexFile = putKey(indexFile, msg, buildKey(topic, req.getUniqKey()));
                 if (indexFile == null) {
                     log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
@@ -262,6 +277,7 @@ public class IndexService {
                 for (int i = 0; i < keyset.length; i++) {
                     String key = keyset[i];
                     if (key.length() > 0) {
+                        //将消息的关键字写入到indexFile 用于查询
                         indexFile = putKey(indexFile, msg, buildKey(topic, key));
                         if (indexFile == null) {
                             log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
@@ -325,9 +341,13 @@ public class IndexService {
      * @return
      */
     public IndexFile getAndCreateLastIndexFile() {
+        //indexFile
         IndexFile indexFile = null;
+        //上一个indexFile
         IndexFile prevIndexFile = null;
+        //indexFile记录的最后一条索引信息的在commitlog消息的物理偏移量
         long lastUpdateEndPhyOffset = 0;
+        //indexFile记录的最后一条索引信息在commitlog的消息的生产日期
         long lastUpdateIndexTimestamp = 0;
 
         {
@@ -388,20 +408,27 @@ public class IndexService {
         return indexFile;
     }
 
+    /**
+     * 将某个indexFile的mappedFile中的内容刷新到磁盘
+     * @param f
+     */
     public void flush(final IndexFile f) {
         if (null == f)
             return;
 
         long indexMsgTimestamp = 0;
 
-        if (f.isWriteFull()) {
+        if (f.isWriteFull()) {//文件已经写满
             indexMsgTimestamp = f.getEndTimestamp();
         }
 
+        //刷新文件到磁盘
         f.flush();
 
-        if (indexMsgTimestamp > 0) {
+        if (indexMsgTimestamp > 0) {//文件写满了
+            //记录一个时间点
             this.defaultMessageStore.getStoreCheckpoint().setIndexMsgTimestamp(indexMsgTimestamp);
+            //刷新记录点
             this.defaultMessageStore.getStoreCheckpoint().flush();
         }
     }
