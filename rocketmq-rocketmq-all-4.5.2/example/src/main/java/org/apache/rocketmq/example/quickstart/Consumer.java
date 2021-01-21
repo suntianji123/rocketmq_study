@@ -59,6 +59,7 @@ public class Consumer {
         //注册消息监听器
         consumer.registerMessageListener(new MessageListenerConcurrently() {
 
+            //消费消息 返回消费的状态
             @Override
             public ConsumeConcurrentlyStatus consumeMessage(List<MessageExt> msgs,
                 ConsumeConcurrentlyContext context) {

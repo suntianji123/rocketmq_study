@@ -34,10 +34,29 @@ public class ConsumerStatsManager {
     private static final String TOPIC_AND_GROUP_PULL_TPS = "PULL_TPS";
     private static final String TOPIC_AND_GROUP_PULL_RT = "PULL_RT";
 
+    /**
+     * 消费者组消费某个主题的消息成功的数量、次数
+     */
     private final StatsItemSet topicAndGroupConsumeOKTPS;
+
+    /**
+     * 消费者组消费某个主题消息总的耗时、次数
+     */
     private final StatsItemSet topicAndGroupConsumeRT;
+
+    /**
+     * 消费者组消费某个主题的消息失败的数量、次数
+     */
     private final StatsItemSet topicAndGroupConsumeFailedTPS;
+
+    /**
+     * 消费者拉取某个主题消息的总数量
+     */
     private final StatsItemSet topicAndGroupPullTPS;
+
+    /**
+     * 消费者组拉取某个主题消息总的耗时、次数
+     */
     private final StatsItemSet topicAndGroupPullRT;
 
     public ConsumerStatsManager(final ScheduledExecutorService scheduledExecutorService) {
@@ -61,14 +80,32 @@ public class ConsumerStatsManager {
     public void shutdown() {
     }
 
+    /**
+     * 增加消费者组拉取某个主题消息的总的消耗时间、次数
+     * @param group 消费者组
+     * @param topic 主题
+     * @param rt 消耗时间
+     */
     public void incPullRT(final String group, final String topic, final long rt) {
         this.topicAndGroupPullRT.addValue(topic + "@" + group, (int) rt, 1);
     }
 
+    /**
+     * 增加消费者组拉取某个主题的消息的总数量
+     * @param group 消费者组
+     * @param topic 主题
+     * @param msgs 增加的消息数量
+     */
     public void incPullTPS(final String group, final String topic, final long msgs) {
         this.topicAndGroupPullTPS.addValue(topic + "@" + group, (int) msgs, 1);
     }
 
+    /**
+     * 增加消费者组消费某个主题的消息的总耗时、总次数
+     * @param group 消费者组名
+     * @param topic 主题
+     * @param rt 增加的耗时
+     */
     public void incConsumeRT(final String group, final String topic, final long rt) {
         this.topicAndGroupConsumeRT.addValue(topic + "@" + group, (int) rt, 1);
     }

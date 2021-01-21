@@ -274,7 +274,7 @@ public class TopicConfigManager extends ConfigManager {
     /**
      * 创建主题配置
      * @param topic 主题
-     * @param clientDefaultTopicQueueNums 广播站缓存这个主题的消息的队列的数量
+     * @param clientDefaultTopicQueueNums 广播站存放这个主题的消息的队列的数量
      * @param perm 广播站对这个主题的权限
      * @param topicSysFlag 系统标志位
      * @return
@@ -302,9 +302,9 @@ public class TopicConfigManager extends ConfigManager {
 
                     //实例化一个主题配置对象
                     topicConfig = new TopicConfig(topic);
-                    //设置广播站缓存将要推送给消息者的这个主题的消息的队列数量
+                    //设置这个主题的消费队列的数量
                     topicConfig.setReadQueueNums(clientDefaultTopicQueueNums);
-                    //设置广播站缓存接收从生产者推送过来的额这个主题的消息的的队列数量
+                    //设置广播站存放从生产者推送过来的额这个主题的消息的的队列数量
                     topicConfig.setWriteQueueNums(clientDefaultTopicQueueNums);
                     //设置权限
                     topicConfig.setPerm(perm);

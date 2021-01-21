@@ -20,7 +20,7 @@ package org.apache.rocketmq.common.subscription;
 import org.apache.rocketmq.common.MixAll;
 
 /**
- * 订阅配置类
+ * 消费者组订阅配置类
  */
 public class SubscriptionGroupConfig {
 
@@ -37,14 +37,30 @@ public class SubscriptionGroupConfig {
 
     private boolean consumeBroadcastEnable = true;
 
+    /**
+     * 当消息者消费消息失败时 为消费者组创建%RETRY%GROUP主题消息队列的数量
+     */
     private int retryQueueNums = 1;
 
+    /**
+     * 消费者消费消息失败  将消息推送给消费者组retry主题消息队列的次数
+     */
     private int retryMaxTimes = 16;
 
+    /**
+     * 广播站id
+     */
     private long brokerId = MixAll.MASTER_ID;
 
+    /**
+     * 当消费者从某个主站的消费队列对用的commitlog拉取消息时 下次拉取的消息在内存中没有 只有磁盘中存在
+     * 建议选择id为1的从站去拉取消息
+     */
     private long whichBrokerWhenConsumeSlowly = 1;
 
+    /**
+     * 当消费者组下的消费者增加或者减少时 是否通知其他消费者 消费者组下的ids变更
+     */
     private boolean notifyConsumerIdsChangedEnable = true;
 
     public String getGroupName() {

@@ -81,6 +81,12 @@ public class ExpressionMessageFilter implements MessageFilter {
         }
     }
 
+    /**
+     * 判断消息的tag是否会被表达式过滤器过滤
+     * @param tagsCode tagsCode
+     * @param cqExtUnit extend unit of consume queue
+     * @return
+     */
     @Override
     public boolean isMatchedByConsumeQueue(Long tagsCode, ConsumeQueueExt.CqExtUnit cqExtUnit) {
         if (null == subscriptionData) {
@@ -91,17 +97,19 @@ public class ExpressionMessageFilter implements MessageFilter {
             return true;
         }
 
-        // by tags code.
+        //标签类型的标识
         if (ExpressionType.isTagType(subscriptionData.getExpressionType())) {
 
             if (tagsCode == null) {
                 return true;
             }
 
+            //所有标签都满足
             if (subscriptionData.getSubString().equals(SubscriptionData.SUB_ALL)) {
                 return true;
             }
 
+            //过滤掉其中包含的标签
             return subscriptionData.getCodeSet().contains(tagsCode.intValue());
         } else {
             // no expression or no bloom

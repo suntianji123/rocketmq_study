@@ -103,6 +103,7 @@ public class ConsumerFilterManager extends ConfigManager {
 
     public void register(final String consumerGroup, final Collection<SubscriptionData> subList) {
         for (SubscriptionData subscriptionData : subList) {
+            //注册消息者组的每一个主题对应的订阅配置数据
             register(
                 subscriptionData.getTopic(),
                 consumerGroup,
@@ -134,6 +135,15 @@ public class ConsumerFilterManager extends ConfigManager {
         }
     }
 
+    /**
+     * 注册消费者组的某个主题订阅配置数据列表
+     * @param topic 主题
+     * @param consumerGroup 消费者组
+     * @param expression 表达式
+     * @param type 过滤消息类型
+     * @param clientVersion 客户端版本
+     * @return
+     */
     public boolean register(final String topic, final String consumerGroup, final String expression,
         final String type, final long clientVersion) {
         if (ExpressionType.isTagType(type)) {

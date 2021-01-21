@@ -35,6 +35,10 @@ public class MessageConst {
      */
     public static final String PROPERTY_WAIT_STORE_MSG_OK = "WAIT";
     public static final String PROPERTY_DELAY_TIME_LEVEL = "DELAY";
+
+    /**
+     * 在消费者组retry or dlq主题消息队列中的消息的原始主题
+     */
     public static final String PROPERTY_RETRY_TOPIC = "RETRY_TOPIC";
 
     /**
@@ -56,9 +60,21 @@ public class MessageConst {
      * 消息属性 生产者组名
      */
     public static final String PROPERTY_PRODUCER_GROUP = "PGROUP";
+
+    /**
+     * 消息所在的消费队列的消息的最小偏移量
+     */
     public static final String PROPERTY_MIN_OFFSET = "MIN_OFFSET";
+
+    /**
+     * 消息所在的消费队列的消息的最大偏移量
+     */
     public static final String PROPERTY_MAX_OFFSET = "MAX_OFFSET";
     public static final String PROPERTY_BUYER_ID = "BUYER_ID";
+
+    /**
+     * 位于消费者组retry or dlq主题消息队列的消息的原始msgId
+     */
     public static final String PROPERTY_ORIGIN_MESSAGE_ID = "ORIGIN_MESSAGE_ID";
     public static final String PROPERTY_TRANSFER_FLAG = "TRANSFER_FLAG";
     public static final String PROPERTY_CORRECTION_FLAG = "CORRECTION_FLAG";
@@ -88,6 +104,10 @@ public class MessageConst {
      * 消息最大重新消费的次数
      */
     public static final String PROPERTY_MAX_RECONSUME_TIMES = "MAX_RECONSUME_TIMES";
+
+    /**
+     * 消息被消费者消费的开始时间
+     */
     public static final String PROPERTY_CONSUME_START_TIMESTAMP = "CONSUME_START_TIME";
     public static final String PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET = "TRAN_PREPARED_QUEUE_OFFSET";
     public static final String PROPERTY_TRANSACTION_CHECK_TIMES = "TRANSACTION_CHECK_TIMES";

@@ -54,12 +54,20 @@ public class MessageExt extends Message {
      * 消息id
      */
     private String msgId;
+
+    /**
+     * 消息在commitlog文件系统中的偏移量
+     */
     private long commitLogOffset;
 
     /**
      * 消息体字节数组的CRC值 防止消息体被恶意更改
      */
     private int bodyCRC;
+
+    /**
+     * 消息被重新消费的次数 当消息被消费者消费失败时 再次消费 这个值增加1
+     */
     private int reconsumeTimes;
 
     /**

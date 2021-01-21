@@ -22,15 +22,16 @@ package org.apache.rocketmq.broker.client;
 public enum ConsumerGroupEvent {
 
     /**
-     * 某个进程的这个组名的消费者发生改变
+     * 广播站所维护的消费者组的成员变更 或者消费者组的订阅数据发生变更
      */
     CHANGE,
     /**
      * The group of consumer is unregistered.
      */
     UNREGISTER,
+
     /**
-     * The group of consumer is registered.
+     * 注册消费者组的订阅配置
      */
     REGISTER
 }

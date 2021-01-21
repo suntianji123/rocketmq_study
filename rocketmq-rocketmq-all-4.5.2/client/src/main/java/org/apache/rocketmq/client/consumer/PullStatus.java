@@ -16,21 +16,28 @@
  */
 package org.apache.rocketmq.client.consumer;
 
+/**
+ * 消费者从广播站拉取消息结果状态枚举
+ */
 public enum PullStatus {
+
     /**
-     * Founded
+     * 拉取到了消息
      */
     FOUND,
+
     /**
-     * No new message can be pull
+     * 没有新消息
      */
     NO_NEW_MSG,
+
     /**
-     * Filtering results can not match
+     * 广播站没有匹配到消息 尝试从其他站点获取
      */
     NO_MATCHED_MSG,
+
     /**
-     * Illegal offset,may be too big or too small
+     * 偏移量非法
      */
     OFFSET_ILLEGAL
 }

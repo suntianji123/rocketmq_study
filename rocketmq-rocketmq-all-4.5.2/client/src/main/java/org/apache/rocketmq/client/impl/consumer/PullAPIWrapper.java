@@ -54,6 +54,10 @@ public class PullAPIWrapper {
     private final MQClientInstance mQClientFactory;
     private final String consumerGroup;
     private final boolean unitMode;
+
+    /**
+     * 消费者从主题消息队列拉取消息时 建议使用的广播站id
+     */
     private ConcurrentMap<MessageQueue, AtomicLong/* brokerId */> pullFromWhichNodeTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
     private volatile boolean connectBrokerByUser = false;
@@ -67,18 +71,31 @@ public class PullAPIWrapper {
         this.unitMode = unitMode;
     }
 
+    /**
+     * 处理消费者从广播站拉取消息结果
+     * @param mq 消息队列
+     * @param pullResult 拉取消息结果
+     * @param subscriptionData 消息者订阅的主题数据
+     * @return
+     */
     public PullResult processPullResult(final MessageQueue mq, final PullResult pullResult,
         final SubscriptionData subscriptionData) {
+        //获取拉取结果
         PullResultExt pullResultExt = (PullResultExt) pullResult;
 
+        //更新消费者从这个主题消息队列拉取消息时 建议使用的广播站id
         this.updatePullFromWhichNode(mq, pullResultExt.getSuggestWhichBrokerId());
-        if (PullStatus.FOUND == pullResult.getPullStatus()) {
+        if (PullStatus.FOUND == pullResult.getPullStatus()) {//如果找到了消息
+            //将字节数组 转为byteBuffer
             ByteBuffer byteBuffer = ByteBuffer.wrap(pullResultExt.getMessageBinary());
+            //从byteBuffer中解析出消息列表
             List<MessageExt> msgList = MessageDecoder.decodes(byteBuffer);
 
             List<MessageExt> msgListFilterAgain = msgList;
             if (!subscriptionData.getTagsSet().isEmpty() && !subscriptionData.isClassFilterMode()) {
                 msgListFilterAgain = new ArrayList<MessageExt>(msgList.size());
+
+                //过滤掉消费者没有订阅的标签
                 for (MessageExt msg : msgList) {
                     if (msg.getTags() != null) {
                         if (subscriptionData.getTagsSet().contains(msg.getTags())) {
@@ -95,25 +112,38 @@ public class PullAPIWrapper {
                 this.executeHook(filterMessageContext);
             }
 
+            //遍历过滤掉订阅标签之后的消息
             for (MessageExt msg : msgListFilterAgain) {
+                //是否有事务
                 String traFlag = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED);
                 if (Boolean.parseBoolean(traFlag)) {
+                    //设置消息的事务id
                     msg.setTransactionId(msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX));
                 }
+
+                //向消息的properlies属性中添加消息所在的消费队列的最小偏移量
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_MIN_OFFSET,
                     Long.toString(pullResult.getMinOffset()));
+                //向消息的properties属性中添加消息所在的消费队列的最大偏移量
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_MAX_OFFSET,
                     Long.toString(pullResult.getMaxOffset()));
             }
 
+            //将消息添加到找到的消息列表
             pullResultExt.setMsgFoundList(msgListFilterAgain);
         }
 
+        //设置字节数组为null
         pullResultExt.setMessageBinary(null);
 
         return pullResult;
     }
 
+    /**
+     * 更新某个
+     * @param mq
+     * @param brokerId
+     */
     public void updatePullFromWhichNode(final MessageQueue mq, final long brokerId) {
         AtomicLong suggest = this.pullFromWhichNodeTable.get(mq);
         if (null == suggest) {

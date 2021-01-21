@@ -132,7 +132,7 @@ public class BrokerController {
     private final MessageArrivingListener messageArrivingListener;
 
     /**
-     * 广播站客户端
+     * 广播站客户端 主动给生产者或者消费者推送消息
      */
     private final Broker2Client broker2Client;
     private final SubscriptionGroupManager subscriptionGroupManager;

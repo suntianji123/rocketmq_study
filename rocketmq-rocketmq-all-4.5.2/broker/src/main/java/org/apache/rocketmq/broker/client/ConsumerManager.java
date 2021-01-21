@@ -45,6 +45,10 @@ public class ConsumerManager {
      */
     private final ConcurrentMap<String/* Group */, ConsumerGroupInfo> consumerTable =
         new ConcurrentHashMap<String, ConsumerGroupInfo>(1024);
+
+    /**
+     * 广播站检测到消费者组的消费者成员 或者是消费者组的订阅配置发生改变 监听处理器
+     */
     private final ConsumerIdsChangeListener consumerIdsChangeListener;
 
     public ConsumerManager(final ConsumerIdsChangeListener consumerIdsChangeListener) {
@@ -117,13 +121,15 @@ public class ConsumerManager {
         ConsumeType consumeType, MessageModel messageModel, ConsumeFromWhere consumeFromWhere,
         final Set<SubscriptionData> subList, boolean isNotifyConsumerIdsChangedEnable) {
 
-        //消息者信息对象不存在
+        //获取消费者组信息对象
         ConsumerGroupInfo consumerGroupInfo = this.consumerTable.get(group);
         if (null == consumerGroupInfo) {
-            //实例化一个消费者
+            //实例化一个消费者组信息对象
             ConsumerGroupInfo tmp = new ConsumerGroupInfo(group, consumeType, messageModel, consumeFromWhere);
             //将消费者放入消费者列表
             ConsumerGroupInfo prev = this.consumerTable.putIfAbsent(group, tmp);
+
+            //多线程环境下存在
             consumerGroupInfo = prev != null ? prev : tmp;
         }
 
@@ -136,7 +142,7 @@ public class ConsumerManager {
         //消费者组订阅的主题列表发生变更
         boolean r2 = consumerGroupInfo.updateSubscription(subList);
 
-        if (r1 || r2) {
+        if (r1 || r2) {//如果消费组的消费者成员发生变化或者消费者组主题订阅数据发生变化
             if (isNotifyConsumerIdsChangedEnable) {
                 //通知所有有这个消费者组名的客户端 消费者发生变更
                 this.consumerIdsChangeListener.handle(ConsumerGroupEvent.CHANGE, group, consumerGroupInfo.getAllChannel());

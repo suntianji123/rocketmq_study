@@ -81,7 +81,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                                           RemotingCommand request) throws RemotingCommandException {
         SendMessageContext mqtraceContext;
         switch (request.getCode()) {
-            case RequestCode.CONSUMER_SEND_MSG_BACK:
+            case RequestCode.CONSUMER_SEND_MSG_BACK://消费者消费消息失败 将消息重新推送给广播站的请求
                 return this.consumerSendMsgBack(ctx, request);
             default:
                 //获取推送消息的请求头对象
@@ -114,12 +114,23 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             this.brokerController.getMessageStore().isTransientStorePoolDeficient();
     }
 
+    /**
+     * 处理消费者消费消息失败  将消息重新推送给消费者的请求
+     * @param ctx channelhandlerContext
+     * @param request 请求对象
+     * @return
+     * @throws RemotingCommandException
+     */
     private RemotingCommand consumerSendMsgBack(final ChannelHandlerContext ctx, final RemotingCommand request)
         throws RemotingCommandException {
+
+        //创建响应
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
+        //解码请求头
         final ConsumerSendMsgBackRequestHeader requestHeader =
             (ConsumerSendMsgBackRequestHeader)request.decodeCommandCustomHeader(ConsumerSendMsgBackRequestHeader.class);
 
+        //获取消息者组的命名空间
         String namespace = NamespaceUtil.getNamespaceFromResource(requestHeader.getGroup());
         if (this.hasConsumeMessageHook() && !UtilAll.isBlank(requestHeader.getOriginMsgId())) {
 
@@ -134,35 +145,44 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             this.executeConsumeMessageHookAfter(context);
         }
 
+        //获取消费组主题的订阅配置
         SubscriptionGroupConfig subscriptionGroupConfig =
             this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(requestHeader.getGroup());
         if (null == subscriptionGroupConfig) {
+            //消费者组主题 订阅配置不存在
             response.setCode(ResponseCode.SUBSCRIPTION_GROUP_NOT_EXIST);
             response.setRemark("subscription group not exist, " + requestHeader.getGroup() + " "
                 + FAQUrl.suggestTodo(FAQUrl.SUBSCRIPTION_GROUP_NOT_EXIST));
             return response;
         }
 
+        //广播站不能存放消息
         if (!PermName.isWriteable(this.brokerController.getBrokerConfig().getBrokerPermission())) {
             response.setCode(ResponseCode.NO_PERMISSION);
             response.setRemark("the broker[" + this.brokerController.getBrokerConfig().getBrokerIP1() + "] sending message is forbidden");
             return response;
         }
 
+        //重试队列的数量小于0
         if (subscriptionGroupConfig.getRetryQueueNums() <= 0) {
             response.setCode(ResponseCode.SUCCESS);
             response.setRemark(null);
             return response;
         }
 
+        //获取消费者重试的主题
         String newTopic = MixAll.getRetryTopic(requestHeader.getGroup());
+
+        //随机一个重试主题队列
         int queueIdInt = Math.abs(this.random.nextInt() % 99999999) % subscriptionGroupConfig.getRetryQueueNums();
 
+        //主题系统标志位
         int topicSysFlag = 0;
         if (requestHeader.isUnitMode()) {
             topicSysFlag = TopicSysFlag.buildSysFlag(false, true);
         }
 
+        //获取消费者组对应的retry主题配置对象
         TopicConfig topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(
             newTopic,
             subscriptionGroupConfig.getRetryQueueNums(),
@@ -173,37 +193,50 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             return response;
         }
 
+        //消费者的retry主题消息队列不可存放数据
         if (!PermName.isWriteable(topicConfig.getPerm())) {
             response.setCode(ResponseCode.NO_PERMISSION);
             response.setRemark(String.format("the topic[%s] sending message is forbidden", newTopic));
             return response;
         }
 
+        //从commitlog文件系统中查找消息
         MessageExt msgExt = this.brokerController.getMessageStore().lookMessageByOffset(requestHeader.getOffset());
         if (null == msgExt) {
+            //系统错误
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark("look message by offset failed, " + requestHeader.getOffset());
             return response;
         }
 
         final String retryTopic = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
-        if (null == retryTopic) {
+        if (null == retryTopic) {//保留原始主题
             MessageAccessor.putProperty(msgExt, MessageConst.PROPERTY_RETRY_TOPIC, msgExt.getTopic());
         }
+
+        //设置等待存储消息
         msgExt.setWaitStoreMsgOK(false);
 
+        //获取重新消费次数控制
         int delayLevel = requestHeader.getDelayLevel();
 
+        //最大重新消费次数 默认为16
         int maxReconsumeTimes = subscriptionGroupConfig.getRetryMaxTimes();
         if (request.getVersion() >= MQVersion.Version.V3_4_9.ordinal()) {
+            //获取最大重新次数
             maxReconsumeTimes = requestHeader.getMaxReconsumeTimes();
         }
 
+        //消息被重新消费的次数大于最大次数
         if (msgExt.getReconsumeTimes() >= maxReconsumeTimes
-            || delayLevel < 0) {
+            || delayLevel < 0) {//获取将消息放入dlq
+            //获取消费者组对应的dlq主题
             newTopic = MixAll.getDLQTopic(requestHeader.getGroup());
+
+            //选择一个主题消息队列
             queueIdInt = Math.abs(this.random.nextInt() % 99999999) % DLQ_NUMS_PER_GROUP;
 
+            //创建一个消费者dlq主题配置
             topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic,
                 DLQ_NUMS_PER_GROUP,
                 PermName.PERM_WRITE, 0
@@ -218,40 +251,61 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                 delayLevel = 3 + msgExt.getReconsumeTimes();
             }
 
+            //设置延时时间级别
             msgExt.setDelayTimeLevel(delayLevel);
         }
 
+        //将消息存在消费者组的RETRY主题消息队列 或者DLQ主题消息队列
+        //实例化一个消息
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
+        //设置消息主题 %RETRY%ConsumeGroupName or %DLQ%ConsumeGroupName
         msgInner.setTopic(newTopic);
+        //设置消息体
         msgInner.setBody(msgExt.getBody());
+        //设置生产者标志
         msgInner.setFlag(msgExt.getFlag());
+        //设置属性map
         MessageAccessor.setProperties(msgInner, msgExt.getProperties());
+        //设置属性值字符串格式
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgExt.getProperties()));
+        //设置消息的tags标签的哈希值
         msgInner.setTagsCode(MessageExtBrokerInner.tagsString2tagsCode(null, msgExt.getTags()));
-
+        //设置主题消息队列编号
         msgInner.setQueueId(queueIdInt);
+        //设置系统标志
         msgInner.setSysFlag(msgExt.getSysFlag());
+        //设置消息的生产时间
         msgInner.setBornTimestamp(msgExt.getBornTimestamp());
+        //设置消息的生产地址
         msgInner.setBornHost(msgExt.getBornHost());
+        //设置消息的存储地址
         msgInner.setStoreHost(this.getStoreHost());
+        //设置消息被重新消息的次数
         msgInner.setReconsumeTimes(msgExt.getReconsumeTimes() + 1);
 
+        //将消息的原始id保存到Properlies map
         String originMsgId = MessageAccessor.getOriginMessageId(msgExt);
         MessageAccessor.setOriginMessageId(msgInner, UtilAll.isBlank(originMsgId) ? msgExt.getMsgId() : originMsgId);
 
+        //将消息写入到commitlog文件
         PutMessageResult putMessageResult = this.brokerController.getMessageStore().putMessage(msgInner);
         if (putMessageResult != null) {
-            switch (putMessageResult.getPutMessageStatus()) {
+            switch (putMessageResult.getPutMessageStatus()) {//将消息存放于commitlog文件系统成功
                 case PUT_OK:
+                    //获取椎体
                     String backTopic = msgExt.getTopic();
+                    //获取原始主题
                     String correctTopic = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
                     if (correctTopic != null) {
                         backTopic = correctTopic;
                     }
 
+                    // 增加某个主题的消息由于消费者消费失败 重新发送给广播站的RETRY OR DLQ主题的消息总数
                     this.brokerController.getBrokerStatsManager().incSendBackNums(requestHeader.getGroup(), backTopic);
 
+                    //设置响应成功
                     response.setCode(ResponseCode.SUCCESS);
+                    //设置标记
                     response.setRemark(null);
 
                     return response;
@@ -259,7 +313,9 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                     break;
             }
 
+            //设置系统错误
             response.setCode(ResponseCode.SYSTEM_ERROR);
+            //设置标记
             response.setRemark(putMessageResult.getPutMessageStatus().name());
             return response;
         }

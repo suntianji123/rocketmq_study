@@ -16,23 +16,50 @@
  */
 package org.apache.rocketmq.store;
 
+/**
+ * 从消费队列获取消息的结果枚举
+ */
 public enum GetMessageStatus {
 
+    /**
+     * 找到了消息
+     */
     FOUND,
 
+    /**
+     * 消息的标签与消费者消息的不签不一致
+     */
     NO_MATCHED_MESSAGE,
 
+    /**
+     * 从commitlog指定位置获取消息时 返回的字节数为0 说明消息已经从commitlog文件系统中删除
+     */
     MESSAGE_WAS_REMOVING,
 
+    /**
+     * 没有从commillog中获取到消息
+     */
     OFFSET_FOUND_NULL,
 
+    /**
+     * 获取消息的偏移量超过了消费队列中消息最大偏移量
+     */
     OFFSET_OVERFLOW_BADLY,
 
+    /**
+     * 获取消息的偏移量刚好超过了消费队列中消息最大偏移量
+     */
     OFFSET_OVERFLOW_ONE,
 
+    /**
+     * 获取消息的在偏移量小于消费队列的最低偏移量
+     */
     OFFSET_TOO_SMALL,
 
     NO_MATCHED_LOGIC_QUEUE,
 
+    /**
+     * 消费队列中没有消息
+     */
     NO_MESSAGE_IN_QUEUE,
 }

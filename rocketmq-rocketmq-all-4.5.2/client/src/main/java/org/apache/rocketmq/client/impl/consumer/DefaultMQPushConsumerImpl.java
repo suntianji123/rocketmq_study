@@ -357,29 +357,43 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
         //拉取之后的回调对象
         PullCallback pullCallback = new PullCallback() {
+
+            //从广播站拉取消息之后的处理
             @Override
             public void onSuccess(PullResult pullResult) {
-                if (pullResult != null) {
+                if (pullResult != null) {//拉取消息结果不能为空
+
+                    //解析pulllresult的字节数组为消息列表
                     pullResult = DefaultMQPushConsumerImpl.this.pullAPIWrapper.processPullResult(pullRequest.getMessageQueue(), pullResult,
                         subscriptionData);
 
-                    switch (pullResult.getPullStatus()) {
-                        case FOUND:
+                    switch (pullResult.getPullStatus()) {//判断拉取结果
+                        case FOUND://找到了消息
+
+                            //之前批量拉取消息的起始偏移量
                             long prevRequestOffset = pullRequest.getNextOffset();
+                            //设置下一次批量拉取消息时候的起始偏移量
                             pullRequest.setNextOffset(pullResult.getNextBeginOffset());
+                            //拉取消息总的消耗时间
                             long pullRT = System.currentTimeMillis() - beginTimestamp;
+
+                            //增减消费者组拉取某个主题的消息的总的耗时、次数
                             DefaultMQPushConsumerImpl.this.getConsumerStatsManager().incPullRT(pullRequest.getConsumerGroup(),
                                 pullRequest.getMessageQueue().getTopic(), pullRT);
 
                             long firstMsgOffset = Long.MAX_VALUE;
                             if (pullResult.getMsgFoundList() == null || pullResult.getMsgFoundList().isEmpty()) {
+                                //再次发起请求
                                 DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             } else {
+                                //获取第一个消息在主题消息队列中的偏移量
                                 firstMsgOffset = pullResult.getMsgFoundList().get(0).getQueueOffset();
 
+                                //增加消费者拉取某个主题的消息的总的数量
                                 DefaultMQPushConsumerImpl.this.getConsumerStatsManager().incPullTPS(pullRequest.getConsumerGroup(),
                                     pullRequest.getMessageQueue().getTopic(), pullResult.getMsgFoundList().size());
 
+                                //将消息添加到处理队列 返回是否需要将处理队列中的消息交给消费者去消费
                                 boolean dispatchToConsume = processQueue.putMessage(pullResult.getMsgFoundList());
                                 DefaultMQPushConsumerImpl.this.consumeMessageService.submitConsumeRequest(
                                     pullResult.getMsgFoundList(),
@@ -387,14 +401,16 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                                     pullRequest.getMessageQueue(),
                                     dispatchToConsume);
 
-                                if (DefaultMQPushConsumerImpl.this.defaultMQPushConsumer.getPullInterval() > 0) {
+                                if (DefaultMQPushConsumerImpl.this.defaultMQPushConsumer.getPullInterval() > 0) {//如果拉取消息的间隔大于0
                                     DefaultMQPushConsumerImpl.this.executePullRequestLater(pullRequest,
                                         DefaultMQPushConsumerImpl.this.defaultMQPushConsumer.getPullInterval());
                                 } else {
+                                    //再次尝试从广播站拉取消息
                                     DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                                 }
                             }
 
+                            //记录bug日志
                             if (pullResult.getNextBeginOffset() < prevRequestOffset
                                 || firstMsgOffset < prevRequestOffset) {
                                 log.warn(
@@ -580,39 +596,67 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         log.info("resume this consumer, {}", this.defaultMQPushConsumer.getConsumerGroup());
     }
 
+    /**
+     * 将被消费者消费失败的消息重新推送给广播站
+     * @param msg 消息
+     * @param delayLevel 重试次数控制
+     * @param brokerName 广播站站名
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     * @throws MQClientException
+     */
     public void sendMessageBack(MessageExt msg, int delayLevel, final String brokerName)
         throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         try {
+            //寻找主站地址
             String brokerAddr = (null != brokerName) ? this.mQClientFactory.findBrokerAddressInPublish(brokerName)
                 : RemotingHelper.parseSocketAddressAddr(msg.getStoreHost());
+
+            //将消费失败的消息重新推送给广播站
             this.mQClientFactory.getMQClientAPIImpl().consumerSendMessageBack(brokerAddr, msg,
                 this.defaultMQPushConsumer.getConsumerGroup(), delayLevel, 5000, getMaxReconsumeTimes());
         } catch (Exception e) {
+            //如果消费者推送消息到消费者组的RETRY OR Dlq队列失败 则尝试使用生产者推送消息
             log.error("sendMessageBack Exception, " + this.defaultMQPushConsumer.getConsumerGroup(), e);
 
+            //实例化一个消息 主题为消费者组的RETRY
             Message newMsg = new Message(MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup()), msg.getBody());
 
+            //保存原始消息的msgId到Properties属性map
             String originMsgId = MessageAccessor.getOriginMessageId(msg);
             MessageAccessor.setOriginMessageId(newMsg, UtilAll.isBlank(originMsgId) ? msg.getMsgId() : originMsgId);
 
+            //设置消息生产者自定义标志
             newMsg.setFlag(msg.getFlag());
+            //设置属性
             MessageAccessor.setProperties(newMsg, msg.getProperties());
+            //保留原始主题
             MessageAccessor.putProperty(newMsg, MessageConst.PROPERTY_RETRY_TOPIC, msg.getTopic());
+            //设置重试次数
             MessageAccessor.setReconsumeTime(newMsg, String.valueOf(msg.getReconsumeTimes() + 1));
+            //设置最大重试次数
             MessageAccessor.setMaxReconsumeTimes(newMsg, String.valueOf(getMaxReconsumeTimes()));
+            //设置延时级别
             newMsg.setDelayTimeLevel(3 + msg.getReconsumeTimes());
-
+            //给广播站推送消息
             this.mQClientFactory.getDefaultMQProducer().send(newMsg);
         } finally {
+            //重新设置消息的主题
             msg.setTopic(NamespaceUtil.withoutNamespace(msg.getTopic(), this.defaultMQPushConsumer.getNamespace()));
         }
     }
 
+    /**
+     * 消费者消费消息失败时 将消息重新推送给广播站  最大重新消费的次数
+     * @return
+     */
     private int getMaxReconsumeTimes() {
-        // default reconsume times: 16
+        // 没有设置 默认为16
         if (this.defaultMQPushConsumer.getMaxReconsumeTimes() == -1) {
             return 16;
         } else {
+            //直接获取最大重新消费次数
             return this.defaultMQPushConsumer.getMaxReconsumeTimes();
         }
     }
@@ -687,7 +731,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         case BROADCASTING:
                             this.offsetStore = new LocalFileOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
                             break;
-                        case CLUSTERING:
+                        case CLUSTERING://消息模型为集群模式
+                            //主题消息队列的消费偏移量存储为远程的偏移存储
                             this.offsetStore = new RemoteBrokerOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
                             break;
                         default:
@@ -695,14 +740,18 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     }
                     this.defaultMQPushConsumer.setOffsetStore(this.offsetStore);
                 }
+
+                //加载主题消息队列的偏移量
                 this.offsetStore.load();
 
-                if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {
+                if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {//消费者消费消息的监听器类型为顺序的
                     this.consumeOrderly = true;
                     this.consumeMessageService =
                         new ConsumeMessageOrderlyService(this, (MessageListenerOrderly) this.getMessageListenerInner());
-                } else if (this.getMessageListenerInner() instanceof MessageListenerConcurrently) {
+                } else if (this.getMessageListenerInner() instanceof MessageListenerConcurrently) {//消费者消费消息的类型为实时的
+                    //设置消息者消费消费消息的标志位顺序的为false
                     this.consumeOrderly = false;
+                    //设置消费消息的服务为实时的
                     this.consumeMessageService =
                         new ConsumeMessageConcurrentlyService(this, (MessageListenerConcurrently) this.getMessageListenerInner());
                 }
@@ -713,7 +762,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 //将消费者注册到mqclientinstance
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
+                    //设置服务的状态 为刚刚创建
                     this.serviceState = ServiceState.CREATE_JUST;
+                    //关闭消费消息的服务
                     this.consumeMessageService.shutdown();
                     throw new MQClientException("The consumer group[" + this.defaultMQPushConsumer.getConsumerGroup()
                         + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL),
@@ -964,7 +1015,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 case BROADCASTING:
                     break;
                 case CLUSTERING:
-                    //获取RETRY类型的主题
+                    //为消息添加一个RETRY类型的主题 用于存放消费者消息失败时 将消息重新推送给广播站
                     final String retryTopic = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
                     //构建消费者RETRY类型的主题对应的订阅数据
                     SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(),
@@ -1131,10 +1182,17 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return this.defaultMQPushConsumer.getConsumeFromWhere();
     }
 
+    /**
+     * 获取某个消费者组订阅的数据列表
+     * @return
+     */
     @Override
     public Set<SubscriptionData> subscriptions() {
+
+        //实例化一个set
         Set<SubscriptionData> subSet = new HashSet<SubscriptionData>();
 
+        //将注册到平衡算法中的订阅数据添加到列表
         subSet.addAll(this.rebalanceImpl.getSubscriptionInner().values());
 
         return subSet;
@@ -1292,11 +1350,18 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return queueTimeSpan;
     }
 
+    /**
+     * 如果消息的properies属性map中包含retry属性 将消息的主题设置为retry
+     * @param msgs 消息列表
+     * @param consumerGroup 消费者组名
+     */
     public void resetRetryAndNamespace(final List<MessageExt> msgs, String consumerGroup) {
+        //获取%RETRY%consumeGroup的椎体
         final String groupTopic = MixAll.getRetryTopic(consumerGroup);
         for (MessageExt msg : msgs) {
             String retryTopic = msg.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
             if (retryTopic != null && groupTopic.equals(msg.getTopic())) {
+                //将消息设置为retrytopci
                 msg.setTopic(retryTopic);
             }
 

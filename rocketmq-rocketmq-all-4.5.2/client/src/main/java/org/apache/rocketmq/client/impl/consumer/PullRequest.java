@@ -39,7 +39,7 @@ public class PullRequest {
     private ProcessQueue processQueue;
 
     /**
-     * 将要消费的消息的起始偏移量
+     * 将要消费的消息在广播站消费队列的偏移量
      */
     private long nextOffset;
     private boolean lockedFirst = false;

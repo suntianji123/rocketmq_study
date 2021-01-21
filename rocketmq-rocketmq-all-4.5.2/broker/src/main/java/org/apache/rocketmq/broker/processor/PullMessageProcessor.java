@@ -280,19 +280,27 @@ public class PullMessageProcessor implements NettyRequestProcessor {
                 this.brokerController.getConsumerFilterManager());
         }
 
-        //获取消息
+        //批量通过消费队列指定的消息位置到commitlog中拉取消息
         final GetMessageResult getMessageResult =
             this.brokerController.getMessageStore().getMessage(requestHeader.getConsumerGroup(), requestHeader.getTopic(),
                 requestHeader.getQueueId(), requestHeader.getQueueOffset(), requestHeader.getMaxMsgNums(), messageFilter);
-        if (getMessageResult != null) {
+        if (getMessageResult != null) {//获取到了结果
+            //设置响应的装填
             response.setRemark(getMessageResult.getStatus().name());
+            //设置下一次从消费队列
             responseHeader.setNextBeginOffset(getMessageResult.getNextBeginOffset());
+
+            //设置消费在消费队列偏移量的最小值
             responseHeader.setMinOffset(getMessageResult.getMinOffset());
+
+            //设置消费在消费队列偏移量的最大值
             responseHeader.setMaxOffset(getMessageResult.getMaxOffset());
 
-            if (getMessageResult.isSuggestPullingFromSlave()) {
+            if (getMessageResult.isSuggestPullingFromSlave()) {//下一次获取的偏移量在这个广播站的内存中没有 建立从其他从站去获取
+                //选择id为1的从站
                 responseHeader.setSuggestWhichBrokerId(subscriptionGroupConfig.getWhichBrokerWhenConsumeSlowly());
             } else {
+                //主站的内存中存在消息 建议从主站拉取消息
                 responseHeader.setSuggestWhichBrokerId(MixAll.MASTER_ID);
             }
 
@@ -300,7 +308,8 @@ public class PullMessageProcessor implements NettyRequestProcessor {
                 case ASYNC_MASTER:
                 case SYNC_MASTER:
                     break;
-                case SLAVE:
+                case SLAVE://当前广播站的角色为从站
+                    //从站设置了 消费者和不能从从站拉取消息 设置响应结果 立即尝试重新拉取数据 从主站去啦
                     if (!this.brokerController.getBrokerConfig().isSlaveReadEnable()) {
                         response.setCode(ResponseCode.PULL_RETRY_IMMEDIATELY);
                         responseHeader.setSuggestWhichBrokerId(MixAll.MASTER_ID);
@@ -308,24 +317,29 @@ public class PullMessageProcessor implements NettyRequestProcessor {
                     break;
             }
 
-            if (this.brokerController.getBrokerConfig().isSlaveReadEnable()) {
+            if (this.brokerController.getBrokerConfig().isSlaveReadEnable()) {//从站可读
                 // consume too slow ,redirect to another machine
                 if (getMessageResult.isSuggestPullingFromSlave()) {
+                    //设置下一次拉取消息的id
                     responseHeader.setSuggestWhichBrokerId(subscriptionGroupConfig.getWhichBrokerWhenConsumeSlowly());
                 }
                 // consume ok
                 else {
+                    //下一次拉取消息继续使用当前的广播站拉取消息
                     responseHeader.setSuggestWhichBrokerId(subscriptionGroupConfig.getBrokerId());
                 }
             } else {
+                //从站设置了不可读 只能建议下一次拉取消息使用主站
                 responseHeader.setSuggestWhichBrokerId(MixAll.MASTER_ID);
             }
 
             switch (getMessageResult.getStatus()) {
                 case FOUND:
+                    //设置响应结果 成功
                     response.setCode(ResponseCode.SUCCESS);
                     break;
                 case MESSAGE_WAS_REMOVING:
+                    //消息被移除了  请立刻尝试重试
                     response.setCode(ResponseCode.PULL_RETRY_IMMEDIATELY);
                     break;
                 case NO_MATCHED_LOGIC_QUEUE:
@@ -414,21 +428,33 @@ public class PullMessageProcessor implements NettyRequestProcessor {
             }
 
             switch (response.getCode()) {
-                case ResponseCode.SUCCESS:
+                case ResponseCode.SUCCESS://响应成功
 
+                    //增加消费者组从主题拉取消息的总数量
                     this.brokerController.getBrokerStatsManager().incGroupGetNums(requestHeader.getConsumerGroup(), requestHeader.getTopic(),
                         getMessageResult.getMessageCount());
 
+                    //增加消费者组从主题拉取消息的总字节数
                     this.brokerController.getBrokerStatsManager().incGroupGetSize(requestHeader.getConsumerGroup(), requestHeader.getTopic(),
                         getMessageResult.getBufferTotalSize());
 
+                    //增加消费者从广播站集群拉取消息的总数量
                     this.brokerController.getBrokerStatsManager().incBrokerGetNums(getMessageResult.getMessageCount());
+                    //如果广播站设置的是通过堆来转移消息
                     if (this.brokerController.getBrokerConfig().isTransferMsgByHeap()) {
+
+                        //获取当前时间
                         final long beginTimeMills = this.brokerController.getMessageStore().now();
+
+                        //将从commiltlog中批量拉取的消息读入到字节数组
                         final byte[] r = this.readGetMessageResult(getMessageResult, requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId());
+
+                        //增加将批量消息 解析为字节数组的时间
                         this.brokerController.getBrokerStatsManager().incGroupGetLatency(requestHeader.getConsumerGroup(),
                             requestHeader.getTopic(), requestHeader.getQueueId(),
                             (int) (this.brokerController.getMessageStore().now() - beginTimeMills));
+
+                        //设置响应体
                         response.setBody(r);
                     } else {
                         try {
@@ -502,15 +528,18 @@ public class PullMessageProcessor implements NettyRequestProcessor {
                     assert false;
             }
         } else {
+            //设置响应为系统错误
             response.setCode(ResponseCode.SYSTEM_ERROR);
+            //设置响应标记
             response.setRemark("store getMessage return null");
         }
 
+        //允许缓存请求
         boolean storeOffsetEnable = brokerAllowSuspend;
         storeOffsetEnable = storeOffsetEnable && hasCommitOffsetFlag;
         storeOffsetEnable = storeOffsetEnable
             && this.brokerController.getMessageStoreConfig().getBrokerRole() != BrokerRole.SLAVE;
-        if (storeOffsetEnable) {
+        if (storeOffsetEnable) {//主站更改某个消息存储于commitlog中的偏移量
             this.brokerController.getConsumerOffsetManager().commitOffset(RemotingHelper.parseChannelRemoteAddr(channel),
                 requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getCommitOffset());
         }
@@ -532,23 +561,37 @@ public class PullMessageProcessor implements NettyRequestProcessor {
         }
     }
 
+    /**
+     * 将消费者从commitlog中拉取的消息列表结果 读入到字节数组返回
+     * @param getMessageResult 从commitlog中拉取的消息结果
+     * @param group 消费者组名
+     * @param topic 主题名
+     * @param queueId 主题消息队列编号
+     * @return
+     */
     private byte[] readGetMessageResult(final GetMessageResult getMessageResult, final String group, final String topic,
         final int queueId) {
+
+        //分配一个ByteBuffer
         final ByteBuffer byteBuffer = ByteBuffer.allocate(getMessageResult.getBufferTotalSize());
 
+        //批量拉取消息中最后一个commitlog中拉取的消息存储到commitlog文件系统中的时间
         long storeTimestamp = 0;
         try {
             List<ByteBuffer> messageBufferList = getMessageResult.getMessageBufferList();
-            for (ByteBuffer bb : messageBufferList) {
-
+            for (ByteBuffer bb : messageBufferList) {//遍历每一个消息的ByteBuffer对象
+                //将消息对应的ByteBuffer对象中的字节数组放入结果ByteBuffer中
                 byteBuffer.put(bb);
+                //设置最后一个消息存入commitlog文件系统的时间
                 storeTimestamp = bb.getLong(MessageDecoder.MESSAGE_STORE_TIMESTAMP_POSTION);
             }
         } finally {
             getMessageResult.release();
         }
 
+        //记录丢失消息的时间差
         this.brokerController.getBrokerStatsManager().recordDiskFallBehindTime(group, topic, queueId, this.brokerController.getMessageStore().now() - storeTimestamp);
+        //返回批量消息对应的字节数组
         return byteBuffer.array();
     }
 

@@ -38,14 +38,31 @@ public class BrokerStatsManager {
      * 主题存放消息的总字节大小表
      */
     public static final String TOPIC_PUT_SIZE = "TOPIC_PUT_SIZE";
+
+    /**
+     * 某个消费者组拉取某个主题的消息的总数量
+     */
     public static final String GROUP_GET_NUMS = "GROUP_GET_NUMS";
+
+    /**
+     * 某个消费者组拉取某个主题的消息的总字节数
+     */
     public static final String GROUP_GET_SIZE = "GROUP_GET_SIZE";
+
+
+    /**
+     *  某个主题的消息由于消费者消费失败 重新发送给广播站的RETRY OR DLQ主题的消息总数
+     */
     public static final String SNDBCK_PUT_NUMS = "SNDBCK_PUT_NUMS";
 
     /**
-     * 广播站存放消息的总数量表
+     * 广播站集群存放消息的总数量表
      */
     public static final String BROKER_PUT_NUMS = "BROKER_PUT_NUMS";
+
+    /**
+     * 消费者从广播站集群拉取消息的总数量
+     */
     public static final String BROKER_GET_NUMS = "BROKER_GET_NUMS";
     public static final String GROUP_GET_FROM_DISK_NUMS = "GROUP_GET_FROM_DISK_NUMS";
     public static final String GROUP_GET_FROM_DISK_SIZE = "GROUP_GET_FROM_DISK_SIZE";
@@ -65,6 +82,10 @@ public class BrokerStatsManager {
 
     public static final String GROUP_GET_FALL_SIZE = "GROUP_GET_FALL_SIZE";
     public static final String GROUP_GET_FALL_TIME = "GROUP_GET_FALL_TIME";
+
+    /**
+     * 消费者从commitlog中批量拉取消息后 将批量消息读出到字节数组的消耗时间
+     */
     // Pull Message Latency
     public static final String GROUP_GET_LATENCY = "GROUP_GET_LATENCY";
 
@@ -91,6 +112,10 @@ public class BrokerStatsManager {
      * 广播站集群名
      */
     private final String clusterName;
+
+    /**
+     * 当消息者从某个消费队列获取commitlog中的消息时，如果消费者从指定的偏移量的位置 没有批量拉取到commitlog已经写到的最大位置 则说明有消息掉落
+     */
     private final MomentStatsItemSet momentStatsItemSetFallSize = new MomentStatsItemSet(GROUP_GET_FALL_SIZE, scheduledExecutorService, log);
     private final MomentStatsItemSet momentStatsItemSetFallTime = new MomentStatsItemSet(GROUP_GET_FALL_TIME, scheduledExecutorService, log);
 
@@ -186,11 +211,24 @@ public class BrokerStatsManager {
         return strBuilder.toString();
     }
 
+    /**
+     * 增减某个消费者组拉取某个主题的消息的总数量
+     * @param group 消费者组名
+     * @param topic 主题名
+     * @param incValue 增加值
+     */
     public void incGroupGetSize(final String group, final String topic, final int incValue) {
         final String statsKey = buildStatsKey(topic, group);
         this.statsTable.get(GROUP_GET_SIZE).addValue(statsKey, incValue, 1);
     }
 
+    /**
+     * 消费者从commitlog中拉取批量消息后  将批量消息读出到字节数组的时间
+     * @param group 消费者组名
+     * @param topic 主题
+     * @param queueId 消息队列编号
+     * @param incValue 增减值
+     */
     public void incGroupGetLatency(final String group, final String topic, final int queueId, final int incValue) {
         final String statsKey = String.format("%d@%s@%s", queueId, topic, group);
         this.statsTable.get(GROUP_GET_LATENCY).addValue(statsKey, incValue, 1);
@@ -204,10 +242,19 @@ public class BrokerStatsManager {
         this.statsTable.get(BROKER_PUT_NUMS).getAndCreateStatsItem(this.clusterName).getValue().addAndGet(incValue);
     }
 
+    /**
+     * 增加消费者从某个广播站集群拉取消息的总数量
+     * @param incValue 增加值
+     */
     public void incBrokerGetNums(final int incValue) {
         this.statsTable.get(BROKER_GET_NUMS).getAndCreateStatsItem(this.clusterName).getValue().addAndGet(incValue);
     }
 
+    /**
+     * 增加将某个主题的消息由于消费者消费失败 重新发送给广播站的RETRY OR DLQ主题的消息总数
+     * @param group 消费者组
+     * @param topic 主题
+     */
     public void incSendBackNums(final String group, final String topic) {
         final String statsKey = buildStatsKey(topic, group);
         this.statsTable.get(SNDBCK_PUT_NUMS).addValue(statsKey, 1, 1);
@@ -218,15 +265,32 @@ public class BrokerStatsManager {
         return this.statsTable.get(GROUP_GET_NUMS).getStatsDataInMinute(statsKey).getTps();
     }
 
+    /**
+     * 记录某个消费队列在某个时间段内丢失消息的时间差
+     * @param group 消费者组名
+     * @param topic 主题
+     * @param queueId 主题队列编号
+     * @param fallBehind 丢失消息的时间差
+     */
     public void recordDiskFallBehindTime(final String group, final String topic, final int queueId,
         final long fallBehind) {
         final String statsKey = String.format("%d@%s@%s", queueId, topic, group);
+        //增加丢失消息的时间差
         this.momentStatsItemSetFallTime.getAndCreateStatsItem(statsKey).getValue().set(fallBehind);
     }
 
+    /**
+     * 记录掉落的消息在commitlog中字节数
+     * @param group 消息者组名
+     * @param topic 主题
+     * @param queueId 主题消息队列id
+     * @param fallBehind commiltog中掉落的字节数
+     */
     public void recordDiskFallBehindSize(final String group, final String topic, final int queueId,
         final long fallBehind) {
+        //实例化统计key
         final String statsKey = String.format("%d@%s@%s", queueId, topic, group);
+        //获取统计项 设置掉落值
         this.momentStatsItemSetFallSize.getAndCreateStatsItem(statsKey).getValue().set(fallBehind);
     }
 

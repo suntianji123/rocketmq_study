@@ -65,7 +65,7 @@ public class ClientManageProcessor implements NettyRequestProcessor {
     public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request)
         throws RemotingCommandException {
         switch (request.getCode()) {
-            case RequestCode.HEART_BEAT:
+            case RequestCode.HEART_BEAT://广播站收到消费者 、生产者心跳处理
                 return this.heartBeat(ctx, request);
             case RequestCode.UNREGISTER_CLIENT:
                 return this.unregisterClient(ctx, request);
@@ -103,12 +103,13 @@ public class ClientManageProcessor implements NettyRequestProcessor {
 
 
         for (ConsumerData data : heartbeatData.getConsumerDataSet()) {//遍历消息者数据
-            //获取消费者订阅配置数据
+            //获取消费者组订阅配置数据
             SubscriptionGroupConfig subscriptionGroupConfig =
                 this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(
                     data.getGroupName());
+            //是否通知这个消费者组下的所有消费者 新增或者减少了消费者
             boolean isNotifyConsumerIdsChangedEnable = true;
-            if (null != subscriptionGroupConfig) {
+            if (null != subscriptionGroupConfig) {//消费者组订阅配置数据存在
                 isNotifyConsumerIdsChangedEnable = subscriptionGroupConfig.isNotifyConsumerIdsChangedEnable();
                 //主题系统配置
                 int topicSysFlag = 0;
@@ -116,16 +117,16 @@ public class ClientManageProcessor implements NettyRequestProcessor {
                     topicSysFlag = TopicSysFlag.buildSysFlag(false, true);
                 }
 
-                //为消息者创建一个retry的主题
+                //根据消费者组名 获取消费者的RETRY主题 用于存放当消费者组消费消息失败时 将消息重新推送给广播站 消费者继续拉取消息 尝试消费
                 String newTopic = MixAll.getRetryTopic(data.getGroupName());
-                //创建一个新的主题配置 写入到沙河文件
+                //为消费者组创建一个RETRY类型的主题 放入主题配置列表
                 this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(
                     newTopic,
                     subscriptionGroupConfig.getRetryQueueNums(),
                     PermName.PERM_WRITE | PermName.PERM_READ, topicSysFlag);
             }
 
-            //注册消费者
+            //向消费者组中注册一个消费者 返回消费者组是否发生变化
             boolean changed = this.brokerController.getConsumerManager().registerConsumer(
                 data.getGroupName(),
                 clientChannelInfo,
@@ -136,6 +137,7 @@ public class ClientManageProcessor implements NettyRequestProcessor {
                 isNotifyConsumerIdsChangedEnable
             );
 
+            //如果消费者组的消费者成员发生改变或者消费者组的订阅数据列表发生变更 记录日志
             if (changed) {
                 log.info("registerConsumer info changed {} {}",
                     data.toString(),

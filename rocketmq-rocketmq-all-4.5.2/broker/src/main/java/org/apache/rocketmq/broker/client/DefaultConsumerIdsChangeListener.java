@@ -32,8 +32,8 @@ public class DefaultConsumerIdsChangeListener implements ConsumerIdsChangeListen
     }
 
     /**
-     * 处理消费者组时间
-     * @param event 时间类型
+     * 处理消费者组事件
+     * @param event 事件类型
      * @param group 消费者组名
      * @param args 参数
      */
@@ -65,6 +65,8 @@ public class DefaultConsumerIdsChangeListener implements ConsumerIdsChangeListen
                 if (args == null || args.length < 1) {
                     return;
                 }
+
+                //获取消费者组订阅配置列表列表
                 Collection<SubscriptionData> subscriptionDataList = (Collection<SubscriptionData>) args[0];
                 this.brokerController.getConsumerFilterManager().register(group, subscriptionDataList);
                 break;

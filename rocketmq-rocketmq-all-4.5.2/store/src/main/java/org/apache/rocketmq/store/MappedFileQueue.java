@@ -604,6 +604,11 @@ public class MappedFileQueue {
         return mappedFileFirst;
     }
 
+    /**
+     * 根据偏移量获取mappedFile文件
+     * @param offset
+     * @return
+     */
     public MappedFile findMappedFileByOffset(final long offset) {
         return findMappedFileByOffset(offset, false);
     }

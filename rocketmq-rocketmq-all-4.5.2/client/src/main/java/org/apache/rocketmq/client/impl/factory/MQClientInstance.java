@@ -551,17 +551,26 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 检查消费者组在广播站的配置
+     * @throws MQClientException
+     */
     public void checkClientInBroker() throws MQClientException {
+        //获取启动的消费者组列表
         Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
 
-        while (it.hasNext()) {
+        while (it.hasNext()) {//遍历消费者组列表
             Entry<String, MQConsumerInner> entry = it.next();
+
+            //获取这个消费者组订阅的数据列表
             Set<SubscriptionData> subscriptionInner = entry.getValue().subscriptions();
             if (subscriptionInner == null || subscriptionInner.isEmpty()) {
                 return;
             }
 
-            for (SubscriptionData subscriptionData : subscriptionInner) {
+            for (SubscriptionData subscriptionData : subscriptionInner) {//遍历消费者组的所有订阅数据
+
+                //过滤消息的类型为表达式
                 if (ExpressionType.isTagType(subscriptionData.getExpressionType())) {
                     continue;
                 }
@@ -1197,11 +1206,11 @@ public class MQClientInstance {
      */
     public void doRebalance() {
         for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {//遍历消费者列表
-            //获取消费者
+            //获取消费者或者生产者
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
                 try {
-                    //执行消费者的平衡
+                    //执行平衡
                     impl.doRebalance();
                 } catch (Throwable e) {
                     log.error("doRebalance exception", e);

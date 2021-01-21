@@ -59,6 +59,9 @@ import org.apache.rocketmq.store.MessageExtBrokerInner;
 public abstract class AbstractSendMessageProcessor implements NettyRequestProcessor {
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
+    /**
+     * 消费者组dlq主题对应的主题消息队列数量
+     */
     protected final static int DLQ_NUMS_PER_GROUP = 1;
 
     /**

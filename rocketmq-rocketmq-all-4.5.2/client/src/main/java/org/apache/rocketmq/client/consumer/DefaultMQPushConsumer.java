@@ -192,12 +192,12 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private int pullThresholdSizeForTopic = -1;
 
     /**
-     * Message pull Interval
+     * 消费者从广播站拉取消息的间隔
      */
     private long pullInterval = 0;
 
     /**
-     * Batch consumption size
+     * 消费者单次消费消息数量的最大值
      */
     private int consumeMessageBatchMaxSize = 1;
 
@@ -217,11 +217,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private boolean unitMode = false;
 
     /**
-     * Max re-consume times. -1 means 16 times.
-     * </p>
-     *
-     * If messages are re-consumed more than {@link #maxReconsumeTimes} before success, it's be directed to a deletion
-     * queue waiting.
+     * 消费者消费消息失败时 将这个消息重新推送给广播站 最大重新消费的次数
      */
     private int maxReconsumeTimes = -1;
 
@@ -231,7 +227,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private long suspendCurrentQueueTimeMillis = 1000;
 
     /**
-     * 消费消息线程 消费单个消息的最大定时检查周期
+     * 消费者消费消息的超时时间
      */
     private long consumeTimeout = 15;
 

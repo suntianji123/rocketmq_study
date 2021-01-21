@@ -42,26 +42,30 @@ public class ConsumerGroupInfo {
      * 消费者组名
      */
     private final String groupName;
+
+    /**
+     * 消费者组订阅的主题配置数据列表
+     */
     private final ConcurrentMap<String/* Topic */, SubscriptionData> subscriptionTable =
         new ConcurrentHashMap<String, SubscriptionData>();
 
     /**
-     * 所有使用这个名字的消费者集群的channel
+     * 消费者组下所有的消费者channel信息
      */
     private final ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable =
         new ConcurrentHashMap<Channel, ClientChannelInfo>(16);
     /**
-     * 消费者获取消息的方式枚举
+     * 消费者获取消息的方式枚举 主动拉取 或者 广播站推送
      */
     private volatile ConsumeType consumeType;
 
     /**
-     * 消息模型
+     * 消息模型 集群还是顺序
      */
     private volatile MessageModel messageModel;
 
     /**
-     * 消息者从哪开始消费
+     * 消息者消费主题消费队列的消息时 第一次从哪开始消费
      */
     private volatile ConsumeFromWhere consumeFromWhere;
 
@@ -151,7 +155,7 @@ public class ConsumerGroupInfo {
     }
 
     /**
-     * 更新消费者的通道
+     * 更新消费者的通道 如果消费组集群中新增了消费者成员返回true 其他情况返回false
      * @param infoNew 消费者channel通道信息
      * @param consumeType 消息者获取消息的方式
      * @param messageModel 消息模型
@@ -171,6 +175,7 @@ public class ConsumerGroupInfo {
         //之前不存在channelinfo
         ClientChannelInfo infoOld = this.channelInfoTable.get(infoNew.getChannel());
         if (null == infoOld) {
+            //将新的消费者channelInof放入列表
             ClientChannelInfo prev = this.channelInfoTable.put(infoNew.getChannel(), infoNew);
             if (null == prev) {
                 log.info("new consumer connected, group: {} {} {} channel: {}", this.groupName, consumeType,
@@ -178,6 +183,7 @@ public class ConsumerGroupInfo {
                 updated = true;
             }
 
+            //有新的消费者连接广播站  消费者组集群新增了消费者成员
             infoOld = infoNew;
         } else {
 
@@ -202,7 +208,7 @@ public class ConsumerGroupInfo {
     }
 
     /**
-     * 更新消费者订阅主题列表
+     * 更新消费者订阅主题列表 返回消费者组订阅的主题主题配置发生变化
      * @param subList 订阅主题列表
      * @return
      */

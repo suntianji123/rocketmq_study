@@ -897,20 +897,33 @@ public class MQClientAPIImpl {
         return this.processPullResponse(response);
     }
 
+    /**
+     * 处理消费者从广播站拉取消息的响应  返回拉取拉取结果对象
+     * @param response 拉取消息的响应
+     * @return
+     * @throws MQBrokerException
+     * @throws RemotingCommandException
+     */
     private PullResult processPullResponse(
         final RemotingCommand response) throws MQBrokerException, RemotingCommandException {
+
+        //拉取消息结果
         PullStatus pullStatus = PullStatus.NO_NEW_MSG;
         switch (response.getCode()) {
-            case ResponseCode.SUCCESS:
+            case ResponseCode.SUCCESS://响应成功 找到消息
+                //拉取状态 找到
                 pullStatus = PullStatus.FOUND;
                 break;
             case ResponseCode.PULL_NOT_FOUND:
+                //状态设置为没有新消息
                 pullStatus = PullStatus.NO_NEW_MSG;
                 break;
             case ResponseCode.PULL_RETRY_IMMEDIATELY:
+                //状态设置为尝试从其他站点虎丘
                 pullStatus = PullStatus.NO_MATCHED_MSG;
                 break;
             case ResponseCode.PULL_OFFSET_MOVED:
+                //状态设置为偏移量非法
                 pullStatus = PullStatus.OFFSET_ILLEGAL;
                 break;
 
@@ -921,6 +934,7 @@ public class MQClientAPIImpl {
         PullMessageResponseHeader responseHeader =
             (PullMessageResponseHeader) response.decodeCommandCustomHeader(PullMessageResponseHeader.class);
 
+        //实例化一个拉取结果
         return new PullResultExt(pullStatus, responseHeader.getNextBeginOffset(), responseHeader.getMinOffset(),
             responseHeader.getMaxOffset(), null, responseHeader.getSuggestWhichBrokerId(), response.getBody());
     }
@@ -1273,6 +1287,18 @@ public class MQClientAPIImpl {
         return response.getCode() == ResponseCode.SUCCESS;
     }
 
+    /**
+     * 将消费者消费失败的消息重新推送给下消费者
+     * @param addr 广播站主站地址
+     * @param msg 消费失败的消息
+     * @param consumerGroup 消费者组
+     * @param delayLevel 消费次数控制
+     * @param timeoutMillis 请求超时时间
+     * @param maxConsumeRetryTimes 最大重新消费次数 默认为16
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public void consumerSendMessageBack(
         final String addr,
         final MessageExt msg,
@@ -1281,14 +1307,22 @@ public class MQClientAPIImpl {
         final long timeoutMillis,
         final int maxConsumeRetryTimes
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //实例化一个请求头
         ConsumerSendMsgBackRequestHeader requestHeader = new ConsumerSendMsgBackRequestHeader();
+        //消费请求
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.CONSUMER_SEND_MSG_BACK, requestHeader);
 
+        //设置消费者组名
         requestHeader.setGroup(consumerGroup);
+        //设置主题
         requestHeader.setOriginTopic(msg.getTopic());
+        //设置消息在commitlog中的偏移量
         requestHeader.setOffset(msg.getCommitLogOffset());
+        //设置重试次数控制
         requestHeader.setDelayLevel(delayLevel);
+        //设置消息id
         requestHeader.setOriginMsgId(msg.getMsgId());
+        //设置最大重新消费次数
         requestHeader.setMaxReconsumeTimes(maxConsumeRetryTimes);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),

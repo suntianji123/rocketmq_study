@@ -19,20 +19,34 @@ package org.apache.rocketmq.client.consumer.listener;
 import org.apache.rocketmq.common.message.MessageQueue;
 
 /**
- * Consumer concurrent consumption context
+ * 即时消费上下文类
  */
 public class ConsumeConcurrentlyContext {
-    private final MessageQueue messageQueue;
+
     /**
-     * Message consume retry strategy<br>
-     * -1,no retry,put into DLQ directly<br>
-     * 0,broker control retry frequency<br>
-     * >0,client control retry frequency
+     * 主题消息队列
      */
+    private final MessageQueue messageQueue;
+
+    /* *
+    *邮件消耗重试策略<br>
+     * -1，不重试，直接放入DLQ <br>
+      *0，广播站控制重试频率<br>
+       *0，客户端控制重试频率
+    */
     private int delayLevelWhenNextConsume = 0;
+
+    /**
+     * 最后一个成功被消费者消费的消息在消费请求的消息列表中的下标
+     */
     private int ackIndex = Integer.MAX_VALUE;
 
+    /**
+     * 实例化一个即时消息队列对象
+     * @param messageQueue
+     */
     public ConsumeConcurrentlyContext(MessageQueue messageQueue) {
+        //设置主题消息队列
         this.messageQueue = messageQueue;
     }
 

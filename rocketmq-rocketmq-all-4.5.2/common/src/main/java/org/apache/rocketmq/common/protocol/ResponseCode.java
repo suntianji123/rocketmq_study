@@ -43,8 +43,15 @@ public class ResponseCode extends RemotingSysResponseCode {
      */
     public static final int TOPIC_NOT_EXIST = 17;
     public static final int TOPIC_EXIST_ALREADY = 18;
+
+    /**
+     * 消费者从广播站拉取消息  广播站响应状态码:没有找到消息
+     */
     public static final int PULL_NOT_FOUND = 19;
 
+    /**
+     * 消费者从广播站拉取消息 广播站响应状态码 立刻尝试重新发起请求
+     */
     public static final int PULL_RETRY_IMMEDIATELY = 20;
 
     public static final int PULL_OFFSET_MOVED = 21;
@@ -57,6 +64,9 @@ public class ResponseCode extends RemotingSysResponseCode {
 
     public static final int SUBSCRIPTION_NOT_LATEST = 25;
 
+    /**
+     * 消费者组主题 订阅配置不存在
+     */
     public static final int SUBSCRIPTION_GROUP_NOT_EXIST = 26;
 
     public static final int FILTER_DATA_NOT_EXIST = 27;

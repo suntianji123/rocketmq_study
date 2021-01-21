@@ -107,12 +107,28 @@ public class MessageStoreConfig {
     private int flushCommitLogThoroughInterval = 1000 * 10;
     private int commitCommitLogThoroughInterval = 200;
     private int flushConsumeQueueThoroughInterval = 1000 * 60;
+
+    /**
+     * 从commitlog内存中批量拉取消息时 可拉取消息的总的最大的字节数
+     */
     @ImportantField
     private int maxTransferBytesOnMessageInMemory = 1024 * 256;
+
+    /**
+     * 从commitlog内存中批量拉取消息是 可拉取消息的总的数量
+     */
     @ImportantField
     private int maxTransferCountOnMessageInMemory = 32;
+
+    /**
+     * 从commitlog磁盘中批量拉取消息时 可拉取的消息的总的最大字节数
+     */
     @ImportantField
     private int maxTransferBytesOnMessageInDisk = 1024 * 64;
+
+    /**
+     * 从commitlog磁盘中批量拉取消息时 可拉取消息总的数量
+     */
     @ImportantField
     private int maxTransferCountOnMessageInDisk = 8;
     @ImportantField

@@ -28,12 +28,30 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
  * 从广播站拉取消息的响应头类
  */
 public class PullMessageResponseHeader implements CommandCustomHeader {
+
+    /**
+     * 建议下一次从消费队列批量拉取消息时
+     * 如果下一次从commiltlog拉取的消息的起始偏移量在内存中存在 选择主站
+     * 如果下一次从commitlog拉取的消息的起始偏移量在内存中不存在 选择id为1的从站
+     */
     @CFNotNull
     private Long suggestWhichBrokerId;
+
+    /**
+     * 下一次从消费队列拉取消息的偏移量
+     */
     @CFNotNull
     private Long nextBeginOffset;
+
+    /**
+     * 消费队列消息偏移量的最小值
+     */
     @CFNotNull
     private Long minOffset;
+
+    /**
+     * 消费队列消息偏移量的最大值
+     */
     @CFNotNull
     private Long maxOffset;
 

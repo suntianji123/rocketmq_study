@@ -21,6 +21,9 @@ import org.apache.rocketmq.common.message.MessageExt;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.body.ConsumeMessageDirectlyResult;
 
+/**
+ * 消费消息服务
+ */
 public interface ConsumeMessageService {
     void start();
 
@@ -36,6 +39,13 @@ public interface ConsumeMessageService {
 
     ConsumeMessageDirectlyResult consumeMessageDirectly(final MessageExt msg, final String brokerName);
 
+    /**
+     * 提交消费消息请求
+     * @param msgs 消息列表
+     * @param processQueue 需要被消费的消息所位于的处理中的队列
+     * @param messageQueue 消费者分配的主题消息队列
+     * @param dispathToConsume 是否将processqueue中的消息交给消费者进行消息
+     */
     void submitConsumeRequest(
         final List<MessageExt> msgs,
         final ProcessQueue processQueue,

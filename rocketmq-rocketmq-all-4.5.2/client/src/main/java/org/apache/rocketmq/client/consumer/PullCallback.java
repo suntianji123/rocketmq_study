@@ -17,9 +17,14 @@
 package org.apache.rocketmq.client.consumer;
 
 /**
- * Async message pulling interface
+ * 异步从广播站的主题消息队列拉取消息的回调接口
  */
 public interface PullCallback {
+
+    /**
+     * 收到广播站返回的响应处理
+     * @param pullResult 拉取消息结果
+     */
     void onSuccess(final PullResult pullResult);
 
     void onException(final Throwable e);

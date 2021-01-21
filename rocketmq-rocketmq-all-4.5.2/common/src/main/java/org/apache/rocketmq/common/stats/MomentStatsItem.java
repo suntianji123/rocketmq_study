@@ -23,20 +23,52 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.logging.InternalLogger;
 
+/**
+ * 统计项
+ */
 public class MomentStatsItem {
 
+    /**
+     * 统计值
+     */
     private final AtomicLong value = new AtomicLong(0);
 
+    /**
+     * 统计名
+     */
     private final String statsName;
+
+    /**
+     * 统计key
+     */
     private final String statsKey;
+
+    /**
+     * 定时执行器
+     */
     private final ScheduledExecutorService scheduledExecutorService;
+
+    /**
+     * 日志对象
+     */
     private final InternalLogger log;
 
+    /**
+     * 统计一个统计项
+     * @param statsName 统计名
+     * @param statsKey 统计key
+     * @param scheduledExecutorService 定时执行器
+     * @param log 日志
+     */
     public MomentStatsItem(String statsName, String statsKey,
         ScheduledExecutorService scheduledExecutorService, InternalLogger log) {
+        //设置统计名
         this.statsName = statsName;
+        //设置统计key
         this.statsKey = statsKey;
+        //设置定时器
         this.scheduledExecutorService = scheduledExecutorService;
+        //设置日志对象
         this.log = log;
     }
 

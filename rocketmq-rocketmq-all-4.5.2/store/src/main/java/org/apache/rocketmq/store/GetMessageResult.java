@@ -26,9 +26,15 @@ import org.apache.rocketmq.store.stats.BrokerStatsManager;
  */
 public class GetMessageResult {
 
+    /**
+     * 批量获取的消息列表
+     */
     private final List<SelectMappedBufferResult> messageMapedList =
         new ArrayList<SelectMappedBufferResult>(100);
 
+    /**
+     * 批量获取的消息对应的ByteBuffer列表
+     */
     private final List<ByteBuffer> messageBufferList = new ArrayList<ByteBuffer>(100);
 
     private GetMessageStatus status;
@@ -40,6 +46,9 @@ public class GetMessageResult {
 
     private boolean suggestPullingFromSlave = false;
 
+    /**
+     * 以64M为单位 消息的总的字节大小 满足多少个64M
+     */
     private int msgCount4Commercial = 0;
 
     public GetMessageResult() {
@@ -85,10 +94,20 @@ public class GetMessageResult {
         return messageBufferList;
     }
 
+    /**
+     * 将从commitlog中获取的消息添加到结果列表
+     * @param mapedBuffer 从commitlog中获取某个消息的结果
+     */
     public void addMessage(final SelectMappedBufferResult mapedBuffer) {
+        //将消息添加到批量获取的消息列表
         this.messageMapedList.add(mapedBuffer);
+
+        //将消息对应的byteBuffer添加到byteBuffer列表
         this.messageBufferList.add(mapedBuffer.getByteBuffer());
+        //增加获取消息的总的字节数
         this.bufferTotalSize += mapedBuffer.getSize();
+
+        //以64M为单位 获取消息满足多少个64M值
         this.msgCount4Commercial += (int) Math.ceil(
             mapedBuffer.getSize() / BrokerStatsManager.SIZE_PER_COUNT);
     }

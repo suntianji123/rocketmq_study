@@ -43,9 +43,25 @@ public class ProcessQueue {
     public final static long REBALANCE_LOCK_INTERVAL = Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockInterval", "20000"));
     private final static long PULL_MAX_IDLE_TIME = Long.parseLong(System.getProperty("rocketmq.client.pull.pullMaxIdleTime", "120000"));
     private final InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 读写锁
+     */
     private final ReadWriteLock lockTreeMap = new ReentrantReadWriteLock();
+
+    /**
+     * 广播站消费队列中 偏移量对应的消息 偏移量 | 消息
+     */
     private final TreeMap<Long, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
+
+    /**
+     * 从广播站消费队列拉取到的消息的总的数量
+     */
     private final AtomicLong msgCount = new AtomicLong();
+
+    /**
+     * 从广播站的消费队列获取到的合法的消息的body总的大小
+     */
     private final AtomicLong msgSize = new AtomicLong();
     private final Lock lockConsume = new ReentrantLock();
     /**
@@ -53,6 +69,10 @@ public class ProcessQueue {
      */
     private final TreeMap<Long, MessageExt> consumingMsgOrderlyTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong tryUnlockTimes = new AtomicLong(0);
+
+    /**
+     * 从广播站的消费队列获取到的消息的最大偏移量
+     */
     private volatile long queueOffsetMax = 0L;
 
     /**
@@ -64,10 +84,22 @@ public class ProcessQueue {
      * 上一次拉取的时间
      */
     private volatile long lastPullTimestamp = System.currentTimeMillis();
+
+    /**
+     * 最后一次消费处理中队列中的消息的时间
+     */
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
     private volatile boolean locked = false;
     private volatile long lastLockTimestamp = System.currentTimeMillis();
+
+    /**
+     * 处理中的队列的消息是否正在将从广播站消费队列拉取到的消息下发给消费者进行处理
+     */
     private volatile boolean consuming = false;
+
+    /**
+     * 设置广播站消费队列消息的最大偏移量
+     */
     private volatile long msgAccCnt = 0;
 
     public boolean isLockExpired() {
@@ -131,38 +163,57 @@ public class ProcessQueue {
         }
     }
 
+    /**
+     * 向处理中的队列中添加从广播站拉取的消息列表
+     * @param msgs 从广播站拉取的消息列表
+     * @return 是否将消息下发给消费者的消息监听器进行处理
+     */
     public boolean putMessage(final List<MessageExt> msgs) {
         boolean dispatchToConsume = false;
         try {
+            //打开写锁
             this.lockTreeMap.writeLock().lockInterruptibly();
             try {
+                //合法的消息数量
                 int validMsgCnt = 0;
-                for (MessageExt msg : msgs) {
+                for (MessageExt msg : msgs) {//遍历消息
+                    //将偏移量对应的消息缓存到msgTreemap
                     MessageExt old = msgTreeMap.put(msg.getQueueOffset(), msg);
-                    if (null == old) {
+                    if (null == old) {//之前这个偏移量出的消息不存在
+                        //增加合法的消息数量
                         validMsgCnt++;
+                        //设置最大偏移量值
                         this.queueOffsetMax = msg.getQueueOffset();
+
+                        //增加消息大小
                         msgSize.addAndGet(msg.getBody().length);
                     }
                 }
+
+                //增加从广播站拉取到的消息总的数量
                 msgCount.addAndGet(validMsgCnt);
 
-                if (!msgTreeMap.isEmpty() && !this.consuming) {
+                if (!msgTreeMap.isEmpty() && !this.consuming) { //有新消息达到 并且没有将消息下发给消费者进行消息
+                    //需要将消息下发给消费者进行消费
                     dispatchToConsume = true;
+                    //设置这个处理中的队列的消息正在被消费者消息
                     this.consuming = true;
                 }
 
                 if (!msgs.isEmpty()) {
                     MessageExt messageExt = msgs.get(msgs.size() - 1);
+
                     String property = messageExt.getProperty(MessageConst.PROPERTY_MAX_OFFSET);
                     if (property != null) {
                         long accTotal = Long.parseLong(property) - messageExt.getQueueOffset();
                         if (accTotal > 0) {
+                            //广播站消费队列消息的最大偏移量
                             this.msgAccCnt = accTotal;
                         }
                     }
                 }
             } finally {
+                //释放写锁
                 this.lockTreeMap.writeLock().unlock();
             }
         } catch (InterruptedException e) {
@@ -189,30 +240,48 @@ public class ProcessQueue {
         return 0;
     }
 
+    /**
+     * 从处理中的队列中删除一些消息 返回处理中队列待消费的消息列表的第一个元素的偏移量
+     * @param msgs 将要被删除的消息列表
+     * @return
+     */
     public long removeMessage(final List<MessageExt> msgs) {
+        //处理队列中剩余的消息的数量
         long result = -1;
         final long now = System.currentTimeMillis();
         try {
+            //打开写锁
             this.lockTreeMap.writeLock().lockInterruptibly();
+
+            //设置最后一次消费队列中的消息的时间
             this.lastConsumeTimestamp = now;
             try {
                 if (!msgTreeMap.isEmpty()) {
+                    //结果偏移量
                     result = this.queueOffsetMax + 1;
+                    //移除的消息的数量
                     int removedCnt = 0;
                     for (MessageExt msg : msgs) {
+                        //删除这个偏移量的消息
                         MessageExt prev = msgTreeMap.remove(msg.getQueueOffset());
                         if (prev != null) {
+                            //移除的数量-1
                             removedCnt--;
+                            //减少处理中队列的总的字节数
                             msgSize.addAndGet(0 - msg.getBody().length);
                         }
                     }
+
+                    //减少处理中队列的消息的总数
                     msgCount.addAndGet(removedCnt);
 
                     if (!msgTreeMap.isEmpty()) {
+                        //msg列表剩余的消息列表的第一个元素的偏移量
                         result = msgTreeMap.firstKey();
                     }
                 }
             } finally {
+                //释放写锁
                 this.lockTreeMap.writeLock().unlock();
             }
         } catch (Throwable t) {

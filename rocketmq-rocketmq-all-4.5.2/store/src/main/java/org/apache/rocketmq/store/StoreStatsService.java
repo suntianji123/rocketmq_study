@@ -63,8 +63,19 @@ public class StoreStatsService extends ServiceThread {
     private final ConcurrentMap<String, AtomicLong> putMessageTopicSizeTotal =
         new ConcurrentHashMap<String, AtomicLong>(128);
 
+    /**
+     * 消费者从广播站获取到消息的总次数
+     */
     private final AtomicLong getMessageTimesTotalFound = new AtomicLong(0);
+
+    /**
+     * 消费者从commitlog中获取消息的总数
+     */
     private final AtomicLong getMessageTransferedMsgCount = new AtomicLong(0);
+
+    /**
+     * 消费者从广播站没有获取到消息的总次数
+     */
     private final AtomicLong getMessageTimesTotalMiss = new AtomicLong(0);
     private final LinkedList<CallSnapshot> putTimesList = new LinkedList<CallSnapshot>();
 
@@ -82,6 +93,10 @@ public class StoreStatsService extends ServiceThread {
      * 向commitLog存放消息 耗时的最大值
      */
     private volatile long putMessageEntireTimeMax = 0;
+
+    /**
+     * 消息者从广播站获取消息耗时的最大值
+     */
     private volatile long getMessageEntireTimeMax = 0;
 
     /**
@@ -186,11 +201,18 @@ public class StoreStatsService extends ServiceThread {
         return getMessageEntireTimeMax;
     }
 
+    /**
+     * 设置消费者从广播站获取消息的最大耗时
+     * @param value 当前获取消息的消耗时间
+     */
     public void setGetMessageEntireTimeMax(long value) {
-        if (value > this.getMessageEntireTimeMax) {
+        if (value > this.getMessageEntireTimeMax) {//当前值大于最大耗时
+            //打开锁
             this.lockGet.lock();
+            //设置最大耗时
             this.getMessageEntireTimeMax =
                 value > this.getMessageEntireTimeMax ? value : this.getMessageEntireTimeMax;
+            //释放锁
             this.lockGet.unlock();
         }
     }

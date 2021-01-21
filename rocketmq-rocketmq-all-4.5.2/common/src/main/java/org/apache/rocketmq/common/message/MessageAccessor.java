@@ -86,6 +86,11 @@ public class MessageAccessor {
         return msg.getProperty(MessageConst.PROPERTY_MAX_RECONSUME_TIMES);
     }
 
+    /**
+     * 向消息的properties属性map中添加消费的开始时间
+     * @param msg 消息
+     * @param propertyConsumeStartTimeStamp 消费开始时间
+     */
     public static void setConsumeStartTimeStamp(final Message msg, String propertyConsumeStartTimeStamp) {
         putProperty(msg, MessageConst.PROPERTY_CONSUME_START_TIMESTAMP, propertyConsumeStartTimeStamp);
     }

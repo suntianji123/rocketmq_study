@@ -22,17 +22,43 @@ import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 消费者将消息重新推送给广播站的请求头类
+ */
 public class ConsumerSendMsgBackRequestHeader implements CommandCustomHeader {
+
+    /**
+     * 消息在commitlog文件系统中的偏移量
+     */
     @CFNotNull
     private Long offset;
+
+    /**
+     * 消费者组名
+     */
     @CFNotNull
     private String group;
+
+    /**
+     * 消费者重试次数控制
+     */
     @CFNotNull
     private Integer delayLevel;
+    /**
+     * 原始消息id
+     */
     private String originMsgId;
+
+    /**
+     * 原始消息主题
+     */
     private String originTopic;
     @CFNullable
     private boolean unitMode = false;
+
+    /**
+     * 消息最大被重新消费的次数
+     */
     private Integer maxReconsumeTimes;
 
     @Override

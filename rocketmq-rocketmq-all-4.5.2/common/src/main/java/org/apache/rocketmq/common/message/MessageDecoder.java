@@ -135,6 +135,12 @@ public class MessageDecoder {
         return decode(byteBuffer, true, true, false);
     }
 
+    /**
+     * 从byteBuffer中读取字节数组  转为一个消息
+     * @param byteBuffer byteBuffer数组
+     * @param readBody 是否读取消息的body数组
+     * @return
+     */
     public static MessageExt clientDecode(java.nio.ByteBuffer byteBuffer, final boolean readBody) {
         return decode(byteBuffer, readBody, true, true);
     }
@@ -411,13 +417,25 @@ public class MessageDecoder {
         return null;
     }
 
+    /**
+     * 从byteBuffer中解析出消息列表
+     * @param byteBuffer ByteBuffer对象
+     * @return
+     */
     public static List<MessageExt> decodes(java.nio.ByteBuffer byteBuffer) {
         return decodes(byteBuffer, true);
     }
 
+    /**
+     * 从byteBuffer中解析出消息列表
+     * @param byteBuffer ByteBuffer对象
+     * @param readBody 是否读取body内容
+     * @return
+     */
     public static List<MessageExt> decodes(java.nio.ByteBuffer byteBuffer, final boolean readBody) {
         List<MessageExt> msgExts = new ArrayList<MessageExt>();
-        while (byteBuffer.hasRemaining()) {
+        while (byteBuffer.hasRemaining()) {//byteBuffer还有字节可读
+
             MessageExt msgExt = clientDecode(byteBuffer, readBody);
             if (null != msgExt) {
                 msgExts.add(msgExt);

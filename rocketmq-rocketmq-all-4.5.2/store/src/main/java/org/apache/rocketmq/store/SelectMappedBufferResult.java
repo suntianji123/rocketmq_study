@@ -81,8 +81,12 @@ public class SelectMappedBufferResult {
 //        }
 //    }
 
+    /**
+     * 释放选择结果
+     */
     public synchronized void release() {
         if (this.mappedFile != null) {
+            //释放mappedFile
             this.mappedFile.release();
             this.mappedFile = null;
         }

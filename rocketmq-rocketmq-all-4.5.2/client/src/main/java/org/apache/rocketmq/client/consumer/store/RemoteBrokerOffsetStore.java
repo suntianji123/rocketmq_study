@@ -58,11 +58,21 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();
 
+    /**
+     * 实例化一个远程的主题消息队列消费偏移量存储
+     * @param mQClientFactory 访问远程serve的mqclientinstance对象
+     * @param groupName 消费者组名
+     */
     public RemoteBrokerOffsetStore(MQClientInstance mQClientFactory, String groupName) {
+        //设置mqclientinstance对戏
         this.mQClientFactory = mQClientFactory;
+        //设置生产者组名
         this.groupName = groupName;
     }
 
+    /**
+     * 加载主题消息队列的偏移量
+     */
     @Override
     public void load() {
     }

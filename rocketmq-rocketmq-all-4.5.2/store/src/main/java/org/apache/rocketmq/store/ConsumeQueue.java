@@ -72,6 +72,10 @@ public class ConsumeQueue {
      * 已经写了commitlog系统中的消息的偏移量
      */
     private long maxPhysicOffset = -1;
+
+    /**
+     * 在cosumeQueue文件中的起始偏移量 默认为0 如果写入的第一个消息的在逻辑主推消息队列的偏移量不是0 则这个值不为0
+     */
     private volatile long minLogicOffset = 0;
     private ConsumeQueueExt consumeQueueExt = null;
 
@@ -418,6 +422,10 @@ public class ConsumeQueue {
         }
     }
 
+    /**
+     * 获取消息在队列中的最小偏移量 /20之后的值
+     * @return
+     */
     public long getMinOffsetInQueue() {
         return this.minLogicOffset / CQ_STORE_UNIT_SIZE;
     }
@@ -509,9 +517,17 @@ public class ConsumeQueue {
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(expectLogicOffset);
         if (mappedFile != null) {
             if (mappedFile.isFirstCreateInQueue() && cqOffset != 0 && mappedFile.getWrotePosition() == 0) {
+                //如果写入的消息在主题消息队列的偏移不为0 不能mappedFile是第一个创建的 那个之前的空位需要填充空白
+                //设置起始偏移量
                 this.minLogicOffset = expectLogicOffset;
+
+                //从指定的位置开始刷新 之前的位置为空白
                 this.mappedFileQueue.setFlushedWhere(expectLogicOffset);
+
+                //设置提交的起始位置
                 this.mappedFileQueue.setCommittedWhere(expectLogicOffset);
+
+                //将之前的位置填充空白
                 this.fillPreBlank(mappedFile, expectLogicOffset);
                 log.info("fill pre blank space " + mappedFile.getFileName() + " " + expectLogicOffset + " "
                     + mappedFile.getWrotePosition());
@@ -547,24 +563,41 @@ public class ConsumeQueue {
         return false;
     }
 
+    /**
+     * 将ConsumeQueue的mappedFile指定位置之前填充空白
+     * @param mappedFile mappedFile文件
+     * @param untilWhere 起始位置
+     */
     private void fillPreBlank(final MappedFile mappedFile, final long untilWhere) {
+        //分配一个ByteBuffer
         ByteBuffer byteBuffer = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE);
+        //写入20个字节
         byteBuffer.putLong(0L);
         byteBuffer.putInt(Integer.MAX_VALUE);
         byteBuffer.putLong(0L);
 
+        //将之前的位置填充空白
         int until = (int) (untilWhere % this.mappedFileQueue.getMappedFileSize());
         for (int i = 0; i < until; i += CQ_STORE_UNIT_SIZE) {
             mappedFile.appendMessage(byteBuffer.array());
         }
     }
 
+    /**
+     * 根据消息在消费队列中的偏移量 获取消息的位置信息
+     * @param startIndex 消息在消费队列中的偏移量
+     * @return
+     */
     public SelectMappedBufferResult getIndexBuffer(final long startIndex) {
+        //单个mappedFile文件的大小
         int mappedFileSize = this.mappedFileSize;
+        //消息的位置信息的起始偏移量在mappedFilequeue中的偏移量
         long offset = startIndex * CQ_STORE_UNIT_SIZE;
-        if (offset >= this.getMinLogicOffset()) {
+        if (offset >= this.getMinLogicOffset()) {//大于mappedFilequeue文件系统的最小值
+            //获取存储消息的mappedFile文件
             MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset);
             if (mappedFile != null) {
+                //根据偏移量在mappedFile中的位置 获取结果
                 SelectMappedBufferResult result = mappedFile.selectMappedBuffer((int) (offset % mappedFileSize));
                 return result;
             }
@@ -629,6 +662,10 @@ public class ConsumeQueue {
         return this.getMaxOffsetInQueue() - this.getMinOffsetInQueue();
     }
 
+    /**
+     * 获取消息的最大偏移量 /20之后的值
+     * @return
+     */
     public long getMaxOffsetInQueue() {
         return this.mappedFileQueue.getMaxOffset() / CQ_STORE_UNIT_SIZE;
     }

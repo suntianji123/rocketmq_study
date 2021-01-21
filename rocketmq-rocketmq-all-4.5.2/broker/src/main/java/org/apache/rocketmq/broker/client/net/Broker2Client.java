@@ -84,7 +84,7 @@ public class Broker2Client {
     }
 
     /**
-     * 通知消费者集群中的某个消费者这个集群中有一个消费者发生改变
+     * 通知消费者组所有的消费者 组下成员发生改变或者是消费者组订阅配置发生变更
      * @param channel 被通知的消费者客户端channel连接
      * @param consumerGroup 消费者组名
      */
@@ -98,8 +98,9 @@ public class Broker2Client {
 
         //设置请求头
         NotifyConsumerIdsChangedRequestHeader requestHeader = new NotifyConsumerIdsChangedRequestHeader();
+        //设置请求头的消费者组名
         requestHeader.setConsumerGroup(consumerGroup);
-        //设置请求头
+        //创建请求 消费者收到了请求后 会立即重新计算一次主题消息的平衡
         RemotingCommand request =
             RemotingCommand.createRequestCommand(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, requestHeader);
 
