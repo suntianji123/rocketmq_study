@@ -48,7 +48,7 @@ public abstract class RebalanceImpl {
     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
 
     /**
-     * 某个主题 对应的主题消息队列列表 broker-a-1 broker-a-2 broker-b-1 broker-b-2
+     * 主题 对应 所有广播站存放这个主题消息的消息队列列表
      */
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable =
         new ConcurrentHashMap<String, Set<MessageQueue>>();
@@ -276,9 +276,11 @@ public abstract class RebalanceImpl {
      */
     private void rebalanceByTopic(final String topic, final boolean isOrder) {
         switch (messageModel) {//判断消息模型
-            case BROADCASTING: {
+            case BROADCASTING: {//广播模式
+                //消费者组订阅的主题对应的主题消息队列列表
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
                 if (mqSet != null) {
+                    //当前消费者将会接收消费者组下所有的主题消息队列中的消息
                     boolean changed = this.updateProcessQueueTableInRebalance(topic, mqSet, isOrder);
                     if (changed) {
                         this.messageQueueChanged(topic, mqSet, mqSet);
@@ -294,7 +296,7 @@ public abstract class RebalanceImpl {
                 break;
             }
             case CLUSTERING: {//消息为集群模式
-                //获取主题对应的主题消息队列所有列表
+                //获取主题对应的所有广播站存放这个消息的主题消息队列列表
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
 
                 //获取消费者组下所有订阅这个主题的消费者id列表

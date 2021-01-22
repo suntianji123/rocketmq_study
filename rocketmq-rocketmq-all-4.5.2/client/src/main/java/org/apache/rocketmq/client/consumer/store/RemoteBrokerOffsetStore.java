@@ -53,7 +53,7 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     private final String groupName;
 
     /**
-     * 消息队列
+     * 消费者组的主题消息队列对应的偏移量
      */
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();

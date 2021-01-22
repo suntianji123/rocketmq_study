@@ -41,6 +41,10 @@ public class BrokerConfig {
     @ImportantField
     private long brokerId = MixAll.MASTER_ID;
     private int brokerPermission = PermName.PERM_READ | PermName.PERM_WRITE;
+
+    /**
+     * 广播站存放主题的消息默认的消息队列数量 / 广播站为主题建立的消费队列数量 供消费者拉取消息
+     */
     private int defaultTopicQueueNums = 8;
     @ImportantField
     private boolean autoCreateTopicEnable = true;
@@ -98,8 +102,14 @@ public class BrokerConfig {
 
     private int filterServerNums = 0;
 
+    /**
+     * 当广播站的消费队列没有消息时 悬挂消费者的请求
+     */
     private boolean longPollingEnable = true;
 
+    /**
+     * 广播站保存消费者拉取消息请求的最长时间
+     */
     private long shortPollingTimeMills = 1000;
 
     private boolean notifyConsumerIdsChangedEnable = true;

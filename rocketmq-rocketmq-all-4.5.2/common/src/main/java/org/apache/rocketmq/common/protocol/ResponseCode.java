@@ -58,10 +58,19 @@ public class ResponseCode extends RemotingSysResponseCode {
 
     public static final int QUERY_NOT_FOUND = 22;
 
+    /**
+     * 消费者组从广播站主题消息队列拉取消息时 传来了过滤主题的表达式以及过滤类型 但广播站解析成消费者的订阅数据出错
+     */
     public static final int SUBSCRIPTION_PARSE_FAILED = 23;
 
+    /**
+     * 消费者组从广播站主题消息队列拉取消息时 广播站根据消费者组名 获取不到消息者组信息 返回这个错误
+     */
     public static final int SUBSCRIPTION_NOT_EXIST = 24;
 
+    /**
+     * 消费者组从广播站主题消息队列拉取消息时 如果广播站缓存的这个主题的订阅配置的版本小于消费者传过来的主题订阅版本 返回这个错误
+     */
     public static final int SUBSCRIPTION_NOT_LATEST = 25;
 
     /**

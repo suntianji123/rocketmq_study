@@ -19,9 +19,18 @@ package org.apache.rocketmq.broker.longpolling;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 多个拉取消息的请求
+ */
 public class ManyPullRequest {
+    /**
+     * 拉取请求列表
+     */
     private final ArrayList<PullRequest> pullRequestList = new ArrayList<>();
 
+    /**
+     * 向多个请求中添加一个请求
+     */
     public synchronized void addPullRequest(final PullRequest pullRequest) {
         this.pullRequestList.add(pullRequest);
     }
@@ -30,9 +39,15 @@ public class ManyPullRequest {
         this.pullRequestList.addAll(many);
     }
 
+    /**
+     * 克隆拉取请求的列表 并且清空列表
+     * @return
+     */
     public synchronized List<PullRequest> cloneListAndClear() {
         if (!this.pullRequestList.isEmpty()) {
+            //调用clone方法
             List<PullRequest> result = (ArrayList<PullRequest>) this.pullRequestList.clone();
+            //清除列表
             this.pullRequestList.clear();
             return result;
         }

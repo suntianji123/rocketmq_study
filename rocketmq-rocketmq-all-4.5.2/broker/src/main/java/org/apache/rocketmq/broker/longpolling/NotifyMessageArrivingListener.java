@@ -31,9 +31,20 @@ public class NotifyMessageArrivingListener implements MessageArrivingListener {
         this.pullRequestHoldService = pullRequestHoldService;
     }
 
+    /**
+     *
+     * @param topic 消息
+     * @param queueId 消息位于的主题消息队列
+     * @param logicOffset 消息在消息队列的偏移量
+     * @param tagsCode 消息的tag 哈希值
+     * @param msgStoreTime 消息的存储到commitlog的时间
+     * @param filterBitMap
+     * @param properties 消息的属性
+     */
     @Override
     public void arriving(String topic, int queueId, long logicOffset, long tagsCode,
         long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
+        //调用持有消息到达的service 拉取消费队列消息推送给消费者
         this.pullRequestHoldService.notifyMessageArriving(topic, queueId, logicOffset, tagsCode,
             msgStoreTime, filterBitMap, properties);
     }

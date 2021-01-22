@@ -76,7 +76,7 @@ public class TopicConfigManager extends ConfigManager {
             this.topicConfigTable.put(topicConfig.getTopicName(), topicConfig);
         }
         {
-            // MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC
+            //当生产者自定义的主题发布信息在中心服务器中没有数据时 这个主题的发布信息配置将作为主题的发布信息配置
             if (this.brokerController.getBrokerConfig().isAutoCreateTopicEnable()) {
                 String topic = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
                 TopicConfig topicConfig = new TopicConfig(topic);

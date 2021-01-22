@@ -36,36 +36,68 @@ import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
- * Local storage implementation
+ * 本地的存放广播站消费队列偏移量类
  */
 public class LocalFileOffsetStore implements OffsetStore {
     public final static String LOCAL_OFFSET_STORE_DIR = System.getProperty(
         "rocketmq.client.localOffsetStoreDir",
         System.getProperty("user.home") + File.separator + ".rocketmq_offsets");
     private final static InternalLogger log = ClientLogger.getLog();
+    /**
+     * mqclientinstance
+     */
     private final MQClientInstance mQClientFactory;
+
+    /**
+     * 消费者组名
+     */
     private final String groupName;
+
+    /**
+     * 存储消费者组下所有主题消息队列消费偏移量的文件的基本路径./store/.rocketmq_offsets/192.168.0.1@33/consumeGroupname/offsets.json
+     */
     private final String storePath;
+
+    /**
+     * 存储当前消费者组主题消息队列偏移量的列表
+     */
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();
 
+    /**
+     * 实例化一个存放广播站消费队列偏移量
+     * @param mQClientFactory mqclientinstace
+     * @param groupName 消费者组名
+     */
     public LocalFileOffsetStore(MQClientInstance mQClientFactory, String groupName) {
+        //设置mqclientinstance
         this.mQClientFactory = mQClientFactory;
+        //设置消费者组名
         this.groupName = groupName;
+        //本地存储偏移量文件的路径
         this.storePath = LOCAL_OFFSET_STORE_DIR + File.separator +
             this.mQClientFactory.getClientId() + File.separator +
             this.groupName + File.separator +
             "offsets.json";
     }
 
+    /**
+     * 从本地offsets.json文件中加载消费者组订阅的所有主题消息队列偏移量
+     * @throws MQClientException
+     */
     @Override
     public void load() throws MQClientException {
+        //获取当前消费者组下所有的主题消息队列对应的偏移量列表对象
         OffsetSerializeWrapper offsetSerializeWrapper = this.readLocalOffset();
         if (offsetSerializeWrapper != null && offsetSerializeWrapper.getOffsetTable() != null) {
+            //将从本地json文件加载出的主题消息队列偏移量列表保存起来
             offsetTable.putAll(offsetSerializeWrapper.getOffsetTable());
 
+            //遍历所有的主题消息队列
             for (MessageQueue mq : offsetSerializeWrapper.getOffsetTable().keySet()) {
+                //获取主题消息队列的偏移量
                 AtomicLong offset = offsetSerializeWrapper.getOffsetTable().get(mq);
+                //将主题消息队列对应的偏移量打印出来
                 log.info("load consumer's offset, {} {} {}",
                     this.groupName,
                     mq,
@@ -180,9 +212,15 @@ public class LocalFileOffsetStore implements OffsetStore {
         return cloneOffsetTable;
     }
 
+    /**
+     * 从本地offsets.json中加载消费者组所有的主题消息队列偏移量
+     * @return
+     * @throws MQClientException
+     */
     private OffsetSerializeWrapper readLocalOffset() throws MQClientException {
         String content = null;
         try {
+            //读取json文件中的内容
             content = MixAll.file2String(this.storePath);
         } catch (IOException e) {
             log.warn("Load local offset store file exception", e);
@@ -190,6 +228,7 @@ public class LocalFileOffsetStore implements OffsetStore {
         if (null == content || content.length() == 0) {
             return this.readLocalOffsetBak();
         } else {
+            //将json字符串反序列化为主题消息队列对应的偏移量
             OffsetSerializeWrapper offsetSerializeWrapper = null;
             try {
                 offsetSerializeWrapper =

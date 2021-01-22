@@ -150,22 +150,18 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private long adjustThreadPoolNumsThreshold = 100000;
 
     /**
-     * Concurrently max span offset.it has no effect on sequential consumption
+     * 主题消息队列对应的处理队列中等待被消费的消息 最后一个消息和第一个消息在主题消息队列中的偏移量量之差如果大于这个值
+     * 当前消费者请求从广播站的主题消息队列拉取消息将会等待50秒再发起请求
      */
     private int consumeConcurrentlyMaxSpan = 2000;
 
     /**
-     * Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
-     * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
+     * 当消费者某个主题消息队列对应的处理队列等待处理的消息达到1000条时 将不会继续从广播站的主题消息队列拉取消息
      */
     private int pullThresholdForQueue = 1000;
 
     /**
-     * Limit the cached message size on queue level, each message queue will cache at most 100 MiB messages by default,
-     * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
-     *
-     * <p>
-     * The size of a message only measured by message body, so it's not accurate
+     * 主题消息队列对应的出处理中的队列等待处理的消息的总M数超过了这个值 当前的消费者从这个主题消息队列拉取消息 将会延时发送请求
      */
     private int pullThresholdSizeForQueue = 100;
 
@@ -202,7 +198,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private int consumeMessageBatchMaxSize = 1;
 
     /**
-     * 每次批量拉取消息的最大值
+     * 消费者每次从广播站的主题消息队列批量拉取消息的最大值
      */
     private int pullBatchSize = 32;
 

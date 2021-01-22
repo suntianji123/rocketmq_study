@@ -344,6 +344,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return topicList;
     }
 
+    /**
+     * 判断生产者的某个主题的发布路径信息需要更新
+     * @param topic 主题
+     * @return 这个生产者维护的这个主题的发布路径信息为null 或者 主题发布路径信息中没有主题消息队列
+     */
     @Override
     public boolean isPublishTopicNeedUpdate(String topic) {
         TopicPublishInfo prev = this.topicPublishInfoTable.get(topic);
@@ -469,6 +474,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.checkExecutor.submit(request);
     }
 
+    /**
+     * 更新生产者的主题发布信息
+     * @param topic 主题
+     * @param info 主题发布信息
+     */
     @Override
     public void updateTopicPublishInfo(final String topic, final TopicPublishInfo info) {
         if (info != null && topic != null) {
@@ -808,10 +818,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             topicPublishInfo = this.topicPublishInfoTable.get(topic);
         }
 
-        if (topicPublishInfo.isHaveTopicRouterInfo() || topicPublishInfo.ok()) {
+        if (topicPublishInfo.isHaveTopicRouterInfo() || topicPublishInfo.ok()) {//中心服务器有主题配置并且主题发布路径信息中有主题消息队列
             return topicPublishInfo;
         } else {
-            //从中心服务器获取主题路径信息 更新主题路径信息
+            //从中心服务器 获取默认主题的皮遏制
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic, true, this.defaultMQProducer);
             topicPublishInfo = this.topicPublishInfoTable.get(topic);
             return topicPublishInfo;

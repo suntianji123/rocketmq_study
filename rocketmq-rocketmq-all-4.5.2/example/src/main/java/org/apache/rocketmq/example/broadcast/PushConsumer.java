@@ -26,17 +26,25 @@ import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.common.message.MessageExt;
 import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 
+/**
+ * 广播模式的消费者
+ */
 public class PushConsumer {
 
     public static void main(String[] args) throws InterruptedException, MQClientException {
+        //实例化一个消费者
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("please_rename_unique_group_name_1");
 
+        //消费者第一次消费广播站主题消息队列中的消息时 从哪开始消费
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
 
+        //设置消费者的消息模型
         consumer.setMessageModel(MessageModel.BROADCASTING);
 
+        //消费者订阅主题 已经主题表达式
         consumer.subscribe("TopicTest", "TagA || TagC || TagD");
 
+        //注册消费者组消费消息的监听器
         consumer.registerMessageListener(new MessageListenerConcurrently() {
 
             @Override
@@ -47,6 +55,7 @@ public class PushConsumer {
             }
         });
 
+        //启动消费者
         consumer.start();
         System.out.printf("Broadcast Consumer Started.%n");
     }

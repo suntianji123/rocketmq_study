@@ -22,9 +22,17 @@ import org.apache.rocketmq.client.producer.TransactionListener;
 import org.apache.rocketmq.common.message.MessageExt;
 import org.apache.rocketmq.common.protocol.header.CheckTransactionStateRequestHeader;
 
+/**
+ * 生产者接口
+ */
 public interface MQProducerInner {
     Set<String> getPublishTopicList();
 
+    /**
+     * 判断生产者发布的某个主题的发布路径信息是否需要更新
+     * @param topic 主题
+     * @return 这个生产者维护的主题发布路径信息为null或者主题消息队列列表为空
+     */
     boolean isPublishTopicNeedUpdate(final String topic);
 
     TransactionCheckListener checkListener();
@@ -35,6 +43,11 @@ public interface MQProducerInner {
         final MessageExt msg,
         final CheckTransactionStateRequestHeader checkRequestHeader);
 
+    /**
+     * 更新生产者组的某个主题的主题发布信息
+     * @param topic 主题
+     * @param info 主题发布信息
+     */
     void updateTopicPublishInfo(final String topic, final TopicPublishInfo info);
 
     boolean isUnitMode();

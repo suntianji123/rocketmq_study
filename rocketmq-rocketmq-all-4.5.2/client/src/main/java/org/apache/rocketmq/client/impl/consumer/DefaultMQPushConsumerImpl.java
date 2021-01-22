@@ -145,6 +145,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      * 消息者消费消息的服务
      */
     private ConsumeMessageService consumeMessageService;
+
+    /**
+     * 由于主题消息队列对应的处理队列中的等待处理的消息的数量超过了阀值 而导致延时发送向广播站主题消息队列拉取消息的次数
+     */
     private long queueFlowControlTimes = 0;
     private long queueMaxSpanFlowControlTimes = 0;
 
@@ -277,21 +281,23 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         //消费者服务已经暂停
         if (this.isPause()) {
             log.warn("consumer was paused, execute pull request later. instanceName={}, group={}", this.defaultMQPushConsumer.getInstanceName(), this.defaultMQPushConsumer.getConsumerGroup());
-            //稍后执行
+            //等待50秒之后 再从广播站的主题消息队列拉取消息
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_SUSPEND);
             return;
         }
 
-        //从广播站拉取的消息到缓存的数量
+        //处理队列中有正等待被消息者消费的消息的数量
         long cachedMessageCount = processQueue.getMsgCount().get();
 
-        //从广播站拉取的消息到缓存的总的大小
+        //处理队列中有正等待被消息者消费的消息总的字节数
         long cachedMessageSizeInMiB = processQueue.getMsgSize().get() / (1024 * 1024);
 
-        //从广播站拉取到内存的消息的数量最大值
+        //主题消息队列对应的处理队列中的超过了1000条消息正等着被消费者消费 这时候不能从广播站的主题消息队列拉取消息
         if (cachedMessageCount > this.defaultMQPushConsumer.getPullThresholdForQueue()) {
+            //等待50毫秒 再从广播站的主题消息队列拉取消息 增加延时次数
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
             if ((queueFlowControlTimes++ % 1000) == 0) {
+                //打印主题消息队列中等待处理的第一个消息在主题消息队列中的偏移量 和最后一个消息在主题消息队列中的偏移量
                 log.warn(
                     "the cached message count exceeds the threshold {}, so do flow control, minOffset={}, maxOffset={}, count={}, size={} MiB, pullRequest={}, flowControlTimes={}",
                     this.defaultMQPushConsumer.getPullThresholdForQueue(), processQueue.getMsgTreeMap().firstKey(), processQueue.getMsgTreeMap().lastKey(), cachedMessageCount, cachedMessageSizeInMiB, pullRequest, queueFlowControlTimes);
@@ -299,10 +305,12 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             return;
         }
 
-        //从广播站拉取的消息到缓存的消息的总的大小
+        //当前主题消息队列对应的处理中的队列超过了100M的消息正等待被当前消费者消费 等待50毫秒之后 再从广播站的主题消息队列拉取消息
         if (cachedMessageSizeInMiB > this.defaultMQPushConsumer.getPullThresholdSizeForQueue()) {
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
+            //增加延时发送请求的次数
             if ((queueFlowControlTimes++ % 1000) == 0) {
+                //记录处理中队列第一个等待处理的消息在主题消息队列中的偏移量  最后一个等待处理的消息在主题消息队列中的偏移量
                 log.warn(
                     "the cached message size exceeds the threshold {} MiB, so do flow control, minOffset={}, maxOffset={}, count={}, size={} MiB, pullRequest={}, flowControlTimes={}",
                     this.defaultMQPushConsumer.getPullThresholdSizeForQueue(), processQueue.getMsgTreeMap().firstKey(), processQueue.getMsgTreeMap().lastKey(), cachedMessageCount, cachedMessageSizeInMiB, pullRequest, queueFlowControlTimes);
@@ -310,11 +318,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             return;
         }
 
-        if (!this.consumeOrderly) {
-            //最大跨度偏移量
+        if (!this.consumeOrderly) {//实时拉取消息
+            //主题消息队列对应的处理队列中的最后一个消息的偏移量和第一个消息的偏移量之差太大 需要等待50毫秒之后，再从广播站的主题消息队列拉取消息
             if (processQueue.getMaxSpan() > this.defaultMQPushConsumer.getConsumeConcurrentlyMaxSpan()) {
+                //稍后向广播站的主题消息队列拉取消息
                 this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
                 if ((queueMaxSpanFlowControlTimes++ % 1000) == 0) {
+                    //打印消息
                     log.warn(
                         "the queue's messages, span too long, so do flow control, minOffset={}, maxOffset={}, maxSpan={}, pullRequest={}, flowControlTimes={}",
                         processQueue.getMsgTreeMap().firstKey(), processQueue.getMsgTreeMap().lastKey(), processQueue.getMaxSpan(),
@@ -346,7 +356,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
         //获取主题的订阅数据
         final SubscriptionData subscriptionData = this.rebalanceImpl.getSubscriptionInner().get(pullRequest.getMessageQueue().getTopic());
-        if (null == subscriptionData) {
+        if (null == subscriptionData) {//没有订阅数据 等待3000毫秒之后 再从主题消息队列拉取消息
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_EXCEPTION);
             log.warn("find the consumer's subscription failed, {}", pullRequest);
             return;
@@ -489,12 +499,14 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             }
         }
 
+        //消费者组订阅的主题的消息过滤表达式
         String subExpression = null;
         boolean classFilter = false;
         SubscriptionData sd = this.rebalanceImpl.getSubscriptionInner().get(pullRequest.getMessageQueue().getTopic());
         if (sd != null) {
             //如果更新订阅关系
             if (this.defaultMQPushConsumer.isPostSubscriptionWhenPull() && !sd.isClassFilterMode()) {
+                //获取消息过滤表达式
                 subExpression = sd.getSubString();
             }
 
@@ -509,6 +521,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             classFilter // class filter
         );
         try {
+            //拉取消息
             this.pullAPIWrapper.pullKernelImpl(
                 pullRequest.getMessageQueue(),
                 subExpression,
@@ -542,6 +555,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 延时向广播站发起请求  等待timeDelay秒后 再向广播站发起请求 从广播站的主题消息队列拉取消息
+     * @param pullRequest 向广播站的主题消息队列拉取消息的请求
+     * @param timeDelay 延时时间 单位秒
+     */
     private void executePullRequestLater(final PullRequest pullRequest, final long timeDelay) {
         this.mQClientFactory.getPullMessageService().executePullRequestLater(pullRequest, timeDelay);
     }
@@ -728,7 +746,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     this.offsetStore = this.defaultMQPushConsumer.getOffsetStore();
                 } else {
                     switch (this.defaultMQPushConsumer.getMessageModel()) {
-                        case BROADCASTING:
+                        case BROADCASTING://消息模式为广播模式
                             this.offsetStore = new LocalFileOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
                             break;
                         case CLUSTERING://消息模型为集群模式
@@ -741,7 +759,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     this.defaultMQPushConsumer.setOffsetStore(this.offsetStore);
                 }
 
-                //加载主题消息队列的偏移量
+                //加载当前消费者主题消息队列的偏移量
                 this.offsetStore.load();
 
                 if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {//消费者消费消息的监听器类型为顺序的
@@ -1012,7 +1030,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             }
 
             switch (this.defaultMQPushConsumer.getMessageModel()) {//判断消息模型
-                case BROADCASTING:
+                case BROADCASTING://消息模型为广播模式
                     break;
                 case CLUSTERING:
                     //为消息添加一个RETRY类型的主题 用于存放消费者消息失败时 将消息重新推送给广播站
@@ -1224,9 +1242,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     /**
-     * 更新消费者的订阅的主题订阅信息
+     * 更新消费者的订阅的主题存放消息的消息队列列表
      * @param topic 主题
-     * @param info 主题消息队列列表
+     * @param info 存放主题的消息的消息队列列表
      */
     @Override
     public void updateTopicSubscribeInfo(String topic, Set<MessageQueue> info) {
@@ -1238,11 +1256,18 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 判断消费者组订阅的主题的订阅数据是否更新
+     * @param topic 主题
+     * @return
+     */
     @Override
     public boolean isSubscribeTopicNeedUpdate(String topic) {
+        //获取消费者所有订阅的主题列表
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
-            if (subTable.containsKey(topic)) {
+            if (subTable.containsKey(topic)) {//如果订阅的主题中包含这个主题
+                //返回平衡算法中不包含这个主题
                 return !this.rebalanceImpl.topicSubscribeInfoTable.containsKey(topic);
             }
         }

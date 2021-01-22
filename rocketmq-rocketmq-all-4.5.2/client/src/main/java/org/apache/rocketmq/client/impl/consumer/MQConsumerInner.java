@@ -25,7 +25,7 @@ import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 
 /**
- * Consumer inner interface
+ * 消费者接口
  */
 public interface MQConsumerInner {
     String groupName();
@@ -44,6 +44,11 @@ public interface MQConsumerInner {
 
     void updateTopicSubscribeInfo(final String topic, final Set<MessageQueue> info);
 
+    /**
+     * 判断消费者订阅的某个主题的订阅数据是否需要更新
+     * @param topic 主题
+     * @return
+     */
     boolean isSubscribeTopicNeedUpdate(final String topic);
 
     boolean isUnitMode();

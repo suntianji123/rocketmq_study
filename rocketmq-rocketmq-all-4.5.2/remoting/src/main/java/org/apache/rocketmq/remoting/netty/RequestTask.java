@@ -20,16 +20,46 @@ package org.apache.rocketmq.remoting.netty;
 import io.netty.channel.Channel;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * 缓存的请求任务
+ */
 public class RequestTask implements Runnable {
+    /**
+     * run方法体
+     */
     private final Runnable runnable;
+    /**
+     * 创建时间
+     */
     private final long createTimestamp = System.currentTimeMillis();
+
+    /**
+     * 请求的来源发起channel
+     */
     private final Channel channel;
+
+    /**
+     * 请求体
+     */
     private final RemotingCommand request;
+
+    /**
+     * 请求任务是否已经停止
+     */
     private boolean stopRun = false;
 
+    /**
+     * 实例化一个请求任务
+     * @param runnable run方法体
+     * @param channel 请求的channel
+     * @param request 请求对象
+     */
     public RequestTask(final Runnable runnable, final Channel channel, final RemotingCommand request) {
+        //设置run方法体
         this.runnable = runnable;
+        //设置channel
         this.channel = channel;
+        //设置请求体
         this.request = request;
     }
 

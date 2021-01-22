@@ -32,7 +32,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
- * 表达式消息过滤器类
+ * 表达式类型消息过滤器类
  */
 public class ExpressionMessageFilter implements MessageFilter {
 

@@ -172,13 +172,13 @@ public class PullAPIWrapper {
     /**
      * 从广播站拉取消息的核心实现
      * @param mq 主题消息队列
-     * @param subExpression 主题tag表达式（拉取时 需要更新的主题tag表达式）
+     * @param subExpression 消费者订阅的过滤主题消息的表达式
      * @param expressionType 表达式类型
      * @param subVersion 表达式版本
-     * @param offset 拉取消息的起始偏移量
+     * @param offset 批量拉取消息的在主题消费队列中的起始偏移量
      * @param maxNums 批量拉取消息的最大值
      * @param sysFlag 系统标志
-     * @param commitOffset 修改主题消息队列的消费偏移量值
+     * @param commitOffset 消费者组缓存的主题消息队列的消费偏移量
      * @param brokerSuspendMaxTimeMillis 广播站缓存这个请求的最大超时时间
      * @param timeoutMillis 请求超时时间
      * @param communicationMode 与远程广播站的通讯模式 单向、同步、异步
@@ -204,18 +204,20 @@ public class PullAPIWrapper {
         final PullCallback pullCallback
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
 
-        //寻找广播站
+        //寻找广播站 优先从主题消息队列对应的建议站点获取 否则使用主站
         FindBrokerResult findBrokerResult =
             this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(),
                 this.recalculatePullFromWhichNode(mq), false);
-        if (null == findBrokerResult) {
+        if (null == findBrokerResult) {//没有找到广播站
+            //尝试从中心服务器更新广播站列表
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(mq.getTopic());
+            //再次去寻找广播站
             findBrokerResult =
                 this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(),
                     this.recalculatePullFromWhichNode(mq), false);
         }
 
-        if (findBrokerResult != null) {
+        if (findBrokerResult != null) {//找到了广播站
             {
                 // 主题的表达式类型必须为tag类型
                 if (!ExpressionType.isTagType(expressionType)
@@ -229,7 +231,7 @@ public class PullAPIWrapper {
             int sysFlagInner = sysFlag;
 
             //远程广播站是从站
-            if (findBrokerResult.isSlave()) {
+            if (findBrokerResult.isSlave()) {//如果站点从站 不能更改广播站主题消息队列的消费偏移量
                 //清理掉系统标志位中 可以修改主题消息队列的偏移量的标志位
                 sysFlagInner = PullSysFlag.clearCommitOffsetFlag(sysFlagInner);
             }
@@ -248,22 +250,24 @@ public class PullAPIWrapper {
             requestHeader.setMaxMsgNums(maxNums);
             //设置系统标志
             requestHeader.setSysFlag(sysFlagInner);
-            //如果sysflag有修改主题消息队列的消费消息的偏移量标志 这个值用于
+            //设置修改广播站主题消息队列的消费偏移量值
             requestHeader.setCommitOffset(commitOffset);
             //设置悬挂消息的超时时间
             requestHeader.setSuspendTimeoutMillis(brokerSuspendMaxTimeMillis);
-            //设置修改后的主题表达式
+            //设置生产者组订阅这个主题过滤消息的表达式
             requestHeader.setSubscription(subExpression);
-            //设置修改后的主题版本号
+            //设置生产者订阅这个主题过滤消息的表达式的版本
             requestHeader.setSubVersion(subVersion);
-            //设置椎体表达式类型
+            //设置生产者订阅这个主题过滤消息的表达式类型
             requestHeader.setExpressionType(expressionType);
 
+            //获取广播站地址
             String brokerAddr = findBrokerResult.getBrokerAddr();
             if (PullSysFlag.hasClassFilterFlag(sysFlagInner)) {//如果需要过滤class 过滤当前广播站地址 从可选的广播站地址中选择一个地址
                 brokerAddr = computPullFromWhichFilterServer(mq.getTopic(), brokerAddr);
             }
 
+            //调用远程客户端 向远程广播站发送一个拉取消息的请求
             PullResult pullResult = this.mQClientFactory.getMQClientAPIImpl().pullMessage(
                 brokerAddr,
                 requestHeader,
@@ -277,16 +281,24 @@ public class PullAPIWrapper {
         throw new MQClientException("The broker[" + mq.getBrokerName() + "] not exist", null);
     }
 
+    /**
+     * 优先从建立的广播站id拉取主题消息队列的消息
+     * @param mq 主题消息队列
+     * @return
+     */
     public long recalculatePullFromWhichNode(final MessageQueue mq) {
         if (this.isConnectBrokerByUser()) {
             return this.defaultBrokerId;
         }
 
+        //获取主题消息队列对应的建议站点
         AtomicLong suggest = this.pullFromWhichNodeTable.get(mq);
-        if (suggest != null) {
+        if (suggest != null) {//存在建议站点
+            //获取建议的站点
             return suggest.get();
         }
 
+        //获取主站的id
         return MixAll.MASTER_ID;
     }
 

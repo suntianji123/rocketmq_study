@@ -567,12 +567,12 @@ public class DefaultMessageStore implements MessageStore {
         //结果 初始值为没有消息
         GetMessageStatus status = GetMessageStatus.NO_MESSAGE_IN_QUEUE;
 
-        //下一个消息在消费队列中的偏移量
+        //下一次从主题消息度列获取消息的偏移量
         long nextBeginOffset = offset;
 
-        //主题消息队列的消费队列最小偏移量
+        //主题消息队列可消费的消息最小偏移量
         long minOffset = 0;
-        //主题消息队列的消费队列最大偏移量
+        //主题消息队列可消费的消息最大偏移量
         long maxOffset = 0;
 
         //实例化一个获取消息的结果对象
@@ -581,7 +581,7 @@ public class DefaultMessageStore implements MessageStore {
         //已经写入到commitlog文件系统的消息的最大偏移量
         final long maxOffsetPy = this.commitLog.getMaxOffset();
 
-        //获取主题消息队列的消费队列对象
+        //获取主题消息队列对应的消费队列
         ConsumeQueue consumeQueue = findConsumeQueue(topic, queueId);
         if (consumeQueue != null) {
             //获取消费队列的起始偏移量 /20之后的值
@@ -589,12 +589,12 @@ public class DefaultMessageStore implements MessageStore {
             //获取已经写入消息的最大偏移量 /20之后的值
             maxOffset = consumeQueue.getMaxOffsetInQueue();
 
-            if (maxOffset == 0) {
+            if (maxOffset == 0) {//最大消费偏移量为0 说明消费队列中没有消息
                 //消费队列中没有消息
                 status = GetMessageStatus.NO_MESSAGE_IN_QUEUE;
                 //设置下一个消息在消费队列中的起始偏移量为0
                 nextBeginOffset = nextOffsetCorrection(offset, 0);
-            } else if (offset < minOffset) {//获取消息的偏移量不能小于消费队列已经存在的消息的起始偏移量
+            } else if (offset < minOffset) {//获取消息的偏移量小于消费队列的最小偏移量
                 status = GetMessageStatus.OFFSET_TOO_SMALL;
                 //设置下一个偏移量为最低偏移量
                 nextBeginOffset = nextOffsetCorrection(offset, minOffset);
@@ -616,31 +616,33 @@ public class DefaultMessageStore implements MessageStore {
                         //设置状态的初始值为没有找到消息
                         status = GetMessageStatus.NO_MATCHED_MESSAGE;
 
+                        //下一个commitlog文件的第一个消息的偏移量值
                         long nextPhyFileStartOffset = Long.MIN_VALUE;
                         //单次批量消息的在commitlog中的最大偏移量
                         long maxPhyOffsetPulling = 0;
 
                         int i = 0;
-                        //批量获取消息的字节最大值
+                        //批量可获取消息位置信息的总字节数
                         final int maxFilterMessageCount = Math.max(16000, maxMsgNums * ConsumeQueue.CQ_STORE_UNIT_SIZE);
+                        //记录磁盘掉落信息
                         final boolean diskFallRecorded = this.messageStoreConfig.isDiskFallRecorded();
                         ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
-                        for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {//遍历结果中的字节数
+                        for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {//从指定的offest开始 读出consumerConsume中的消息位置信息
                             //获取消息在commitlog中的偏移量
                             long offsetPy = bufferConsumeQueue.getByteBuffer().getLong();
                             //获取消息的大小
                             int sizePy = bufferConsumeQueue.getByteBuffer().getInt();
-                            //获取消息的哈希值
+                            //消息生产者标签的哈希值
                             long tagsCode = bufferConsumeQueue.getByteBuffer().getLong();
                             //指定最大偏移量
                             maxPhyOffsetPulling = offsetPy;
 
-                            if (nextPhyFileStartOffset != Long.MIN_VALUE) {
+                            if (nextPhyFileStartOffset != Long.MIN_VALUE) {//在下一个commitlog文件中寻找消息
                                 if (offsetPy < nextPhyFileStartOffset)
                                     continue;
                             }
 
-                            //如果只存在磁盘
+                            //当前是否需要从硬盘上获取消息
                             boolean isInDisk = checkInDiskByCommitOffset(offsetPy, maxOffsetPy);
 
                             //如果拉取的消息的总数或者总的字节数满了 跳出循环
@@ -665,7 +667,8 @@ public class DefaultMessageStore implements MessageStore {
                             //消费者订阅的主题标签列表 如果不包含消息的生产标签 则消费者不能消费者这条消息 继续消费下一条消息
                             if (messageFilter != null
                                 && !messageFilter.isMatchedByConsumeQueue(isTagsCodeLegal ? tagsCode : null, extRet ? cqExtUnit : null)) {
-                                if (getResult.getBufferTotalSize() == 0) {
+                                if (getResult.getBufferTotalSize() == 0) {//如果没有找到过消息
+                                    //消息的生产标签与消息费订阅的消息标签不一致
                                     status = GetMessageStatus.NO_MATCHED_MESSAGE;
                                 }
 
@@ -688,7 +691,7 @@ public class DefaultMessageStore implements MessageStore {
                             //消费者消息过滤器
                             if (messageFilter != null
                                 && !messageFilter.isMatchedByCommitLog(selectResult.getByteBuffer().slice(), null)) {
-                                if (getResult.getBufferTotalSize() == 0) {
+                                if (getResult.getBufferTotalSize() == 0) {//如果没有找到过消息
                                     status = GetMessageStatus.NO_MATCHED_MESSAGE;
                                 }
                                 // release...
@@ -733,6 +736,7 @@ public class DefaultMessageStore implements MessageStore {
                     }
                 } else {
                     status = GetMessageStatus.OFFSET_FOUND_NULL;
+                    //到下一个consumeQueue文件中去拉取消息
                     nextBeginOffset = nextOffsetCorrection(offset, consumeQueue.rollNextFile(offset));
                     log.warn("consumer request topic: " + topic + "offset: " + offset + " minOffset: " + minOffset + " maxOffset: "
                         + maxOffset + ", but access logic queue failed.");
@@ -2060,7 +2064,7 @@ public class DefaultMessageStore implements MessageStore {
                                     //将消息分发到ConusumeQueue消息队列文件、IndexFile文件
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
-                                    //如果站点是主站
+                                    //如果站点是主站 并且广播站支持悬挂消费者从广播站拉取消费的请求
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()
                                         && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
 

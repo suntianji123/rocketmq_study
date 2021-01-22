@@ -29,6 +29,10 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.ConsumeQueueExt;
 
+/**
+ * 悬挂消费者拉取消息请求的类
+ * 当消费者从广播站的消费者拉取消息时 广播站的主题消息队列没有消息 这时广播站将这个消息保存起来 等待有生产者生产消息时 进行处理
+ */
 public class PullRequestHoldService extends ServiceThread {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final String TOPIC_QUEUEID_SEPARATOR = "@";
@@ -45,17 +49,28 @@ public class PullRequestHoldService extends ServiceThread {
         this.brokerController = brokerController;
     }
 
+    /**
+     * 悬挂一个消费者请求从广播站拉取消息的请求
+     * @param topic 主题
+     * @param queueId 主题消息队列编号
+     * @param pullRequest 拉取消息的请求
+     */
     public void suspendPullRequest(final String topic, final int queueId, final PullRequest pullRequest) {
+        //获取主题消息队列的key
         String key = this.buildKey(topic, queueId);
+        //获取悬挂的请求列表
         ManyPullRequest mpr = this.pullRequestTable.get(key);
         if (null == mpr) {
+            //实例化一个多个拉取消息的请求
             mpr = new ManyPullRequest();
+            //获取之前的
             ManyPullRequest prev = this.pullRequestTable.putIfAbsent(key, mpr);
             if (prev != null) {
                 mpr = prev;
             }
         }
 
+        //向多个拉取请求对象中添加一个请求
         mpr.addPullRequest(pullRequest);
     }
 
@@ -124,11 +139,11 @@ public class PullRequestHoldService extends ServiceThread {
     }
 
     /**
-     * 通知消息到来
+     * 通知消息到来 将消息推送给消费者
      * @param topic 主题
      * @param queueId 消息所在的主题消息队列编号
-     * @param maxOffset 消息在主题消息队列中的偏移量
-     * @param tagsCode 消息的标签哈希值
+     * @param maxOffset 消费队列中最大消息的偏移量
+     * @param tagsCode 消息的生产标签哈希值
      * @param msgStoreTime 消息存储时间
      * @param filterBitMap 过滤器位
      * @param properties 消息属性map
@@ -142,17 +157,20 @@ public class PullRequestHoldService extends ServiceThread {
         //获取这个主题消息队列等待拉取消息的请求对象
         ManyPullRequest mpr = this.pullRequestTable.get(key);
         if (mpr != null) {
+            //将消费者等待拉取的消息请求克隆一份返回 并且清除manyPullRequest对象的等待拉取请求的列表
             List<PullRequest> requestList = mpr.cloneListAndClear();
             if (requestList != null) {
                 List<PullRequest> replayList = new ArrayList<PullRequest>();
 
                 for (PullRequest request : requestList) {
                     long newestOffset = maxOffset;
-                    if (newestOffset <= request.getPullFromThisOffset()) {
+                    if (newestOffset <= request.getPullFromThisOffset()) {//拉取消息的偏移量大于消费队列的最大偏移量
+                        //重新获取一个消费队列的最大偏移量
                         newestOffset = this.brokerController.getMessageStore().getMaxOffsetInQueue(topic, queueId);
                     }
 
-                    if (newestOffset > request.getPullFromThisOffset()) {
+                    if (newestOffset > request.getPullFromThisOffset()) {//最大偏移量大于消费者拉取的偏移量
+                        //判断消息是否可以被消费者接受
                         boolean match = request.getMessageFilter().isMatchedByConsumeQueue(tagsCode,
                             new ConsumeQueueExt.CqExtUnit(tagsCode, msgStoreTime, filterBitMap));
                         // match by bit map, need eval again when properties is not null.
@@ -160,7 +178,7 @@ public class PullRequestHoldService extends ServiceThread {
                             match = request.getMessageFilter().isMatchedByCommitLog(null, properties);
                         }
 
-                        if (match) {
+                        if (match) {//如果消费者可以接收这个标签的消息 立刻消费消息
                             try {
                                 this.brokerController.getPullMessageProcessor().executeRequestWhenWakeup(request.getClientChannel(),
                                     request.getRequestCommand());
@@ -171,6 +189,7 @@ public class PullRequestHoldService extends ServiceThread {
                         }
                     }
 
+                    //生产的标签不匹配或者消费者拉取的消息偏移量时间超时 执行拉取
                     if (System.currentTimeMillis() >= (request.getSuspendTimestamp() + request.getTimeoutMillis())) {
                         try {
                             this.brokerController.getPullMessageProcessor().executeRequestWhenWakeup(request.getClientChannel(),

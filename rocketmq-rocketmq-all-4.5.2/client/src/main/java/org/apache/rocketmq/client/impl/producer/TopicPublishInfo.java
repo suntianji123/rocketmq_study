@@ -25,6 +25,8 @@ import org.apache.rocketmq.common.protocol.route.TopicRouteData;
 
 /**
  * 主题发布信息
+ * 一个主题 多个广播站各自分配多个不同数量消息队列来存放主题消息
+ * 主题的一个消息 只会存在于某个广播站的某个主题消息队列
  */
 public class TopicPublishInfo {
     /**
@@ -38,7 +40,7 @@ public class TopicPublishInfo {
     private boolean haveTopicRouterInfo = false;
 
     /**
-     * 发布消息的广播站列表
+     * 主题消息队列列表 多个广播站 会持有列表中一部分消息队列
      */
     private List<MessageQueue> messageQueueList = new ArrayList<MessageQueue>();
 
@@ -61,8 +63,8 @@ public class TopicPublishInfo {
     }
 
     /**
-     * 没有发布消息的广播站列表
-     * @return
+     * 判断主题发布信息是否可用
+     * @return 主题消息队列列表里面有主题消息队列
      */
     public boolean ok() {
         return null != this.messageQueueList && !this.messageQueueList.isEmpty();

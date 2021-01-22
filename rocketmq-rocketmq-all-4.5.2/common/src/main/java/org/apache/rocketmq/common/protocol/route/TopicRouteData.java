@@ -26,7 +26,8 @@ import java.util.List;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
 /**
- * 主题对应的发布广播站信息数据类
+ * 主题发布路径数据类
+ * 多个广播站会为当前主题 分配多个不同数量的消息队列来存储广播站的消息 主题的一条消息只会存在于一个广播站的一个主题消息队列
  */
 public class TopicRouteData extends RemotingSerializable {
 
@@ -38,12 +39,12 @@ public class TopicRouteData extends RemotingSerializable {
     private String orderTopicConf;
 
     /**
-     * 广播站读写队列的配置数据列表
+     * 每个广播站为主题的消息分配的读写队列数量配置
      */
     private List<QueueData> queueDatas;
 
     /**
-     * 广播站信息列表
+     * 可以写入这个主题的消息的广播站数据列表
      */
     private List<BrokerData> brokerDatas;
 

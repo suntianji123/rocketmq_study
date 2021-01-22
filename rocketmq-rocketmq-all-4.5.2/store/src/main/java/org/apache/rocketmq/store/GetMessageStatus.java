@@ -47,7 +47,7 @@ public enum GetMessageStatus {
     OFFSET_OVERFLOW_BADLY,
 
     /**
-     * 获取消息的偏移量刚好超过了消费队列中消息最大偏移量
+     * 获取消息的偏移量刚好超过了消费队列中消息最大偏移量一个
      */
     OFFSET_OVERFLOW_ONE,
 
@@ -56,6 +56,9 @@ public enum GetMessageStatus {
      */
     OFFSET_TOO_SMALL,
 
+    /**
+     * 广播站的消费队列中没有消息
+     */
     NO_MATCHED_LOGIC_QUEUE,
 
     /**

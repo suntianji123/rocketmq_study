@@ -223,14 +223,22 @@ public class ProcessQueue {
         return dispatchToConsume;
     }
 
+    /**
+     * 处理队列中的正等待被消费的消息 最后一个消息在主题消息队列中的偏移量和第一个消息在主题消息队列中的偏移量的差值
+     * @return
+     */
     public long getMaxSpan() {
         try {
+            //打开读锁
             this.lockTreeMap.readLock().lockInterruptibly();
             try {
+                //等待被消费的消息列表不为空
                 if (!this.msgTreeMap.isEmpty()) {
+                    //返回最后一个消息的偏移量 - 第一个消息的偏移量
                     return this.msgTreeMap.lastKey() - this.msgTreeMap.firstKey();
                 }
             } finally {
+                //释放读锁
                 this.lockTreeMap.readLock().unlock();
             }
         } catch (InterruptedException e) {

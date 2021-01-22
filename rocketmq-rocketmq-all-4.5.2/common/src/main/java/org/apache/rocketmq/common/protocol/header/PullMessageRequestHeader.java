@@ -78,19 +78,19 @@ public class PullMessageRequestHeader implements CommandCustomHeader {
     private Long suspendTimeoutMillis;
 
     /**
-     * 消费消息 更新后主题表达式
+     * 消费者组订阅当前主题过滤消息的表达式
      */
     @CFNullable
     private String subscription;
 
     /**
-     * 主题更新后的版本
+     * 消费者组订阅当前主题过滤消息的表达式版本
      */
     @CFNotNull
     private Long subVersion;
 
     /**
-     * 表达式类型
+     * 消费者组订阅当前主题过滤消息的表达式类型
      */
     private String expressionType;
 
