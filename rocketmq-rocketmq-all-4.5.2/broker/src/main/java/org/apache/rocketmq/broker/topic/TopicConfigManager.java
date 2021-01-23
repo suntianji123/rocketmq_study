@@ -337,32 +337,53 @@ public class TopicConfigManager extends ConfigManager {
         return topicConfig;
     }
 
+    /**
+     * 创建事务检查最大次数的主题
+     * @param clientDefaultTopicQueueNums 主题消息队列的数量
+     * @param perm 主题消息的权限
+     * @return
+     */
     public TopicConfig createTopicOfTranCheckMaxTime(final int clientDefaultTopicQueueNums, final int perm) {
+
+        //为half message创建一个事务检查最大次数的主题配置
         TopicConfig topicConfig = this.topicConfigTable.get(MixAll.TRANS_CHECK_MAX_TIME_TOPIC);
         if (topicConfig != null)
             return topicConfig;
 
+        //是否为新创建的主题
         boolean createNew = false;
 
         try {
             if (this.lockTopicConfigTable.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
+                    //尝试从主题配置列表获取主题皮遏制
                     topicConfig = this.topicConfigTable.get(MixAll.TRANS_CHECK_MAX_TIME_TOPIC);
-                    if (topicConfig != null)
+                    if (topicConfig != null)//主题配置为null 直接返回
                         return topicConfig;
 
+                    //实例化一个椎体皮遏制
                     topicConfig = new TopicConfig(MixAll.TRANS_CHECK_MAX_TIME_TOPIC);
+                    //设置消费队列数量
                     topicConfig.setReadQueueNums(clientDefaultTopicQueueNums);
+                    //设置生产队列数量
                     topicConfig.setWriteQueueNums(clientDefaultTopicQueueNums);
+                    //设置消费 生产权限
                     topicConfig.setPerm(perm);
+                    //设置系统标志位
                     topicConfig.setTopicSysFlag(0);
 
+                    //记录日志
                     log.info("create new topic {}", topicConfig);
+
+                    //将主题放入列表
                     this.topicConfigTable.put(MixAll.TRANS_CHECK_MAX_TIME_TOPIC, topicConfig);
                     createNew = true;
+                    //增加版本
                     this.dataVersion.nextVersion();
+                    //序列化到沙河文件
                     this.persist();
                 } finally {
+                    //释放锁
                     this.lockTopicConfigTable.unlock();
                 }
             }
@@ -370,7 +391,7 @@ public class TopicConfigManager extends ConfigManager {
             log.error("create TRANS_CHECK_MAX_TIME_TOPIC exception", e);
         }
 
-        if (createNew) {
+        if (createNew) {//新创建 将主题配置推送到中心服务器
             this.brokerController.registerBrokerAll(false, true, true);
         }
 

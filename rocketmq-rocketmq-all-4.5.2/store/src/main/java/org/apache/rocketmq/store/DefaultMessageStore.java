@@ -85,6 +85,9 @@ public class DefaultMessageStore implements MessageStore {
 
     private final HAService haService;
 
+    /**
+     * 延时消息服务
+     */
     private final ScheduleMessageService scheduleMessageService;
 
     /**
@@ -159,6 +162,7 @@ public class DefaultMessageStore implements MessageStore {
         }
         this.reputMessageService = new ReputMessageService();
 
+        //实例化延时消息服务
         this.scheduleMessageService = new ScheduleMessageService(this);
 
         this.transientStorePool = new TransientStorePool(messageStoreConfig);
@@ -236,6 +240,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     /**
+     * 启动message store服务
      * @throws Exception
      */
     public void start() throws Exception {
@@ -298,6 +303,7 @@ public class DefaultMessageStore implements MessageStore {
 
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
             this.haService.start();
+            //处理延时消息服务
             this.handleScheduleMessageService(messageStoreConfig.getBrokerRole());
         }
 
@@ -1636,12 +1642,16 @@ public class DefaultMessageStore implements MessageStore {
         return brokerStatsManager;
     }
 
+    /**
+     * 处理延时消息服务
+     * @param brokerRole 广播站角色
+     */
     @Override
     public void handleScheduleMessageService(final BrokerRole brokerRole) {
         if (this.scheduleMessageService != null) {
-            if (brokerRole == BrokerRole.SLAVE) {
+            if (brokerRole == BrokerRole.SLAVE) {//如果是从站 关闭延时消息服务
                 this.scheduleMessageService.shutdown();
-            } else {
+            } else {//主站启动延时消息服务
                 this.scheduleMessageService.start();
             }
         }
@@ -2051,7 +2061,8 @@ public class DefaultMessageStore implements MessageStore {
                         this.reputFromOffset = result.getStartOffset();
 
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
-                            //从mappedFile文件中读出一条消息 构造为分发请求
+                            //检查消息 处理成分发请求
+                            //比如消息为延时消息 需要将tagscode值改为延时的截止到期时间
                             DispatchRequest dispatchRequest =
                                 DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
 

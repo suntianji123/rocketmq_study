@@ -864,7 +864,7 @@ public class BrokerController {
     }
 
     public void start() throws Exception {
-        if (this.messageStore != null) {
+        if (this.messageStore != null) {//messagestore不为null 启动messagestore
             this.messageStore.start();
         }
 

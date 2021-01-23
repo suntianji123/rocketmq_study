@@ -354,32 +354,39 @@ public class CommitLog {
 
             short propertiesLength = byteBuffer.getShort();
             Map<String, String> propertiesMap = null;
-            if (propertiesLength > 0) {
+            if (propertiesLength > 0) {//有属性
+                //获取属性长度
                 byteBuffer.get(bytesContent, 0, propertiesLength);
                 String properties = new String(bytesContent, 0, propertiesLength, MessageDecoder.CHARSET_UTF8);
+                //获取属性列表
                 propertiesMap = MessageDecoder.string2messageProperties(properties);
 
+                //获取属性的keys
                 keys = propertiesMap.get(MessageConst.PROPERTY_KEYS);
 
+                //获取消息的unidndId
                 uniqKey = propertiesMap.get(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX);
 
                 //获取标签
                 String tags = propertiesMap.get(MessageConst.PROPERTY_TAGS);
-                if (tags != null && tags.length() > 0) {
+                if (tags != null && tags.length() > 0) {//将消息的标签 转为tagscode值
                     tagsCode = MessageExtBrokerInner.tagsString2tagsCode(MessageExt.parseTopicFilterType(sysFlag), tags);
                 }
 
-                // Timing message processing
+
                 {
+                    //消息的类型为延时消息
                     String t = propertiesMap.get(MessageConst.PROPERTY_DELAY_TIME_LEVEL);
                     if (ScheduleMessageService.SCHEDULE_TOPIC.equals(topic) && t != null) {
+                        //获取延时级别
                         int delayLevel = Integer.parseInt(t);
 
-                        if (delayLevel > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
+                        if (delayLevel > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {//当前级别大于消息的最大延时级别  延时级别为消息的最大延时级别
                             delayLevel = this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel();
                         }
 
                         if (delayLevel > 0) {
+                            //根据延时级别 获取消息延时到期的截止时间  设置到tagscode上
                             tagsCode = this.defaultMessageStore.getScheduleMessageService().computeDeliverTimestamp(delayLevel,
                                 storeTimestamp);
                         }
@@ -387,6 +394,7 @@ public class CommitLog {
                 }
             }
 
+            //计算读取消息的长度
             int readLength = calMsgLength(bodyLen, topicLen, propertiesLength);
             if (totalSize != readLength) {
                 doNothingForDeadCode(reconsumeTimes);

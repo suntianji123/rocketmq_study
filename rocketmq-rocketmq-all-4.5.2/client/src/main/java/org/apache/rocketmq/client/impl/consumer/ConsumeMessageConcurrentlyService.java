@@ -125,12 +125,14 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
     /**
      * 启动实时消费消息的服务
+     * 每隔15分钟 清理掉处理队列中的消费消费失败的消息
      */
     public void start() {
         this.cleanExpireMsgExecutors.scheduleAtFixedRate(new Runnable() {
 
             @Override
             public void run() {
+                //每隔15分钟 将所有处理队列中消费超时的消息 重新写入到广播站的%RETRY%ConsumerGroupName or %DLQ%ConsumerGroupName主题消息队列
                 cleanExpireMsg();
             }
 
@@ -303,12 +305,18 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
     }
 
 
+    /**
+     * 清理处理中队列超时的消息
+     */
     private void cleanExpireMsg() {
+        //获取主题消息队列对应的处理中的队列列表
         Iterator<Map.Entry<MessageQueue, ProcessQueue>> it =
             this.defaultMQPushConsumerImpl.getRebalanceImpl().getProcessQueueTable().entrySet().iterator();
-        while (it.hasNext()) {
+        while (it.hasNext()) {//遍历列表
             Map.Entry<MessageQueue, ProcessQueue> next = it.next();
+            //获取处理中的队列
             ProcessQueue pq = next.getValue();
+            //调用处理队列的清理超时消息的方法
             pq.cleanExpiredMsg(this.defaultMQPushConsumer);
         }
     }
@@ -381,8 +389,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                     }
                 }
 
-                //重新推送给广播站的消息列表中有数据
-                if (!msgBackFailed.isEmpty()) {
+                if (!msgBackFailed.isEmpty()) {//如果有消息推送给广播站失败 只能说明服务器抛出了异常 继续将消息交给消费者消费
                     //移除没有被成功消费的消息
                     consumeRequest.getMsgs().removeAll(msgBackFailed);
 

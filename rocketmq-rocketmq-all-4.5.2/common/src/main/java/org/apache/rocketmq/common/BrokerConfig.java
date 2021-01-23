@@ -186,7 +186,7 @@ public class BrokerConfig {
     private long transactionTimeOut = 6 * 1000;
 
     /**
-     * The maximum number of times the message was checked, if exceed this value, this message will be discarded.
+     * 尝试删除half message的最大次数
      */
     @ImportantField
     private int transactionCheckMax = 15;

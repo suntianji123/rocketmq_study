@@ -56,7 +56,7 @@ public class RequestCode {
     public static final int UNREGISTER_CLIENT = 35;
 
     /**
-     * 消费者消费消息失败  将消息重新推送给广播站的请求
+     * 消费者消费消息失败  将消息重新推送给广播站的请求 写入广播站的RETRY OR DLQ队列
      */
     public static final int CONSUMER_SEND_MSG_BACK = 36;
 

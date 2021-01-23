@@ -56,7 +56,7 @@ public class TransactionalMessageBridge {
     private static final InternalLogger LOGGER = InnerLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
     /**
-     * 主题队列 对应的操作队列
+     * half message主题消息队列 | 操作half message主题消息队列
      */
     private final ConcurrentHashMap<MessageQueue, MessageQueue> opQueueMap = new ConcurrentHashMap<>();
 
@@ -104,9 +104,11 @@ public class TransactionalMessageBridge {
      * @return
      */
     public long fetchConsumeOffset(MessageQueue mq) {
+        //获取half message消费队列的消费偏移量
         long offset = brokerController.getConsumerOffsetManager().queryOffset(TransactionalMessageUtil.buildConsumerGroup(),
             mq.getTopic(), mq.getQueueId());
         if (offset == -1) {
+            //最低消费偏移量
             offset = store.getMinOffsetInQueue(mq.getTopic(), mq.getQueueId());
         }
         return offset;
@@ -145,46 +147,90 @@ public class TransactionalMessageBridge {
             mq.getQueueId(), offset);
     }
 
+    /**
+     * 从half message主题消息队列中拉取某条消息
+     * @param queueId 消费队列编号
+     * @param offset  消费队列偏移量
+     * @param nums 最大重试次数
+     * @return
+     */
     public PullResult getHalfMessage(int queueId, long offset, int nums) {
+        //构建操作half message的消费者组名
         String group = TransactionalMessageUtil.buildConsumerGroup();
+        //构建消费half message的主题
         String topic = TransactionalMessageUtil.buildHalfTopic();
+        //实例化一个订阅数据
         SubscriptionData sub = new SubscriptionData(topic, "*");
+        //获取结果
         return getMessage(group, topic, queueId, offset, nums, sub);
     }
 
+    /**
+     * 拉取操作消息
+     * @param queueId 操作half message主题消息队列的编号
+     * @param offset 当前操作half message主题消息队列的消费偏移量
+     * @param nums 批量拉取消息的最大数量
+     * @return
+     */
     public PullResult getOpMessage(int queueId, long offset, int nums) {
+        //构建操作half message主题消息队列的消费者组名
         String group = TransactionalMessageUtil.buildConsumerGroup();
+        //构建操作half message的主题
         String topic = TransactionalMessageUtil.buildOpTopic();
+        //实例haul一个订阅
         SubscriptionData sub = new SubscriptionData(topic, "*");
         return getMessage(group, topic, queueId, offset, nums, sub);
     }
 
+    /**
+     * 从主题的某个消息队列中拉取消息
+     * @param group 订阅主题的消费者组名
+     * @param topic 主题
+     * @param queueId 主题的消息队列编号
+     * @param offset 消费队列的消费偏移量
+     * @param nums 批量拉取消息的最大值
+     * @param sub 消费者订阅配置
+     * @return
+     */
     private PullResult getMessage(String group, String topic, int queueId, long offset, int nums,
         SubscriptionData sub) {
+        //从主题消费队列的指定偏移量开始拉取消息
         GetMessageResult getMessageResult = store.getMessage(group, topic, queueId, offset, nums, null);
 
-        if (getMessageResult != null) {
+        if (getMessageResult != null) {//拉取消息结果不为null
+            //初始化拉取消息的结果为没有新的消息
             PullStatus pullStatus = PullStatus.NO_NEW_MSG;
             List<MessageExt> foundList = null;
             switch (getMessageResult.getStatus()) {
-                case FOUND:
+                case FOUND://如果拉取到了消息
                     pullStatus = PullStatus.FOUND;
+                    //解码 获取消息列表
                     foundList = decodeMsgList(getMessageResult);
+
+                    //增加统计消费者组从主题消费队列拉取消息的总数
                     this.brokerController.getBrokerStatsManager().incGroupGetNums(group, topic,
                         getMessageResult.getMessageCount());
+
+                    //统计消息者组从主题消费队列拉取消息的总的字节数
                     this.brokerController.getBrokerStatsManager().incGroupGetSize(group, topic,
                         getMessageResult.getBufferTotalSize());
+
+                    //增加统计广播站给消费者提供消息的总数
                     this.brokerController.getBrokerStatsManager().incBrokerGetNums(getMessageResult.getMessageCount());
+
+                    //统计主题消费队列拉取消息的时间
                     this.brokerController.getBrokerStatsManager().recordDiskFallBehindTime(group, topic, queueId,
                         this.brokerController.getMessageStore().now() - foundList.get(foundList.size() - 1)
                             .getStoreTimestamp());
                     break;
                 case NO_MATCHED_MESSAGE:
+                    //没有找到消息
                     pullStatus = PullStatus.NO_MATCHED_MSG;
                     LOGGER.warn("No matched message. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}",
                         getMessageResult.getStatus(), topic, group, offset);
                     break;
                 case NO_MESSAGE_IN_QUEUE:
+                    //主题消费队列中没有消息
                     pullStatus = PullStatus.NO_NEW_MSG;
                     LOGGER.warn("No new message. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}",
                         getMessageResult.getStatus(), topic, group, offset);
@@ -195,6 +241,7 @@ public class TransactionalMessageBridge {
                 case OFFSET_OVERFLOW_BADLY:
                 case OFFSET_OVERFLOW_ONE:
                 case OFFSET_TOO_SMALL:
+                    //偏移量非法
                     pullStatus = PullStatus.OFFSET_ILLEGAL;
                     LOGGER.warn("Offset illegal. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}",
                         getMessageResult.getStatus(), topic, group, offset);
@@ -204,6 +251,7 @@ public class TransactionalMessageBridge {
                     break;
             }
 
+            //返回拉取消息的结果
             return new PullResult(pullStatus, getMessageResult.getNextBeginOffset(), getMessageResult.getMinOffset(),
                 getMessageResult.getMaxOffset(), foundList);
 
@@ -270,10 +318,11 @@ public class TransactionalMessageBridge {
      * @return
      */
     public boolean putOpMessage(MessageExt messageExt, String opType) {
-        //实例化一个主题队列对象
+        //实例化一个存储half message的主题消息队列对象
         MessageQueue messageQueue = new MessageQueue(messageExt.getTopic(),
             this.brokerController.getBrokerConfig().getBrokerName(), messageExt.getQueueId());
         if (TransactionalMessageUtil.REMOVETAG.equals(opType)) {//如果是删除
+            //添加一个操作half message的消息到操作half message主题消息的主题消息队列
             return addRemoveTagInTransactionOp(messageExt, messageQueue);
         }
         return true;
@@ -296,19 +345,30 @@ public class TransactionalMessageBridge {
         }
     }
 
+    /**
+     * 再创建一个新的half message
+     * @param msgExt 原始half message
+     * @return
+     */
     public MessageExtBrokerInner renewImmunityHalfMessageInner(MessageExt msgExt) {
+        //克隆一个新的half message
         MessageExtBrokerInner msgInner = renewHalfMessageInner(msgExt);
+        //获取原始half message的前一个偏移量
         String queueOffsetFromPrepare = msgExt.getUserProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET);
-        if (null != queueOffsetFromPrepare) {
+        if (null != queueOffsetFromPrepare) {//存在前一个偏移量
+            //设置新克隆的half message的前一个偏移量为老的偏移量
             MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET,
                 String.valueOf(queueOffsetFromPrepare));
         } else {
+            //设置新克隆的half message的前一个half message的偏移量为原始消息的偏移量
             MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET,
                 String.valueOf(msgExt.getQueueOffset()));
         }
 
+        //设置属性
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgInner.getProperties()));
 
+        //返回克隆后的消息
         return msgInner;
     }
 
@@ -377,7 +437,7 @@ public class TransactionalMessageBridge {
     }
 
     /**
-     * 添加一个删除的消息在主题队列
+     * 添加一个删除的消息在half message的主题消息队列对应的操作主题消息队列
      * @param messageExt 将会被删除的half消息
      * @param messageQueue 主题队列
      * @return
@@ -403,7 +463,7 @@ public class TransactionalMessageBridge {
             //获取操作队列
             opQueue = opQueueMap.get(mq);
         } else {//之前没有创建过half message对应的操作队列
-            //创建一个操作队列
+            //根据half message主题消息队列创建一个操作的half message的消息队列
             opQueue = getOpQueueByHalf(mq);
             //将创建队列放入opqueueMap
             MessageQueue oldQueue = opQueueMap.putIfAbsent(mq, opQueue);
@@ -420,8 +480,8 @@ public class TransactionalMessageBridge {
     }
 
     /**
-     * 通过half message所在的队列获取操作队列
-     * @param halfMQ half message所在的队列
+     * 通过half message的主题构建一个操作half message的主题
+     * @param halfMQ half message所在的队列的主题
      * @return
      */
     private MessageQueue getOpQueueByHalf(MessageQueue halfMQ) {

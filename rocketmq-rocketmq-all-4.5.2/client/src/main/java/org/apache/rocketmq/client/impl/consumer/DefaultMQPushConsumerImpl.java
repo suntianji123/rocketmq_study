@@ -660,7 +660,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             //给广播站推送消息
             this.mQClientFactory.getDefaultMQProducer().send(newMsg);
         } finally {
-            //重新设置消息的主题
+            //重新给消息的主题添加上命名空间 这时候消息的主题已经发生变更
             msg.setTopic(NamespaceUtil.withoutNamespace(msg.getTopic(), this.defaultMQPushConsumer.getNamespace()));
         }
     }

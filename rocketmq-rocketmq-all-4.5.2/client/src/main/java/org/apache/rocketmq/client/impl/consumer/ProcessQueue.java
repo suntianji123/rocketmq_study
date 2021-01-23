@@ -111,26 +111,32 @@ public class ProcessQueue {
     }
 
     /**
-     * @param pushConsumer
+     * 清理超时处理度列中被消费者消费失败的消息
+     * @param pushConsumer 生产者
      */
     public void cleanExpiredMsg(DefaultMQPushConsumer pushConsumer) {
-        if (pushConsumer.getDefaultMQPushConsumerImpl().isConsumeOrderly()) {
+        if (pushConsumer.getDefaultMQPushConsumerImpl().isConsumeOrderly()) {//顺序的 直接返回
             return;
         }
 
+        //每次清理的最大深度值不超过16
         int loop = msgTreeMap.size() < 16 ? msgTreeMap.size() : 16;
         for (int i = 0; i < loop; i++) {
             MessageExt msg = null;
             try {
+                //打开读锁
                 this.lockTreeMap.readLock().lockInterruptibly();
                 try {
+                    //如果处理队列中等待处理的第一个消息的消费开始时间距离现在超过了15分钟 说明这里面的消息消费超时
                     if (!msgTreeMap.isEmpty() && System.currentTimeMillis() - Long.parseLong(MessageAccessor.getConsumeStartTimeStamp(msgTreeMap.firstEntry().getValue())) > pushConsumer.getConsumeTimeout() * 60 * 1000) {
+                        //获取第一个消息
                         msg = msgTreeMap.firstEntry().getValue();
                     } else {
-
+                        //当前队列中没有超时的消息
                         break;
                     }
                 } finally {
+                    //释放锁
                     this.lockTreeMap.readLock().unlock();
                 }
             } catch (InterruptedException e) {
@@ -138,20 +144,23 @@ public class ProcessQueue {
             }
 
             try {
-
+                //将消息写入到广播站的%RETRY%ConsumeGroupName 主题消息队列
                 pushConsumer.sendMessageBack(msg, 3);
                 log.info("send expire msg back. topic={}, msgId={}, storeHost={}, queueId={}, queueOffset={}", msg.getTopic(), msg.getMsgId(), msg.getStoreHost(), msg.getQueueId(), msg.getQueueOffset());
                 try {
+                    //打开写锁
                     this.lockTreeMap.writeLock().lockInterruptibly();
                     try {
                         if (!msgTreeMap.isEmpty() && msg.getQueueOffset() == msgTreeMap.firstKey()) {
                             try {
+                                //移除第一个消息
                                 removeMessage(Collections.singletonList(msg));
                             } catch (Exception e) {
                                 log.error("send expired msg exception", e);
                             }
                         }
                     } finally {
+                        //释放写锁
                         this.lockTreeMap.writeLock().unlock();
                     }
                 } catch (InterruptedException e) {

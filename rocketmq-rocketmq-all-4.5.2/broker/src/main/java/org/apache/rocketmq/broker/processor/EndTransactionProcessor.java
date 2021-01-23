@@ -152,10 +152,10 @@ public class EndTransactionProcessor implements NettyRequestProcessor {
                     msgInner.setPreparedTransactionOffset(requestHeader.getCommitLogOffset());
                     //设置存储消息的时间
                     msgInner.setStoreTimestamp(result.getPrepareMessage().getStoreTimestamp());
-                    //将最终的消息写入到磁盘
+                    //将原始消息写入磁盘
                     RemotingCommand sendResult = sendFinalMessage(msgInner);
-                    if (sendResult.getCode() == ResponseCode.SUCCESS) {
-                        //实例化一个删除half message的操作消息 写入到磁盘
+                    if (sendResult.getCode() == ResponseCode.SUCCESS) {//原始消息写入磁盘成功
+                        //实例化一个删除half message的操作消息 写入到half message主题消息队列对应的操作half message的主题消息队列
                         this.brokerController.getTransactionalMessageService().deletePrepareMessage(result.getPrepareMessage());
                     }
                     return sendResult;

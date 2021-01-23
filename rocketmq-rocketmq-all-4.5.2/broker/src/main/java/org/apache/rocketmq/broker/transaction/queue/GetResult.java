@@ -19,8 +19,18 @@ package org.apache.rocketmq.broker.transaction.queue;
 import org.apache.rocketmq.client.consumer.PullResult;
 import org.apache.rocketmq.common.message.MessageExt;
 
+/**
+ * 获取某个消息的结果对象
+ */
 public class GetResult {
+    /**
+     * 获取的消息
+     */
     private MessageExt msg;
+
+    /**
+     * 拉取消息的动作结果
+     */
     private PullResult pullResult;
 
     public MessageExt getMsg() {

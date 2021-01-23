@@ -44,7 +44,7 @@ public class TransactionalMessageUtil {
     }
 
     /**
-     * 消费half message的消费者组名
+     * 操作half message主题消息队列对应的消费者组名
      * @return
      */
     public static String buildConsumerGroup() {

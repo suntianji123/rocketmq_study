@@ -668,12 +668,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             for (; times < timesTotal; times++) {
                 //上次向广播站推送消息的广播站名
                 String lastBrokerName = null == mq ? null : mq.getBrokerName();
-                //选择一个主题队列
+                //选择一个主题消息队列
                 MessageQueue mqSelected = this.selectOneMessageQueue(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {
+                    //选择存储的消息队列
                     mq = mqSelected;
 
-                    //设置当前次选择广播站名
+                    //设置当前次选择的广播站名
                     brokersSent[times] = mq.getBrokerName();
                     try {
                         //设置开始时间
