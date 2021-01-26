@@ -31,18 +31,47 @@ import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.dledger.DLedgerCommitLog;
 
+/**
+ * 广播站角色选举处理类
+ */
 public class DLedgerRoleChangeHandler implements DLedgerLeaderElector.RoleChangeHandler {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private ExecutorService executorService = Executors.newSingleThreadExecutor(new ThreadFactoryImpl("DLegerRoleChangeHandler_"));
+
+    /**
+     * 广播站控制器
+     */
     private BrokerController brokerController;
+
+    /**
+     * 广播站消息存储
+     */
     private DefaultMessageStore messageStore;
+
+    /**
+     * 选举主要的关联commitlog文件对象
+     */
     private DLedgerCommitLog dLedgerCommitLog;
+
+    /**
+     * 选举服务器
+     */
     private DLedgerServer dLegerServer;
+
+    /**
+     * 实例化一个广播站角色选择处理对象
+     * @param brokerController 广播站控制器
+     * @param messageStore 广播站的消息存储对象
+     */
     public DLedgerRoleChangeHandler(BrokerController brokerController, DefaultMessageStore messageStore) {
+        //设置广播站控制器
         this.brokerController = brokerController;
+        //设置消息存储
         this.messageStore = messageStore;
+        //设置角色选举主要关联的commitlog文件对象
         this.dLedgerCommitLog = (DLedgerCommitLog) messageStore.getCommitLog();
+        //设置选举服务器
         this.dLegerServer = dLedgerCommitLog.getdLedgerServer();
     }
 
