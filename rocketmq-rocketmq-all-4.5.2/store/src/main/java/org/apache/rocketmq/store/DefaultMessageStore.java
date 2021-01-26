@@ -156,6 +156,7 @@ public class DefaultMessageStore implements MessageStore {
         this.storeStatsService = new StoreStatsService();
         this.indexService = new IndexService(this);
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
+            //实例化一个高可用服务 用于同步主从数据
             this.haService = new HAService(this);
         } else {
             this.haService = null;
@@ -302,6 +303,7 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
+            //启动高可用服务
             this.haService.start();
             //处理延时消息服务
             this.handleScheduleMessageService(messageStoreConfig.getBrokerRole());
@@ -972,6 +974,11 @@ public class DefaultMessageStore implements MessageStore {
         return -1;
     }
 
+    /**
+     * 从指定位置开始 获取commitlog中的数据
+     * @param offset 起始位置
+     * @return
+     */
     @Override
     public SelectMappedBufferResult getCommitLogData(final long offset) {
         if (this.shutdown) {
@@ -982,15 +989,23 @@ public class DefaultMessageStore implements MessageStore {
         return this.commitLog.getData(offset);
     }
 
+    /**
+     * 从commitlog文件系统的startOffset起始位置开始 将data字节数组中的数据写入到commitlog文件系统
+     * @param startOffset commitlog文件系统的起始位置
+     * @param data 将要写入到commitlog文件系统中的字节数组
+     * @return
+     */
     @Override
     public boolean appendToCommitLog(long startOffset, byte[] data) {
-        if (this.shutdown) {
+        if (this.shutdown) {//服务关闭了
             log.warn("message store has shutdown, so appendToPhyQueue is forbidden");
             return false;
         }
 
+        //将data字节数组中的数据写入到commitlog文件系统的起始位置
         boolean result = this.commitLog.appendData(startOffset, data);
         if (result) {
+            //唤醒reputMessageService 写入消费队列 indexFile 如果消费者有拉取消息请求 将消息推送给消费者
             this.reputMessageService.wakeup();
         } else {
             log.error("appendToPhyQueue failed " + startOffset + " " + data.length);
@@ -1070,6 +1085,10 @@ public class DefaultMessageStore implements MessageStore {
         return queryMessageResult;
     }
 
+    /**
+     * 更新主站地址
+     * @param newAddr 主站地址
+     */
     @Override
     public void updateHaMasterAddress(String newAddr) {
         this.haService.updateMasterAddress(newAddr);

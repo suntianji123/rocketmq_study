@@ -772,15 +772,21 @@ public class CommitLog {
     public void handleHA(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
         if (BrokerRole.SYNC_MASTER == this.defaultMessageStore.getMessageStoreConfig().getBrokerRole()) {//同步主站
             HAService service = this.defaultMessageStore.getHaService();
-            if (messageExt.isWaitStoreMsgOK()) {
-                // Determine whether to wait
+            //commitlog
+            if (messageExt.isWaitStoreMsgOK()) {//消息已经存放在主站的commitlog文件系统
+                //有与主站建立连接的从站  并且单次同步的得次数不能超过256M
                 if (service.isSlaveOK(result.getWroteOffset() + result.getWroteBytes())) {
+                    //实例化一个同步主站commitlog文件系统的最大偏移量的请求
                     GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes());
+                    //向HAService中添加一个请求
                     service.putRequest(request);
+                    //获取HAService的锁 将其他线程使用这个锁而被await状态的线程继续执行
                     service.getWaitNotifyObject().wakeupAll();
+
+                    //阻塞当前线程 等待其他从站同步数据完成 返回同步结果
                     boolean flushOK =
                         request.waitForFlush(this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout());
-                    if (!flushOK) {
+                    if (!flushOK) {//同步数据师表
                         log.error("do sync transfer other node, wait return, but failed, topic: " + messageExt.getTopic() + " tags: "
                             + messageExt.getTags() + " client address: " + messageExt.getBornHostNameString());
                         putMessageResult.setPutMessageStatus(PutMessageStatus.FLUSH_SLAVE_TIMEOUT);
@@ -788,7 +794,7 @@ public class CommitLog {
                 }
                 // Slave problem
                 else {
-                    // Tell the producer, slave not available
+                    // 从站不可用
                     putMessageResult.setPutMessageStatus(PutMessageStatus.SLAVE_NOT_AVAILABLE);
                 }
             }
@@ -968,17 +974,27 @@ public class CommitLog {
         this.mappedFileQueue.destroy();
     }
 
+    /**
+     * 从commitlog文件系统的指定起始位置开始 将字节数组写入commitlog文件系统个
+     * @param startOffset commitlog文件系统的起始位置
+     * @param data 将要写入commitlog文件系统的字节数组
+     * @return
+     */
     public boolean appendData(long startOffset, byte[] data) {
+        //加锁
         putMessageLock.lock();
         try {
+            //获取指定位置的mappedFile文件
             MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(startOffset);
             if (null == mappedFile) {
                 log.error("appendData getLastMappedFile error  " + startOffset);
                 return false;
             }
 
+            //向mappedFile中添加字节数组
             return mappedFile.appendMessage(data);
         } finally {
+            //释放锁
             putMessageLock.unlock();
         }
     }
@@ -1188,9 +1204,24 @@ public class CommitLog {
         }
     }
 
+    /**
+     * 主站给从站发送的同步commitlog文件系统的请求
+     */
     public static class GroupCommitRequest {
+
+        /**
+         * 从站需要同步到的位置
+         */
         private final long nextOffset;
+
+        /**
+         * 计数器 用于线程之间的同步逻辑 比如阻塞当前线程 其他线程将计数器结果设置为0 那么当前线程继续执行
+         */
         private final CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        /**
+         * 同步数据结果ok
+         */
         private volatile boolean flushOK = false;
 
         public GroupCommitRequest(long nextOffset) {
@@ -1206,8 +1237,14 @@ public class CommitLog {
             this.countDownLatch.countDown();
         }
 
+        /**
+         * 主站等待从站同步数据完成
+         * @param timeout 等待超时时间
+         * @return
+         */
         public boolean waitForFlush(long timeout) {
             try {
+                //如果计数器的值为0 线程继续执行 如果计数器的结果不为0 等待超时 线程继续执行
                 this.countDownLatch.await(timeout, TimeUnit.MILLISECONDS);
                 return this.flushOK;
             } catch (InterruptedException e) {

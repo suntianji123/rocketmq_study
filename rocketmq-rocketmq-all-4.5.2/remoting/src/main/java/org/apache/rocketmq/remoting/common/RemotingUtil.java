@@ -56,18 +56,27 @@ public class RemotingUtil {
         return isWindowsPlatform;
     }
 
+    /**
+     * 打开一个轮训器
+     * @return
+     * @throws IOException
+     */
     public static Selector openSelector() throws IOException {
         Selector result = null;
 
-        if (isLinuxPlatform()) {
+        if (isLinuxPlatform()) {//判断是linux平台
             try {
+                //获取EPollSelectorProvider
                 final Class<?> providerClazz = Class.forName("sun.nio.ch.EPollSelectorProvider");
-                if (providerClazz != null) {
+                if (providerClazz != null) {//不为null
                     try {
+                        //获取provider方法
                         final Method method = providerClazz.getMethod("provider");
-                        if (method != null) {
+                        if (method != null) {//方法不为空
+                            //获取SelectorProvider对象
                             final SelectorProvider selectorProvider = (SelectorProvider) method.invoke(null);
                             if (selectorProvider != null) {
+                                //打开一个Selector
                                 result = selectorProvider.openSelector();
                             }
                         }
@@ -81,6 +90,7 @@ public class RemotingUtil {
         }
 
         if (result == null) {
+            //windows平台 直接打开
             result = Selector.open();
         }
 
@@ -159,20 +169,39 @@ public class RemotingUtil {
         return sb.toString();
     }
 
+    /**
+     * 连接远程服务器 返回channel连接
+     * @param remote 远程服务器地址
+     * @return
+     */
     public static SocketChannel connect(SocketAddress remote) {
         return connect(remote, 1000 * 5);
     }
 
+    /**
+     * 连接远程服务器地址 返回channel连接
+     * @param remote 远程服务器地址
+     * @param timeoutMillis 连接超时时间
+     * @return
+     */
     public static SocketChannel connect(SocketAddress remote, final int timeoutMillis) {
+        //远程服务器channel连接
         SocketChannel sc = null;
         try {
+            //打开一个channel连接
             sc = SocketChannel.open();
+            //设置阻塞
             sc.configureBlocking(true);
             sc.socket().setSoLinger(false, -1);
+            //设置没有延迟
             sc.socket().setTcpNoDelay(true);
+            //设置channel可接收的字节大小 64k
             sc.socket().setReceiveBufferSize(1024 * 64);
+            //设置向channel写入字节的最大值64K
             sc.socket().setSendBufferSize(1024 * 64);
+            //连接远程服务器
             sc.socket().connect(remote, timeoutMillis);
+            //设置阻塞为false
             sc.configureBlocking(false);
             return sc;
         } catch (Exception e) {

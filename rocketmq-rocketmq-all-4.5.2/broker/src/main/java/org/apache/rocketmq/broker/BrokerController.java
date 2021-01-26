@@ -141,6 +141,9 @@ public class BrokerController {
     private final BrokerOuterAPI brokerOuterAPI;
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
         "BrokerControllerScheduledThread"));
+    /**
+     * 从站同步数据对象
+     */
     private final SlaveSynchronize slaveSynchronize;
     private final BlockingQueue<Runnable> sendThreadPoolQueue;
     private final BlockingQueue<Runnable> pullThreadPoolQueue;
@@ -190,6 +193,10 @@ public class BrokerController {
      * 事务消息检查监听器
      */
     private AbstractTransactionalMessageCheckListener transactionalMessageCheckListener;
+
+    /**
+     * 从站同步数据的异步操作对象
+     */
     private Future<?> slaveSyncFuture;
     private Map<Class,AccessValidator> accessValidatorMap = new HashMap<Class, AccessValidator>();
 
@@ -219,6 +226,7 @@ public class BrokerController {
         this.brokerOuterAPI = new BrokerOuterAPI(nettyClientConfig);
         this.filterServerManager = new FilterServerManager(this);
 
+        //设置从站同步数据对象
         this.slaveSynchronize = new SlaveSynchronize(this);
 
         this.sendThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getSendThreadPoolQueueCapacity());
@@ -949,7 +957,7 @@ public class BrokerController {
     }
 
     /**
-     * 注册当前广播站导致中心服务器
+     * 注册当前广播站至中心服务器
      * @param checkOrderConfig 是否检查顺序配置
      * @param oneway 是否为单程
      * @param forceRegister  是否强制注册
@@ -1012,9 +1020,11 @@ public class BrokerController {
             RegisterBrokerResult registerBrokerResult = registerBrokerResultList.get(0);
             if (registerBrokerResult != null) {
                 if (this.updateMasterHAServerAddrPeriodically && registerBrokerResult.getHaServerAddr() != null) {
+                    //更新主站的地址
                     this.messageStore.updateHaMasterAddress(registerBrokerResult.getHaServerAddr());
                 }
 
+                //设置同步对象的主站地址
                 this.slaveSynchronize.setMasterAddr(registerBrokerResult.getMasterAddr());
 
                 if (checkOrderConfig) {//检查配置
@@ -1173,16 +1183,26 @@ public class BrokerController {
         return accessValidatorMap;
     }
 
+    /**
+     * 同步数据
+     * @param role 广播站角色
+     */
     private void handleSlaveSynchronize(BrokerRole role) {
-        if (role == BrokerRole.SLAVE) {
-            if (null != slaveSyncFuture) {
+        if (role == BrokerRole.SLAVE) {//广播站为从站
+            if (null != slaveSyncFuture) {//从站同步数据的异步操作对象
+                //取消前一次从站同步数据的异步操作对象
                 slaveSyncFuture.cancel(false);
             }
+
+            //设置主站的地址为空
             this.slaveSynchronize.setMasterAddr(null);
+
+            //每10秒执行一次从站同步数据任务
             slaveSyncFuture = this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
                     try {
+                        //执行所有的同步任务
                         BrokerController.this.slaveSynchronize.syncAll();
                     }
                     catch (Throwable e) {
@@ -1220,7 +1240,7 @@ public class BrokerController {
             log.error("[MONITOR] shutdownProcessorByHa failed when changing to slave", t);
         }
 
-        //handle the slave synchronise
+        //c从站同步数据
         handleSlaveSynchronize(BrokerRole.SLAVE);
 
         try {

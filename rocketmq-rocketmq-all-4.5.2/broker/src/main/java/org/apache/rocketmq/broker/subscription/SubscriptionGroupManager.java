@@ -152,6 +152,10 @@ public class SubscriptionGroupManager extends ConfigManager {
         return subscriptionGroupConfig;
     }
 
+    /**
+     * 将消费者组订阅配置序列化为json
+     * @return
+     */
     @Override
     public String encode() {
         return this.encode(false);
@@ -175,6 +179,11 @@ public class SubscriptionGroupManager extends ConfigManager {
         }
     }
 
+    /**
+     * 将消费者组序列化为json
+     * @param prettyFormat 是否使用优雅的json格式
+     * @return
+     */
     public String encode(final boolean prettyFormat) {
         return RemotingSerializable.toJson(this, prettyFormat);
     }

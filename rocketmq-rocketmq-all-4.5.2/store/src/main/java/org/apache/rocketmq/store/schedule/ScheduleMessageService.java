@@ -234,6 +234,10 @@ public class ScheduleMessageService extends ConfigManager {
         return maxDelayLevel;
     }
 
+    /**
+     * 将延时队列的消费偏移量列表序列化json
+     * @return
+     */
     public String encode() {
         return this.encode(false);
     }
@@ -267,6 +271,11 @@ public class ScheduleMessageService extends ConfigManager {
         }
     }
 
+    /**
+     * 将延时队列的消费偏移量序列化为json
+     * @param prettyFormat 是否使用优美的json格式
+     * @return
+     */
     public String encode(final boolean prettyFormat) {
         DelayOffsetSerializeWrapper delayOffsetSerializeWrapper = new DelayOffsetSerializeWrapper();
         delayOffsetSerializeWrapper.setOffsetTable(this.offsetTable);

@@ -151,11 +151,23 @@ public class MessageStoreConfig {
     @ImportantField
     private boolean messageIndexSafe = false;
     private int haListenPort = 10912;
+
+    /**
+     * 给高可用服务器发送心跳的时间间隔 默认5秒
+     */
     private int haSendHeartbeatInterval = 1000 * 5;
     private int haHousekeepingInterval = 1000 * 20;
+
+    /**
+     * 主站单次同步给从站数据包的最大大小 32k
+     */
     private int haTransferBatchSize = 1024 * 32;
     @ImportantField
     private String haMasterAddress = null;
+
+    /**
+     * 主站向从站单次同步数据的最大字节数
+     */
     private int haSlaveFallbehindMax = 1024 * 1024 * 256;
 
     /**

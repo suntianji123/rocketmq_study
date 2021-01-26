@@ -182,6 +182,10 @@ public class ConsumerOffsetManager extends ConfigManager {
         return -1;
     }
 
+    /**
+     * 将当前广播站的主题消费队列消费偏移量列表序列化为json
+     * @return
+     */
     public String encode() {
         return this.encode(false);
     }
@@ -201,7 +205,13 @@ public class ConsumerOffsetManager extends ConfigManager {
         }
     }
 
+    /**
+     * 将当前广播站的主题消费队列的消费偏移量序列化为json
+     * @param prettyFormat  是否使用优美的json格式
+     * @return
+     */
     public String encode(final boolean prettyFormat) {
+        //序列化为json
         return RemotingSerializable.toJson(this, prettyFormat);
     }
 

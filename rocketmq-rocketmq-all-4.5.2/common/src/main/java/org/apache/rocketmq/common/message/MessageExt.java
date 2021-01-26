@@ -33,15 +33,29 @@ public class MessageExt extends Message {
      */
     private int queueId;
 
-
+    /**
+     * 消息的存储大小
+     */
     private int storeSize;
 
     /**
      * 在主题队列中的偏移量
      */
     private long queueOffset;
+
+    /**
+     * 消息的系统标志
+     */
     private int sysFlag;
+
+    /**
+     * 消息的生产时间
+     */
     private long bornTimestamp;
+
+    /**
+     * 消息的生产地址
+     */
     private SocketAddress bornHost;
 
     /**

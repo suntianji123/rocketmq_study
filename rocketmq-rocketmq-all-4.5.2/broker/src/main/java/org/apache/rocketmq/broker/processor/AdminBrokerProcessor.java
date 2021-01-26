@@ -148,7 +148,7 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
                 return this.updateAndCreateTopic(ctx, request);
             case RequestCode.DELETE_TOPIC_IN_BROKER:
                 return this.deleteTopic(ctx, request);
-            case RequestCode.GET_ALL_TOPIC_CONFIG:
+            case RequestCode.GET_ALL_TOPIC_CONFIG://获取某个广播站上所有的主题配置
                 return this.getAllTopicConfig(ctx, request);
             case RequestCode.UPDATE_BROKER_CONFIG:
                 return this.updateBrokerConfig(ctx, request);
@@ -170,7 +170,7 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
                 return this.unlockBatchMQ(ctx, request);
             case RequestCode.UPDATE_AND_CREATE_SUBSCRIPTIONGROUP:
                 return this.updateAndCreateSubscriptionGroup(ctx, request);
-            case RequestCode.GET_ALL_SUBSCRIPTIONGROUP_CONFIG:
+            case RequestCode.GET_ALL_SUBSCRIPTIONGROUP_CONFIG://获取广播站所有的消费者组订阅配置
                 return this.getAllSubscriptionGroup(ctx, request);
             case RequestCode.DELETE_SUBSCRIPTIONGROUP:
                 return this.deleteSubscriptionGroup(ctx, request);
@@ -182,9 +182,9 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
                 return this.getProducerConnectionList(ctx, request);
             case RequestCode.GET_CONSUME_STATS:
                 return this.getConsumeStats(ctx, request);
-            case RequestCode.GET_ALL_CONSUMER_OFFSET:
+            case RequestCode.GET_ALL_CONSUMER_OFFSET://获取远程广播站上所有的主题消费队列的消费偏移量
                 return this.getAllConsumerOffset(ctx, request);
-            case RequestCode.GET_ALL_DELAY_OFFSET:
+            case RequestCode.GET_ALL_DELAY_OFFSET://获取远程广播站所有的延时队列的消费偏移量
                 return this.getAllDelayOffset(ctx, request);
             case RequestCode.INVOKE_BROKER_TO_RESET_OFFSET:
                 return this.resetOffset(ctx, request);
@@ -428,14 +428,23 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
         return null;
     }
 
+    /**
+     * 获取广播站上所有的主题配置
+     * @param ctx 与远程客户端建立的channel连接
+     * @param request 获取主题配置的请求对象
+     * @return
+     */
     private RemotingCommand getAllTopicConfig(ChannelHandlerContext ctx, RemotingCommand request) {
+        //创建响应
         final RemotingCommand response = RemotingCommand.createResponseCommand(GetAllTopicConfigResponseHeader.class);
         // final GetAllTopicConfigResponseHeader responseHeader =
         // (GetAllTopicConfigResponseHeader) response.readCustomHeader();
 
+        //将主题配置序列化json
         String content = this.brokerController.getTopicConfigManager().encode();
-        if (content != null && content.length() > 0) {
+        if (content != null && content.length() > 0) {//存在主题配置
             try {
+                //将json转为字节数组 设置到响应体
                 response.setBody(content.getBytes(MixAll.DEFAULT_CHARSET));
             } catch (UnsupportedEncodingException e) {
                 log.error("", e);
@@ -451,9 +460,11 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
             return response;
         }
 
+        //设置响应
         response.setCode(ResponseCode.SUCCESS);
         response.setRemark(null);
 
+        //返回响应
         return response;
     }
 
@@ -646,12 +657,22 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * 获取广播站所有的消费者组的订阅配置
+     * @param ctx 与远程客户端建立的channel连接
+     * @param request 远程命令行请求对象
+     * @return
+     * @throws RemotingCommandException
+     */
     private RemotingCommand getAllSubscriptionGroup(ChannelHandlerContext ctx,
         RemotingCommand request) throws RemotingCommandException {
+        //创建响应
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
+        //获取消费者组订阅配置json格式
         String content = this.brokerController.getSubscriptionGroupManager().encode();
-        if (content != null && content.length() > 0) {
+        if (content != null && content.length() > 0) {//消费者组订阅皮遏制存在
             try {
+                //将json序列化为字节数组
                 response.setBody(content.getBytes(MixAll.DEFAULT_CHARSET));
             } catch (UnsupportedEncodingException e) {
                 log.error("", e);
@@ -667,6 +688,7 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
             return response;
         }
 
+        //设置响应码
         response.setCode(ResponseCode.SUCCESS);
         response.setRemark(null);
 
@@ -890,12 +912,21 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * 获取当前广播站上所有主题消费队列的消费偏移量
+     * @param ctx 与远程客户端建立的channel连接
+     * @param request 请求对象
+     * @return
+     */
     private RemotingCommand getAllConsumerOffset(ChannelHandlerContext ctx, RemotingCommand request) {
+        //创建响应
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
 
+        //将当前广播站的主题消费队列的消费偏移量列表序列化为json
         String content = this.brokerController.getConsumerOffsetManager().encode();
-        if (content != null && content.length() > 0) {
+        if (content != null && content.length() > 0) {//存在消费偏移量
             try {
+                //将json转为字节数组
                 response.setBody(content.getBytes(MixAll.DEFAULT_CHARSET));
             } catch (UnsupportedEncodingException e) {
                 log.error("get all consumer offset from master error.", e);
@@ -911,25 +942,34 @@ public class AdminBrokerProcessor implements NettyRequestProcessor {
             return response;
         }
 
+        //设置响应码
         response.setCode(ResponseCode.SUCCESS);
         response.setRemark(null);
 
         return response;
     }
 
+    /**
+     * 获取所有延时队列的消费偏移量
+     * @param ctx 与远程客户端建立的channel连接
+     * @param request 远程请求
+     * @return
+     */
     private RemotingCommand getAllDelayOffset(ChannelHandlerContext ctx, RemotingCommand request) {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
 
-        if (!(this.brokerController.getMessageStore() instanceof DefaultMessageStore)) {
+        if (!(this.brokerController.getMessageStore() instanceof DefaultMessageStore)) {//不是默认的消息存储
             log.error("Delay offset not supported in this messagetore, client: {} ", ctx.channel().remoteAddress());
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark("Delay offset not supported in this messagetore");
             return response;
         }
 
+        //获取所有延时队列的消费偏移量json格式
         String content = ((DefaultMessageStore) this.brokerController.getMessageStore()).getScheduleMessageService().encode();
         if (content != null && content.length() > 0) {
             try {
+                //将json序列化字节数组
                 response.setBody(content.getBytes(MixAll.DEFAULT_CHARSET));
             } catch (UnsupportedEncodingException e) {
                 log.error("Get all delay offset from master error.", e);

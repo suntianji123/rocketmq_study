@@ -31,6 +31,10 @@ public class RequestCode {
     public static final int QUERY_CONSUMER_OFFSET = 14;
     public static final int UPDATE_CONSUMER_OFFSET = 15;
     public static final int UPDATE_AND_CREATE_TOPIC = 17;
+
+    /**
+     * 获取某个广播站上所有的主题配置
+     */
     public static final int GET_ALL_TOPIC_CONFIG = 21;
     public static final int GET_TOPIC_CONFIG_LIST = 22;
 
@@ -79,8 +83,15 @@ public class RequestCode {
     public static final int LOCK_BATCH_MQ = 41;
 
     public static final int UNLOCK_BATCH_MQ = 42;
+
+    /**
+     * 获取远程广播站上所有主题消费队列的消费偏移量
+     */
     public static final int GET_ALL_CONSUMER_OFFSET = 43;
 
+    /**
+     * 获取远程广播站上所有延时队列的消费偏移量
+     */
     public static final int GET_ALL_DELAY_OFFSET = 45;
 
     /**
@@ -116,6 +127,10 @@ public class RequestCode {
 
     public static final int GET_BROKER_CLUSTER_INFO = 106;
     public static final int UPDATE_AND_CREATE_SUBSCRIPTIONGROUP = 200;
+
+    /**
+     * 获取远程广播站上所有的消费者组订阅配置
+     */
     public static final int GET_ALL_SUBSCRIPTIONGROUP_CONFIG = 201;
     public static final int GET_TOPIC_STATS_INFO = 202;
     public static final int GET_CONSUMER_CONNECTION_LIST = 203;

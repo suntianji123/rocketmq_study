@@ -37,7 +37,7 @@ public class Producer {
         //启动生产者
         producer.start();
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 1; i++) {
             try {
 
                 /*

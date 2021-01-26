@@ -396,15 +396,28 @@ public class BrokerOuterAPI {
         return changedList;
     }
 
+    /**
+     * 获取某个广播站上所有的主题配置
+     * @param addr 远程广播站地址
+     * @return
+     * @throws RemotingConnectException
+     * @throws RemotingSendRequestException
+     * @throws RemotingTimeoutException
+     * @throws InterruptedException
+     * @throws MQBrokerException
+     */
     public TopicConfigSerializeWrapper getAllTopicConfig(
         final String addr) throws RemotingConnectException, RemotingSendRequestException,
         RemotingTimeoutException, InterruptedException, MQBrokerException {
-        RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ALL_TOPIC_CONFIG, null);
 
+        //创建一个远程命令行
+        RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ALL_TOPIC_CONFIG, null);
+        //执行远程命令获取响应
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(true, addr), request, 3000);
         assert response != null;
         switch (response.getCode()) {
             case ResponseCode.SUCCESS: {
+                //解码将主题配置 反序列化主题配置对象
                 return TopicConfigSerializeWrapper.decode(response.getBody(), TopicConfigSerializeWrapper.class);
             }
             default:
@@ -414,9 +427,20 @@ public class BrokerOuterAPI {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 获取远程广播站上所有的主题消费队列的消费偏移量
+     * @param addr 远程广播站地址
+     * @return
+     * @throws InterruptedException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws RemotingConnectException
+     * @throws MQBrokerException
+     */
     public ConsumerOffsetSerializeWrapper getAllConsumerOffset(
         final String addr) throws InterruptedException, RemotingTimeoutException,
         RemotingSendRequestException, RemotingConnectException, MQBrokerException {
+        //创建远程命令行
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ALL_CONSUMER_OFFSET, null);
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, 3000);
         assert response != null;
@@ -431,14 +455,28 @@ public class BrokerOuterAPI {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 获取远程广播站上所有的延时队列的消费偏移量
+     * @param addr 远程广播站地址
+     * @return
+     * @throws InterruptedException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws RemotingConnectException
+     * @throws MQBrokerException
+     * @throws UnsupportedEncodingException
+     */
     public String getAllDelayOffset(
         final String addr) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException,
         RemotingConnectException, MQBrokerException, UnsupportedEncodingException {
+        //创建请求
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ALL_DELAY_OFFSET, null);
+        //执行远程命令 获取响应
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, 3000);
         assert response != null;
         switch (response.getCode()) {
             case ResponseCode.SUCCESS: {
+                //将列表转为json格式
                 return new String(response.getBody(), MixAll.DEFAULT_CHARSET);
             }
             default:
@@ -448,10 +486,22 @@ public class BrokerOuterAPI {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * 获取远程广播站所有的消费者组订阅配置
+     * @param addr 远程广播站地址
+     * @return
+     * @throws InterruptedException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     * @throws RemotingConnectException
+     * @throws MQBrokerException
+     */
     public SubscriptionGroupWrapper getAllSubscriptionGroupConfig(
         final String addr) throws InterruptedException, RemotingTimeoutException,
         RemotingSendRequestException, RemotingConnectException, MQBrokerException {
+        //创建远程命令行请求
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ALL_SUBSCRIPTIONGROUP_CONFIG, null);
+        //执行远程命令 获取响应
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, 3000);
         assert response != null;
         switch (response.getCode()) {

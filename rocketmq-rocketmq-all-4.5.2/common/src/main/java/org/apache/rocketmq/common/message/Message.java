@@ -213,6 +213,10 @@ public class Message implements Serializable {
         this.putProperty(MessageConst.PROPERTY_DELAY_TIME_LEVEL, String.valueOf(level));
     }
 
+    /**
+     * 消息是否已经存放在主站的commitlog文件系统
+     * @return
+     */
     public boolean isWaitStoreMsgOK() {
         String result = this.getProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK);
         if (null == result)

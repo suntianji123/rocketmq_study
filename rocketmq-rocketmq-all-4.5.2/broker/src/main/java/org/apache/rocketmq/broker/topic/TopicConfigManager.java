@@ -543,10 +543,19 @@ public class TopicConfigManager extends ConfigManager {
         }
     }
 
+    /**
+     * 将当前广播站所有的主题配置序列化为json
+     * @param prettyFormat 是否使用美的json
+     * @return
+     */
     public String encode(final boolean prettyFormat) {
+        //实例化一个主题配置包装对象
         TopicConfigSerializeWrapper topicConfigSerializeWrapper = new TopicConfigSerializeWrapper();
+        //设置列表
         topicConfigSerializeWrapper.setTopicConfigTable(this.topicConfigTable);
+        //设置主题配置版本
         topicConfigSerializeWrapper.setDataVersion(this.dataVersion);
+        //序列化为json返回
         return topicConfigSerializeWrapper.toJson(prettyFormat);
     }
 

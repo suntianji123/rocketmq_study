@@ -130,6 +130,9 @@ public abstract class ServiceThread implements Runnable {
         }
     }
 
+    /**
+     * 停止当前服务
+     */
     public void makeStop() {
         if (!started.get()) {
             return;
