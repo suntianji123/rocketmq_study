@@ -208,23 +208,27 @@ public class DLedgerServer implements DLedgerProtocolHander {
         }
     }
 
+
     /**
-     * Handle the append requests:
-     * 1.append the entry to local store
-     * 2.submit the future to entry pusher and wait the quorum ack
-     * 3.if the pending requests are full, then reject it immediately
-     *
-     * @param request
+     * 处理向DledgerCommitlog中添加消息 向本地的commitlog中添加消息 并且添加一个异步操作同步给远程节点
+     * @param request 请求对象
      * @return
      * @throws IOException
      */
     @Override
     public CompletableFuture<AppendEntryResponse> handleAppend(AppendEntryRequest request) throws IOException {
         try {
+
+            //当前节点的id必须是请求的id
             PreConditions.check(memberState.getSelfId().equals(request.getRemoteId()), DLedgerResponseCode.UNKNOWN_MEMBER, "%s != %s", request.getRemoteId(), memberState.getSelfId());
+            //当前节点的集群名必须是请求的集群名
             PreConditions.check(memberState.getGroup().equals(request.getGroup()), DLedgerResponseCode.UNKNOWN_GROUP, "%s != %s", request.getGroup(), memberState.getGroup());
+            //当前节点的角色必须为leader
             PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER);
+            //主节点不能有委托人
             PreConditions.check(memberState.getTransferee() == null, DLedgerResponseCode.LEADER_TRANSFERRING);
+
+            //获取当前状态机的轮次
             long currTerm = memberState.currTerm();
             if (dLedgerEntryPusher.isPendingFull(currTerm)) {
                 AppendEntryResponse appendEntryResponse = new AppendEntryResponse();
@@ -258,8 +262,12 @@ public class DLedgerServer implements DLedgerProtocolHander {
                     throw new DLedgerException(DLedgerResponseCode.REQUEST_WITH_EMPTY_BODYS, "BatchAppendEntryRequest" +
                             " with empty bodys");
                 } else {
+                    //实例化一个存放于dlegerCommitlog中的消息实体
                     DLedgerEntry dLedgerEntry = new DLedgerEntry();
+                    //设置消息体
                     dLedgerEntry.setBody(request.getBody());
+
+                    //向leader节点date index mappedFileList中添加消息 返回添加到leader节点的消息实体
                     DLedgerEntry resEntry = dLedgerStore.appendAsLeader(dLedgerEntry);
                     return dLedgerEntryPusher.waitAck(resEntry, false);
                 }

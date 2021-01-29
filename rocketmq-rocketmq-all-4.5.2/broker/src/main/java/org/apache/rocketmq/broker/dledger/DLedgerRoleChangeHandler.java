@@ -37,6 +37,10 @@ import org.apache.rocketmq.store.dledger.DLedgerCommitLog;
 public class DLedgerRoleChangeHandler implements DLedgerLeaderElector.RoleChangeHandler {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
+
+    /**
+     * 执行器 执行节点角色变更处理任务
+     */
     private ExecutorService executorService = Executors.newSingleThreadExecutor(new ThreadFactoryImpl("DLegerRoleChangeHandler_"));
 
     /**
@@ -75,39 +79,55 @@ public class DLedgerRoleChangeHandler implements DLedgerLeaderElector.RoleChange
         this.dLegerServer = dLedgerCommitLog.getdLedgerServer();
     }
 
+    /**
+     * 处理节点角色变更
+     * @param term 节点当前状态机轮次
+     * @param role 节点角色
+     */
     @Override public void handle(long term, MemberState.Role role) {
         Runnable runnable = new Runnable() {
             @Override public void run() {
+                //开始时间
                 long start = System.currentTimeMillis();
                 try {
+
+                    //处理成功
                     boolean succ = true;
                     log.info("Begin handling broker role change term={} role={} currStoreRole={}", term, role, messageStore.getMessageStoreConfig().getBrokerRole());
                     switch (role) {
-                        case CANDIDATE:
-                            if (messageStore.getMessageStoreConfig().getBrokerRole() != BrokerRole.SLAVE) {
+                        case CANDIDATE://节点的角色变更为Candidate
+                            if (messageStore.getMessageStoreConfig().getBrokerRole() != BrokerRole.SLAVE) {//如果广播站的角色不是从站 将广播站的角色改为从站
                                 brokerController.changeToSlave(dLedgerCommitLog.getId());
                             }
                             break;
-                        case FOLLOWER:
+                        case FOLLOWER://节点角色变更Follower
                             brokerController.changeToSlave(dLedgerCommitLog.getId());
                             break;
-                        case LEADER:
+                        case LEADER://节点当前的角色为leader
+
+                            //等待节点commitlog 将待有写入到消费队列consumequeue、indexFile的消息写完
                             while (true) {
-                                if (!dLegerServer.getMemberState().isLeader()) {
+                                if (!dLegerServer.getMemberState().isLeader()) {//如果状态机的角色不是leader
+                                    //设置处理失败
                                     succ = false;
                                     break;
                                 }
-                                if (dLegerServer.getdLedgerStore().getLedgerEndIndex() == -1) {
+                                if (dLegerServer.getdLedgerStore().getLedgerEndIndex() == -1) {//节点最后一条消息的index值为-1
                                     break;
                                 }
                                 if (dLegerServer.getdLedgerStore().getLedgerEndIndex() == dLegerServer.getdLedgerStore().getCommittedIndex()
-                                    && messageStore.dispatchBehindBytes() == 0) {
+                                    && messageStore.dispatchBehindBytes() == 0) {//没有需要写入到消费队列字节数 所有待分发字节已经分发完成
                                     break;
                                 }
                                 Thread.sleep(100);
                             }
-                            if (succ) {
+                            if (succ) {//如果处理成功
+
+                                //重新设置消费队列的最小偏移量为commitlog文件系统的最小偏移量
+                                //设置消费队列的消费偏移量为消费度列的最大偏移量
                                 messageStore.recoverTopicQueueTable();
+
+                                //将广播站的角色改为同步主站
                                 brokerController.changeToMaster(BrokerRole.SYNC_MASTER);
                             }
                             break;
@@ -120,6 +140,8 @@ public class DLedgerRoleChangeHandler implements DLedgerLeaderElector.RoleChange
                 }
             }
         };
+
+        //向执行器添加一个处理节点角色变更的任务
         executorService.submit(runnable);
     }
 

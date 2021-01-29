@@ -73,7 +73,14 @@ public class DLedgerEntryPusher {
      */
     private DLedgerRpcService dLedgerRpcService;
 
+    /**
+     * 轮次 - 节点id - 存放消息的index值
+     */
     private Map<Long, ConcurrentMap<String, Long>> peerWaterMarksByTerm = new ConcurrentHashMap<>();
+
+    /**
+     * 轮次-向commitlog中添加消息的index -异步操作对象
+     */
     private Map<Long, ConcurrentMap<Long, TimeoutFuture<AppendEntryResponse>>> pendingAppendResponsesByTerm = new ConcurrentHashMap<>();
 
     /**
@@ -160,6 +167,12 @@ public class DLedgerEntryPusher {
         }
     }
 
+    /**
+     * 更新某个节点的消息存放到的index值
+     * @param term 轮次
+     * @param peerId 节点id
+     * @param index 已经存放到的消息的index值
+     */
     private void updatePeerWaterMark(long term, String peerId, long index) {
         synchronized (peerWaterMarksByTerm) {
             checkTermForWaterMark(term, "updatePeerWaterMark");
@@ -181,29 +194,51 @@ public class DLedgerEntryPusher {
         return pendingAppendResponsesByTerm.get(currTerm).size() > dLedgerConfig.getMaxPendingRequestsNum();
     }
 
+    /**
+     * 向从站节点发送写入消息实体的请求 等待响应
+     * @param entry 消息实体
+     * @param isBatchWait 是否为批量消息
+     * @return
+     */
     public CompletableFuture<AppendEntryResponse> waitAck(DLedgerEntry entry, boolean isBatchWait) {
+        //更新当前轮次下  当前节点消息存放的index值
         updatePeerWaterMark(entry.getTerm(), memberState.getSelfId(), entry.getIndex());
-        if (memberState.getPeerMap().size() == 1) {
+        if (memberState.getPeerMap().size() == 1) {//只有一个节点 他自己
+            //创建响应
             AppendEntryResponse response = new AppendEntryResponse();
+            //设置响应的集群名
             response.setGroup(memberState.getGroup());
+            //设置leaderId
             response.setLeaderId(memberState.getSelfId());
+            //设置消息的index值
             response.setIndex(entry.getIndex());
+            //设置消息的轮次
             response.setTerm(entry.getTerm());
+            //设置消息的偏移量
             response.setPos(entry.getPos());
             return AppendFuture.newCompletedFuture(entry.getPos(), response);
-        } else {
+        } else {//存在其他远程节点
+
+            //检查轮次-index-异步响应对象map
             checkTermForPendingMap(entry.getTerm(), "waitAck");
+            //响应的异步操作对象
             AppendFuture<AppendEntryResponse> future;
-            if (isBatchWait) {
+            if (isBatchWait) {//批量提交
                 future = new BatchAppendFuture<>(dLedgerConfig.getMaxWaitAckTimeMs());
-            } else {
+            } else {//单个消息
                 future = new AppendFuture<>(dLedgerConfig.getMaxWaitAckTimeMs());
             }
+
+            //设置将要被添加的消息在commitlog文件系统的偏移量
             future.setPos(entry.getPos());
+
+            //提交一个添加异步操作请求到列表
             CompletableFuture<AppendEntryResponse> old = pendingAppendResponsesByTerm.get(entry.getTerm()).put(entry.getIndex(), future);
             if (old != null) {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
+
+            //返回异步操作对象
             return future;
         }
     }
@@ -227,6 +262,9 @@ public class DLedgerEntryPusher {
             super("QuorumAckChecker-" + memberState.getSelfId(), logger);
         }
 
+        /**
+         * 主节点同步数据给其他节点
+         */
         @Override
         public void doWork() {
             try {
@@ -235,47 +273,70 @@ public class DLedgerEntryPusher {
                         memberState.getSelfId(), memberState.getRole(), memberState.currTerm(), dLedgerStore.getLedgerBeginIndex(), dLedgerStore.getLedgerEndIndex(), dLedgerStore.getCommittedIndex(), JSON.toJSONString(peerWaterMarksByTerm));
                     lastPrintWatermarkTimeMs = System.currentTimeMillis();
                 }
-                if (!memberState.isLeader()) {
+                if (!memberState.isLeader()) {//不是leader节点 直接返回
                     waitForRunning(1);
                     return;
                 }
+
+                //获取当前状态机轮次
                 long currTerm = memberState.currTerm();
+
+                //检查轮次-index-向其他节点添加消息的异步操作对象map不为nulll
                 checkTermForPendingMap(currTerm, "QuorumAckChecker");
+                //检查轮次-节点id-index值 map不为null
                 checkTermForWaterMark(currTerm, "QuorumAckChecker");
-                if (pendingAppendResponsesByTerm.size() > 1) {
-                    for (Long term : pendingAppendResponsesByTerm.keySet()) {
-                        if (term == currTerm) {
+                if (pendingAppendResponsesByTerm.size() > 1) {//存在向其他节点添加消息的异步操作
+                    for (Long term : pendingAppendResponsesByTerm.keySet()) {//处理之前轮次的异步操作
+                        if (term == currTerm) {//过滤当前轮次的异步操作
                             continue;
                         }
-                        for (Map.Entry<Long, TimeoutFuture<AppendEntryResponse>> futureEntry : pendingAppendResponsesByTerm.get(term).entrySet()) {
+                        for (Map.Entry<Long, TimeoutFuture<AppendEntryResponse>> futureEntry : pendingAppendResponsesByTerm.get(term).entrySet()) {//遍历所有index值的异步操作
+                            //实例化一个添加消息的响应
                             AppendEntryResponse response = new AppendEntryResponse();
+                            //设置集群组名
                             response.setGroup(memberState.getGroup());
+                            //设置index值
                             response.setIndex(futureEntry.getKey());
+                            //设置响应码
                             response.setCode(DLedgerResponseCode.TERM_CHANGED.getCode());
+                            //设置leaderId
                             response.setLeaderId(memberState.getLeaderId());
                             logger.info("[TermChange] Will clear the pending response index={} for term changed from {} to {}", futureEntry.getKey(), term, currTerm);
+                            //设置异步操作结果
                             futureEntry.getValue().complete(response);
                         }
+
+                        //删除添加消息的异步操作
                         pendingAppendResponsesByTerm.remove(term);
                     }
                 }
-                if (peerWaterMarksByTerm.size() > 1) {
-                    for (Long term : peerWaterMarksByTerm.keySet()) {
-                        if (term == currTerm) {
+                if (peerWaterMarksByTerm.size() > 1) {//存在其他节点
+                    for (Long term : peerWaterMarksByTerm.keySet()) {//获取从节点的轮次
+                        if (term == currTerm) {//过滤当前轮次
                             continue;
                         }
                         logger.info("[TermChange] Will clear the watermarks for term changed from {} to {}", term, currTerm);
+                        //删除其他轮次
                         peerWaterMarksByTerm.remove(term);
                     }
                 }
+
+                //获取当前轮次的所有节点已经添加的消息的index值
                 Map<String, Long> peerWaterMarks = peerWaterMarksByTerm.get(currTerm);
 
+                //从低到高排序其他节点同步到的index值
                 List<Long> sortedWaterMarks = peerWaterMarks.values()
                         .stream()
                         .sorted(Comparator.reverseOrder())
                         .collect(Collectors.toList());
+
+                //获取中间节点的index值
                 long quorumIndex = sortedWaterMarks.get(sortedWaterMarks.size() / 2);
+
+                //更新提交的commitIndex值
                 dLedgerStore.updateCommittedIndex(currTerm, quorumIndex);
+
+                //获取当前轮次所有向其他节点添加消息的异步操作
                 ConcurrentMap<Long, TimeoutFuture<AppendEntryResponse>> responses = pendingAppendResponsesByTerm.get(currTerm);
                 boolean needCheck = false;
                 int ackNum = 0;

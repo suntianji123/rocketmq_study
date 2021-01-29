@@ -81,6 +81,10 @@ public class DLedgerCommitLog extends CommitLog {
     private final int id;
 
     private final MessageSerializer messageSerializer;
+
+    /**
+     * 向commitlog中添加消息 开始加锁的时间
+     */
     private volatile long beginTimeInDledgerLock = 0;
 
     //This offset separate the old commitlog from dledger commitlog
@@ -131,6 +135,7 @@ public class DLedgerCommitLog extends CommitLog {
         DLedgerMmapFileStore.AppendHook appendHook = (entry, buffer, bodyOffset) -> {
             assert bodyOffset == DLedgerEntry.BODY_OFFSET;
             buffer.position(buffer.position() + bodyOffset + MessageDecoder.PHY_POS_POSITION);
+            //写入消息在commitlog文件系统中的偏移量
             buffer.putLong(entry.getPos() + bodyOffset);
         };
 
@@ -157,6 +162,9 @@ public class DLedgerCommitLog extends CommitLog {
         dLedgerConfig.setFileReservedHours(24 * 365 * 10);
     }
 
+    /**
+     * 启动message store时启动
+     */
     @Override
     public void start() {
         dLedgerServer.startup();
@@ -408,69 +416,105 @@ public class DLedgerCommitLog extends CommitLog {
         return beginTimeInDledgerLock;
     }
 
+    /**
+     * 向dlegerCommitlog中写入消息
+     * @param msg 消息对象
+     * @return
+     */
     @Override
     public PutMessageResult putMessage(final MessageExtBrokerInner msg) {
-        // Set the storage time
+        //设置消息存储时间
         msg.setStoreTimestamp(System.currentTimeMillis());
-        // Set the message body BODY CRC (consider the most appropriate setting
-        // on the client)
+        //设置消息体crc值
         msg.setBodyCRC(UtilAll.crc32(msg.getBody()));
-
+        //获取存储存储统计服务
         StoreStatsService storeStatsService = this.defaultMessageStore.getStoreStatsService();
 
+        //获取消息主题
         String topic = msg.getTopic();
+        //获取消息主题消息队列编号
         int queueId = msg.getQueueId();
 
-        //should be consistent with the old version
+        //获取消息的事务类型
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
-            || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
+            || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {//没有事务或者事务提交的类型
             // Delay Delivery
-            if (msg.getDelayTimeLevel() > 0) {
-                if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
+            if (msg.getDelayTimeLevel() > 0) {//获取消息的延时级别
+                if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {//消息的延时级别大于消息的最大延时级别
+                    //设置消息的延级别
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
 
+                //获取延时队列主题
                 topic = ScheduleMessageService.SCHEDULE_TOPIC;
+                //获取延时队列主题编号
                 queueId = ScheduleMessageService.delayLevel2QueueId(msg.getDelayTimeLevel());
 
-                // Backup real topic, queueId
+                //向Properties中设置消息的真正主题
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic());
+                //向Porperties中添加消息真正的主题队列编号
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()));
+                //设置消息的属性字符串
                 msg.setPropertiesString(MessageDecoder.messageProperties2String(msg.getProperties()));
 
+                //设置消息的主题为延时队列主题
                 msg.setTopic(topic);
+                //设置消息的延时队列编号
                 msg.setQueueId(queueId);
             }
         }
 
-        // Back to Results
+        //存放消息的结果
         AppendMessageResult appendResult;
+
+        //向dlegerCommitlog添加消息的异步操作对象
         AppendFuture<AppendEntryResponse> dledgerFuture;
         EncodeResult encodeResult;
 
+        //加锁
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
+        //加锁时间
         long elapsedTimeInLock;
+        //消息在消息队列中的偏移量
         long queueOffset;
         try {
+            //获取开始加锁的时间
             beginTimeInDledgerLock =  this.defaultMessageStore.getSystemClock().now();
+            //将消息编码到字节数组
             encodeResult = this.messageSerializer.serialize(msg);
+            //获取消息的偏移量
             queueOffset = topicQueueTable.get(encodeResult.queueOffsetKey);
-            if (encodeResult.status  != AppendMessageStatus.PUT_OK) {
+            if (encodeResult.status  != AppendMessageStatus.PUT_OK) {//存放消息失败
                 return new PutMessageResult(PutMessageStatus.MESSAGE_ILLEGAL, new AppendMessageResult(encodeResult.status));
             }
+
+            //向dlegerCommitlog添加消息的请求
             AppendEntryRequest request = new AppendEntryRequest();
+
+            //设置节点集群名
             request.setGroup(dLedgerConfig.getGroup());
+            //设置远程id
             request.setRemoteId(dLedgerServer.getMemberState().getSelfId());
+            //设置消息字节数组
             request.setBody(encodeResult.data);
+
+            //向本地的committlog添加消息 并且添加异步操作 将消息同步给其他节点
             dledgerFuture = (AppendFuture<AppendEntryResponse>) dLedgerServer.handleAppend(request);
-            if (dledgerFuture.getPos() == -1) {
+            if (dledgerFuture.getPos() == -1) {//向本地commitlog系统中添加消息失败
                 return new PutMessageResult(PutMessageStatus.OS_PAGECACHE_BUSY, new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR));
             }
+
+            //原始消息的起始偏移量
             long wroteOffset =  dledgerFuture.getPos() + DLedgerEntry.BODY_OFFSET;
+
+            //分配一个bytebuffer 用于存放原始消息的msgId
             ByteBuffer buffer = ByteBuffer.allocate(MessageDecoder.MSG_ID_LENGTH);
+            //创建msgId
             String msgId = MessageDecoder.createMessageId(buffer, msg.getStoreHostBytes(), wroteOffset);
+            //计算消耗的时间
             elapsedTimeInLock = this.defaultMessageStore.getSystemClock().now() - beginTimeInDledgerLock;
+            //向commitlog文件系统添加消息的结果
             appendResult = new AppendMessageResult(AppendMessageStatus.PUT_OK, wroteOffset, encodeResult.data.length, msgId, System.currentTimeMillis(), queueOffset, elapsedTimeInLock);
             switch (tranType) {
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
@@ -478,7 +522,7 @@ public class DLedgerCommitLog extends CommitLog {
                     break;
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
-                    // The next update ConsumeQueue information
+                    // 增加主题消息队列中已经存放消息的最大偏移量
                     DLedgerCommitLog.this.topicQueueTable.put(encodeResult.queueOffsetKey, queueOffset + 1);
                     break;
                 default:
@@ -488,19 +532,25 @@ public class DLedgerCommitLog extends CommitLog {
             log.error("Put message error", e);
             return new PutMessageResult(PutMessageStatus.UNKNOWN_ERROR, new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR));
         } finally {
+            //设置开始加锁的时间
             beginTimeInDledgerLock = 0;
+
+            //释放锁
             putMessageLock.unlock();
         }
 
-        if (elapsedTimeInLock > 500) {
+        if (elapsedTimeInLock > 500) {//消耗时间大于500毫秒 打印日志
             log.warn("[NOTIFYME]putMessage in lock cost time(ms)={}, bodyLength={} AppendMessageResult={}", elapsedTimeInLock, msg.getBody().length, appendResult);
         }
 
+        //向commitlog中添加消息的状态
         PutMessageStatus putMessageStatus = PutMessageStatus.UNKNOWN_ERROR;
         try {
+
+            //最多等待3秒 获取异步操作的结果
             AppendEntryResponse appendEntryResponse = dledgerFuture.get(3, TimeUnit.SECONDS);
             switch (DLedgerResponseCode.valueOf(appendEntryResponse.getCode())) {
-                case SUCCESS:
+                case SUCCESS://向其他节点添加消息成功
                     putMessageStatus = PutMessageStatus.PUT_OK;
                     break;
                 case INCONSISTENT_LEADER:
@@ -521,10 +571,12 @@ public class DLedgerCommitLog extends CommitLog {
             log.error("Failed to get dledger append result", t);
         }
 
+        //实例化存放结果对象
         PutMessageResult putMessageResult = new PutMessageResult(putMessageStatus, appendResult);
         if (putMessageStatus == PutMessageStatus.PUT_OK) {
-            // Statistics
+            // 统计主题存放消息的总次数
             storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
+            //统计主题存放消息的总的大小
             storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(appendResult.getWroteBytes());
         }
         return putMessageResult;
@@ -599,13 +651,33 @@ public class DLedgerCommitLog extends CommitLog {
         return diff;
     }
 
+    /**
+     * 将消息编码结果类
+     */
     class EncodeResult {
+
+        /**
+         * 消息队列topic-编号
+         */
         private String queueOffsetKey;
+
+        /**
+         * 消息编码后的字节数组
+         */
         private byte[] data;
+
+        /**
+         * 消息存放在commitlog的状态
+         */
         private AppendMessageStatus status;
         public EncodeResult(AppendMessageStatus status, byte[] data, String queueOffsetKey) {
+            //设置消息编码后的字节数组
             this.data = data;
+
+            //设置存放消息的结果状态
             this.status = status;
+
+            //设置消息的主题消息队列
             this.queueOffsetKey = queueOffsetKey;
         }
     }
@@ -614,7 +686,9 @@ public class DLedgerCommitLog extends CommitLog {
         // File at the end of the minimum fixed length empty
         private static final int END_FILE_MIN_BLANK_LENGTH = 4 + 4;
         private final ByteBuffer msgIdMemory;
-        // Store the message content
+        /**
+         * 写入消息信息的临时ByteBuffer对象
+         */
         private final ByteBuffer msgStoreItemMemory;
         // The maximum length of the message
         private final int maxMessageSize;
@@ -623,6 +697,9 @@ public class DLedgerCommitLog extends CommitLog {
 
         private final StringBuilder msgIdBuilder = new StringBuilder();
 
+        /**
+         * 消息
+         */
         private final ByteBuffer hostHolder = ByteBuffer.allocate(8);
 
         MessageSerializer(final int size) {
@@ -635,33 +712,44 @@ public class DLedgerCommitLog extends CommitLog {
             return msgStoreItemMemory;
         }
 
+        /**
+         * 将消息编码为可以存储到DLedgerCommitlog中的格式的byteBuffer
+         * @param msgInner 消息对象
+         * @return
+         */
         public EncodeResult serialize(final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
 
-            // PHY OFFSET
+
             long wroteOffset = 0;
 
             this.resetByteBuffer(hostHolder, 8);
-            // Record ConsumeQueue information
+            // 记录消息的主题消费队列信息
             keyBuilder.setLength(0);
             keyBuilder.append(msgInner.getTopic());
             keyBuilder.append('-');
             keyBuilder.append(msgInner.getQueueId());
+
+            //topic-0 消费队列的key
             String key = keyBuilder.toString();
 
+            //获取主题消息队列存放消息的数量
             Long queueOffset = DLedgerCommitLog.this.topicQueueTable.get(key);
             if (null == queueOffset) {
+                //消息数量为0
                 queueOffset = 0L;
+                //设置消费数量
                 DLedgerCommitLog.this.topicQueueTable.put(key, queueOffset);
             }
 
-            // Transaction messages that require special handling
+            // 获取消息的事务乐西
             final int tranType = MessageSysFlag.getTransactionValue(msgInner.getSysFlag());
             switch (tranType) {
                 // Prepared and Rollback message is not consumed, will not enter the
                 // consumer queuec
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE:
+                    //消息的消费偏移量为0
                     queueOffset = 0L;
                     break;
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
@@ -670,81 +758,96 @@ public class DLedgerCommitLog extends CommitLog {
                     break;
             }
 
-            /**
-             * Serialize message
-             */
+            //将消息的属性值序列化字节数组
             final byte[] propertiesData =
                 msgInner.getPropertiesString() == null ? null : msgInner.getPropertiesString().getBytes(MessageDecoder.CHARSET_UTF8);
 
+            //获取消息的属性值所占的字节数
             final int propertiesLength = propertiesData == null ? 0 : propertiesData.length;
 
-            if (propertiesLength > Short.MAX_VALUE) {
+            if (propertiesLength > Short.MAX_VALUE) {//消息的属性值字节数太多
                 log.warn("putMessage message properties length too long. length={}", propertiesData.length);
                 return new EncodeResult(AppendMessageStatus.PROPERTIES_SIZE_EXCEEDED, null, key);
             }
 
+            //获取消息主题的字节数组
             final byte[] topicData = msgInner.getTopic().getBytes(MessageDecoder.CHARSET_UTF8);
+            //主题长度
             final int topicLength = topicData.length;
 
+            //消息体长度
             final int bodyLength = msgInner.getBody() == null ? 0 : msgInner.getBody().length;
 
+            //消息的总长度
             final int msgLen = calMsgLength(bodyLength, topicLength, propertiesLength);
 
             // Exceeds the maximum message
-            if (msgLen > this.maxMessageSize) {
+            if (msgLen > this.maxMessageSize) {//消息的总长度太长
                 DLedgerCommitLog.log.warn("message size exceeded, msg total size: " + msgLen + ", msg body size: " + bodyLength
                     + ", maxMessageSize: " + this.maxMessageSize);
                 return new EncodeResult(AppendMessageStatus.MESSAGE_SIZE_EXCEEDED, null, key);
             }
-            // Initialization of storage space
+            //重置缓存区
             this.resetByteBuffer(msgStoreItemMemory, msgLen);
-            // 1 TOTALSIZE
+            //写入消息的总长度
             this.msgStoreItemMemory.putInt(msgLen);
-            // 2 MAGICCODE
+            // 写入消息的模数
             this.msgStoreItemMemory.putInt(DLedgerCommitLog.MESSAGE_MAGIC_CODE);
-            // 3 BODYCRC
+            //写入体的crc值
             this.msgStoreItemMemory.putInt(msgInner.getBodyCRC());
-            // 4 QUEUEID
+            // 4 写入消息队列编号
             this.msgStoreItemMemory.putInt(msgInner.getQueueId());
-            // 5 FLAG
+            // 5 写入生产者标志
             this.msgStoreItemMemory.putInt(msgInner.getFlag());
-            // 6 QUEUEOFFSET
+            // 6 写入消息在消息队列中的偏移量
             this.msgStoreItemMemory.putLong(queueOffset);
-            // 7 PHYSICALOFFSET
+            // 7 写入消息在commitlog中的偏移量
             this.msgStoreItemMemory.putLong(wroteOffset);
-            // 8 SYSFLAG
+            // 8 写入系统标志
             this.msgStoreItemMemory.putInt(msgInner.getSysFlag());
-            // 9 BORNTIMESTAMP
+            // 9 写入消息的生产时间
             this.msgStoreItemMemory.putLong(msgInner.getBornTimestamp());
-            // 10 BORNHOST
+            // 10 写入消息的生产地址
             this.resetByteBuffer(hostHolder, 8);
+            //写入存储地址
             this.msgStoreItemMemory.put(msgInner.getBornHostBytes(hostHolder));
-            // 11 STORETIMESTAMP
+            // 11 写入存储时间
             this.msgStoreItemMemory.putLong(msgInner.getStoreTimestamp());
             // 12 STOREHOSTADDRESS
             this.resetByteBuffer(hostHolder, 8);
+
             this.msgStoreItemMemory.put(msgInner.getStoreHostBytes(hostHolder));
             //this.msgBatchMemory.put(msgInner.getStoreHostBytes());
-            // 13 RECONSUMETIMES
+            // 13 写入重试次数
             this.msgStoreItemMemory.putInt(msgInner.getReconsumeTimes());
-            // 14 Prepared Transaction Offset
+            // 14 写入half message的偏移量
             this.msgStoreItemMemory.putLong(msgInner.getPreparedTransactionOffset());
-            // 15 BODY
+            // 15 写入消息体
             this.msgStoreItemMemory.putInt(bodyLength);
             if (bodyLength > 0) {
+                //写入消息体
                 this.msgStoreItemMemory.put(msgInner.getBody());
             }
-            // 16 TOPIC
+            // 16 写入主题长度
             this.msgStoreItemMemory.put((byte) topicLength);
+            //写入主题
             this.msgStoreItemMemory.put(topicData);
-            // 17 PROPERTIES
+            // 17 写入属性所占字节数
             this.msgStoreItemMemory.putShort((short) propertiesLength);
             if (propertiesLength > 0) {
+                //写入属性
                 this.msgStoreItemMemory.put(propertiesData);
             }
+
+            //获取消息总的字节数组
             byte[] data = new byte[msgLen];
+            //清理缓存bytebuffer对象
             this.msgStoreItemMemory.clear();
+
+            //获取新的消息的字节数组
             this.msgStoreItemMemory.get(data);
+
+            //实例化一个编码结果
             return new EncodeResult(AppendMessageStatus.PUT_OK, data, key);
         }
 

@@ -241,6 +241,8 @@ public class DLedgerLeaderElector {
                 memberState.changeToLeader(term);
                 //设置上一次给其他节点发送心跳的时间
                 lastSendHeartBeatTime = -1;
+
+                //处理节点角色变更
                 handleRoleChange(term, MemberState.Role.LEADER);
                 logger.info("[{}] [ChangeRoleToLeader] from term: {} and currTerm: {}", memberState.getSelfId(), term, memberState.currTerm());
             } else {
@@ -773,6 +775,7 @@ public class DLedgerLeaderElector {
 
         if (parseResult == VoteResponse.ParseResult.PASSED) {//投票结果成功
             logger.info("[{}] [VOTE_RESULT] has been elected to be the leader in term {}", memberState.getSelfId(), term);
+            //改变节点的角色为leader
             changeRoleToLeader(term);
         }
     }
@@ -807,6 +810,9 @@ public class DLedgerLeaderElector {
             logger.error("takeLeadershipTask.check failed. ter={}, role={}", term, role, t);
         }
 
+        /**
+         * 处理角色变更
+         */
         for (RoleChangeHandler roleChangeHandler : roleChangeHandlers) {
             try {
                 roleChangeHandler.handle(term, role);

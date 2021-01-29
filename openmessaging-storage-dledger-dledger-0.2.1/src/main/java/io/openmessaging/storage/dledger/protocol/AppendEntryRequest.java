@@ -17,8 +17,14 @@
 
 package io.openmessaging.storage.dledger.protocol;
 
+/**
+ * 向DledgerCommitlog中添加消息的请求类
+ */
 public class AppendEntryRequest extends RequestOrResponse {
 
+    /**
+     * 消息字节数组
+     */
     private byte[] body;
 
     public byte[] getBody() {

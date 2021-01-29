@@ -17,9 +17,19 @@
 
 package io.openmessaging.storage.dledger.protocol;
 
+/**
+ * 向commitlog中添加消息的响应类
+ */
 public class AppendEntryResponse extends RequestOrResponse {
 
+    /**
+     * 消息的index值
+     */
     private long index = -1;
+
+    /**
+     * 消息在commitlog中的偏移量
+     */
     private long pos = -1;
 
     public long getIndex() {

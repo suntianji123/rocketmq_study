@@ -21,20 +21,37 @@ import java.nio.ByteBuffer;
 
 public class DLedgerEntryCoder {
 
+    /**
+     * 将消息实体编码写入bytebuffer
+     * @param entry 消息实体
+     * @param byteBuffer 临时bytebuffer
+     */
     public static void encode(DLedgerEntry entry, ByteBuffer byteBuffer) {
+        //清理bytebuffer
         byteBuffer.clear();
+        //获取消息的占用的总的字节数
         int size = entry.computSizeInBytes();
-        //always put magic on the first position
+        //写入消息的模数
         byteBuffer.putInt(entry.getMagic());
+        //写入消息占的总的字节数
         byteBuffer.putInt(size);
+        //写入消息的index值
         byteBuffer.putLong(entry.getIndex());
+        //写入消息的轮次
         byteBuffer.putLong(entry.getTerm());
+        //写入消息在commitlog中的偏移量
         byteBuffer.putLong(entry.getPos());
+        //写入消息的通道编号
         byteBuffer.putInt(entry.getChannel());
+        //写入消息的链crc值
         byteBuffer.putInt(entry.getChainCrc());
+        //写入消息体curc值
         byteBuffer.putInt(entry.getBodyCrc());
+        //写入消息体长度
         byteBuffer.putInt(entry.getBody().length);
+        //写入消息体
         byteBuffer.put(entry.getBody());
+        //将bytebuffer由写改为读模式
         byteBuffer.flip();
     }
 
@@ -109,10 +126,19 @@ public class DLedgerEntryCoder {
         return entry;
     }
 
+    /**
+     * 将消息的在mappedFile list中的偏移量写入bytebuffer
+     * @param byteBuffer 缓存区
+     * @param pos 偏移量
+     */
     public static void setPos(ByteBuffer byteBuffer, long pos) {
+        //标记消息的写位置
         byteBuffer.mark();
+        //移动写的位置
         byteBuffer.position(byteBuffer.position() + DLedgerEntry.POS_OFFSET);
+        //写入消息的偏移量
         byteBuffer.putLong(pos);
+        //重新设置消息的写位置
         byteBuffer.reset();
     }
 
@@ -125,12 +151,25 @@ public class DLedgerEntryCoder {
         return pos;
     }
 
+    /**
+     * 将消息的index,轮次，模式写入bytebuffer缓存区
+     * @param byteBuffer 缓存区
+     * @param index index值
+     * @param term 轮次
+     * @param magic 模数
+     */
     public static void setIndexTerm(ByteBuffer byteBuffer, long index, long term, int magic) {
+        //记录之前的位置
         byteBuffer.mark();
+        //向缓存区中写入模式
         byteBuffer.putInt(magic);
+        //移动写的起始位置
         byteBuffer.position(byteBuffer.position() + 4);
+        //写入消息的index
         byteBuffer.putLong(index);
+        //写入消息的轮次
         byteBuffer.putLong(term);
+        //重置bytebuffer的写位置
         byteBuffer.reset();
     }
 

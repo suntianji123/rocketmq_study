@@ -26,6 +26,11 @@ public abstract class DLedgerStore {
         return null;
     }
 
+    /**
+     * 向leader节点的commitlog中添加消息
+     * @param entry 消息实体
+     * @return
+     */
     public abstract DLedgerEntry appendAsLeader(DLedgerEntry entry);
 
     public abstract DLedgerEntry appendAsFollower(DLedgerEntry entry, long leaderTerm, String leaderId);

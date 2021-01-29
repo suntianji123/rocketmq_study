@@ -386,19 +386,29 @@ public class ConsumeQueue {
         return cnt;
     }
 
+    /**
+     * 纠正消费队列最小偏移量 （消费队列的最小偏移量一定小于commitlog文件系统的最小偏移量）
+     * @param phyMinOffset commitlog的最小偏移量
+     */
     public void correctMinOffset(long phyMinOffset) {
+
+        //获取一个消费队列文件
         MappedFile mappedFile = this.mappedFileQueue.getFirstMappedFile();
         long minExtAddr = 1;
         if (mappedFile != null) {
+            //获取文件中所有的消息bytebuffer
             SelectMappedBufferResult result = mappedFile.selectMappedBuffer(0);
             if (result != null) {
                 try {
-                    for (int i = 0; i < result.getSize(); i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {
+                    for (int i = 0; i < result.getSize(); i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {//遍历每一条消息的位置信息
+                        //获取消息在commitlog文件系统中的偏移量
                         long offsetPy = result.getByteBuffer().getLong();
                         result.getByteBuffer().getInt();
+                        //获取哈希值
                         long tagsCode = result.getByteBuffer().getLong();
 
-                        if (offsetPy >= phyMinOffset) {
+                        if (offsetPy >= phyMinOffset) {//偏移量大于commitlog的最小偏移量 说明这条消息没有过期
+                            //重新设置当前Consumequeue mappedFile文件的最小逻辑偏移量
                             this.minLogicOffset = mappedFile.getFileFromOffset() + i;
                             log.info("Compute logical min offset: {}, topic: {}, queueId: {}",
                                 this.getMinOffsetInQueue(), this.topic, this.queueId);

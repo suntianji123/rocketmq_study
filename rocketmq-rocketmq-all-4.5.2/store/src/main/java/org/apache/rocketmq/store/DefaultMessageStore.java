@@ -66,6 +66,9 @@ public class DefaultMessageStore implements MessageStore {
     // CommitLog
     private final CommitLog commitLog;
 
+    /**
+     * 主题下所有的消费队列map
+     */
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
 
     private final FlushConsumeQueueService flushConsumeQueueService;
@@ -1272,6 +1275,10 @@ public class DefaultMessageStore implements MessageStore {
         return false;
     }
 
+    /**
+     * 新写入到commitlog的字节数 还有多少没有分发处理（比如写入到consumequeue indexFile）
+     * @return
+     */
     @Override
     public long dispatchBehindBytes() {
         return this.reputMessageService.behind();
@@ -1602,13 +1609,20 @@ public class DefaultMessageStore implements MessageStore {
         return maxPhysicOffset;
     }
 
+    /**
+     * 复位主体消费队列的偏移量
+     */
     public void recoverTopicQueueTable() {
         HashMap<String/* topic-queueid */, Long/* offset */> table = new HashMap<String, Long>(1024);
+        //获取当前commitlog文件系统的最小电影了
         long minPhyOffset = this.commitLog.getMinOffset();
-        for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {
-            for (ConsumeQueue logic : maps.values()) {
+        for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {//遍历所有主题消费队列
+            for (ConsumeQueue logic : maps.values()) {//所有的主题消费队列
+                //获取主题-编号
                 String key = logic.getTopic() + "-" + logic.getQueueId();
+                //设置消费队列的最大偏移量为消费已写入的偏移量
                 table.put(key, logic.getMaxOffsetInQueue());
+                //删除消费队列文件中偏移量小于commitlog文件最小偏移量的文件
                 logic.correctMinOffset(minPhyOffset);
             }
         }
@@ -2056,6 +2070,10 @@ public class DefaultMessageStore implements MessageStore {
             super.shutdown();
         }
 
+        /**
+         * 返回commitlog中还剩余多少个字节没有进行分发处理（比如写入到conusmequeue indexFiile）
+         * @return
+         */
         public long behind() {
             return DefaultMessageStore.this.commitLog.getMaxOffset() - this.reputFromOffset;
         }

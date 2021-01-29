@@ -28,6 +28,10 @@ public enum PutMessageStatus {
     CREATE_MAPEDFILE_FAILED,
     MESSAGE_ILLEGAL,
     PROPERTIES_SIZE_EXCEEDED,
+
+    /**
+     * 向本地commitlog文件系统添加消息失败
+     */
     OS_PAGECACHE_BUSY,
     UNKNOWN_ERROR,
 }

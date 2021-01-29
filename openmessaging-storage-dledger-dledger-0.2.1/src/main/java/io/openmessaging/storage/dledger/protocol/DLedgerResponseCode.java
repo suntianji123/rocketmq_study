@@ -62,6 +62,10 @@ public enum DLedgerResponseCode {
     REPEATED_REQUEST(412, ""),
     REPEATED_PUSH(413, ""),
     DISK_ERROR(414, ""),
+
+    /**
+     * 磁盘满了
+     */
     DISK_FULL(415, ""),
 
     /**
@@ -73,6 +77,10 @@ public enum DLedgerResponseCode {
     INDEX_LESS_THAN_LOCAL_BEGIN(419, ""),
     REQUEST_WITH_EMPTY_BODYS(420, ""),
     INTERNAL_ERROR(500, ""),
+
+    /**
+     * 主节点同步添加消息给其他节点 异步操作的轮次小于主节点的轮次 轮次改变
+     */
     TERM_CHANGED(501, ""),
     WAIT_QUORUM_ACK_TIMEOUT(502, ""),
     LEADER_PENDING_FULL(503, ""),

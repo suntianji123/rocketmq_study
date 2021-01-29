@@ -77,8 +77,14 @@ public class DLedgerConfig {
      */
     private String dataStorePath;
 
+    /**
+     * 最多可以向commitlog存放消息的异步操作数量
+     */
     private int maxPendingRequestsNum = 10000;
 
+    /**
+     * 同步等待远程节点回复的最大值
+     */
     private int maxWaitAckTimeMs = 2500;
 
     private int maxPushTimeOutMs = 1000;

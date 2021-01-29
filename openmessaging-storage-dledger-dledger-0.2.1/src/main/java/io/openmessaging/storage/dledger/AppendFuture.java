@@ -17,14 +17,25 @@
 
 package io.openmessaging.storage.dledger;
 
+/**
+ * 向远程节点添加消息的异步操作类
+ * @param <T> 异步操作等待的结果类型
+ */
 public class AppendFuture<T> extends TimeoutFuture<T> {
 
+    /**
+     * 消息在commitlog文件系统中的偏移量
+     */
     private long pos = -1;
 
     public AppendFuture() {
 
     }
 
+    /**
+     * 实例化一个向远程节点添加消息的异步操作对象
+     * @param timeOutMs 异步操作超时时间
+     */
     public AppendFuture(long timeOutMs) {
         this.timeOutMs = timeOutMs;
     }

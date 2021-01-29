@@ -267,6 +267,13 @@ public class MmapFileList {
         return append(data, 0, data.length);
     }
 
+    /**
+     * 向mappedFile list中添加字节数组
+     * @param data 字节数组
+     * @param pos 字节数组起始位置
+     * @param len 长度
+     * @return
+     */
     public long append(byte[] data, int pos, int len) {
         return append(data, pos, len, true);
     }
@@ -275,6 +282,11 @@ public class MmapFileList {
         return append(data, 0, data.length, useBlank);
     }
 
+    /**
+     * 向mappedfile list中添加一条消息 返回消息的偏移量
+     * @param len 消息的长度
+     * @return
+     */
     public long preAppend(int len) {
         return preAppend(len, true);
     }

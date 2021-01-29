@@ -1220,15 +1220,21 @@ public class BrokerController {
         }
     }
 
+    /**
+     * 更改该广播站的角色为从站
+     * @param brokerId 广播站点id(选举节点id + 1)
+     */
     public void changeToSlave(int brokerId) {
         log.info("Begin to change to slave brokerName={} brokerId={}", brokerConfig.getBrokerName(), brokerId);
 
-        //change the role
+        //设置广播站集群id
         brokerConfig.setBrokerId(brokerId == 0 ? 1 : brokerId); //TO DO check
+        //设置广播站角色
         messageStoreConfig.setBrokerRole(BrokerRole.SLAVE);
 
         //handle the scheduled service
         try {
+            //关闭延时队列服务
             this.messageStore.handleScheduleMessageService(BrokerRole.SLAVE);
         } catch (Throwable t) {
             log.error("[MONITOR] handleScheduleMessageService failed when changing to slave", t);
@@ -1236,15 +1242,17 @@ public class BrokerController {
 
         //handle the transactional service
         try {
+            //关闭事务消息检查服务
             this.shutdownProcessorByHa();
         } catch (Throwable t) {
             log.error("[MONITOR] shutdownProcessorByHa failed when changing to slave", t);
         }
 
-        //c从站同步数据
+        //从站同步数据
         handleSlaveSynchronize(BrokerRole.SLAVE);
 
         try {
+            //将当前从站配置上传到中心服务器
             this.registerBrokerAll(true, true, brokerConfig.isForceRegister());
         } catch (Throwable ignored) {
 
@@ -1252,19 +1260,26 @@ public class BrokerController {
         log.info("Finish to change to slave brokerName={} brokerId={}", brokerConfig.getBrokerName(), brokerId);
     }
 
-
-
+    /**
+     * 更改广播站的角色
+     * @param role 将要更改到的角色
+     */
     public void changeToMaster(BrokerRole role) {
-        if (role == BrokerRole.SLAVE) {
+        if (role == BrokerRole.SLAVE) {//如果是从站 返回
             return;
         }
         log.info("Begin to change to master brokerName={}", brokerConfig.getBrokerName());
 
-        //handle the slave synchronise
+        //同步主站上所有的主题配置
+        //同步主站商所有的主题消费队列的消费偏移量
+        //同步主站上所有的延时队列的偏移量
+        //同步主站上所有的消费者组订阅配置
         handleSlaveSynchronize(role);
 
         //handle the scheduled service
         try {
+
+            //启动延时队列服务
             this.messageStore.handleScheduleMessageService(role);
         } catch (Throwable t) {
             log.error("[MONITOR] handleScheduleMessageService failed when changing to master", t);
@@ -1272,16 +1287,21 @@ public class BrokerController {
 
         //handle the transactional service
         try {
+            //定时检查事务的half message进行删除
             this.startProcessorByHa(BrokerRole.SYNC_MASTER);
         } catch (Throwable t) {
             log.error("[MONITOR] startProcessorByHa failed when changing to master", t);
         }
 
-        //if the operations above are totally successful, we change to master
+        //设置广播站id
         brokerConfig.setBrokerId(0); //TO DO check
+
+        //设置广播站角色
         messageStoreConfig.setBrokerRole(role);
 
         try {
+
+            //将当前广播站所有的配置上传到中心服务器
             this.registerBrokerAll(true, true, brokerConfig.isForceRegister());
         } catch (Throwable ignored) {
 

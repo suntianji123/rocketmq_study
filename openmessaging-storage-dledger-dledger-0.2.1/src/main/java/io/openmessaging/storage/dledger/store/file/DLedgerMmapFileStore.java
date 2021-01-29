@@ -600,43 +600,83 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 
     }
 
+    /**
+     * leader节点向commitlog中添加消息
+     * @param entry 消息实体
+     * @return
+     */
     @Override
     public DLedgerEntry appendAsLeader(DLedgerEntry entry) {
+        //当前节点必须是leader
         PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER);
+        //磁盘没有满
         PreConditions.check(!isDiskFull, DLedgerResponseCode.DISK_FULL);
+
+        //从线程上下文中获取存储消息的临时bytebuffer对象
         ByteBuffer dataBuffer = localEntryBuffer.get();
+        //从线程上下文中获取存储索引信息的bytebuffer对象
         ByteBuffer indexBuffer = localIndexBuffer.get();
+        //将消息写入databuffershuzu
         DLedgerEntryCoder.encode(entry, dataBuffer);
+        //获取实体所占用的字节数
         int entrySize = dataBuffer.remaining();
-        synchronized (memberState) {
+        synchronized (memberState) {//加锁状态机
+            //必须是leader
             PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER, null);
+            //所托人为null
             PreConditions.check(memberState.getTransferee() == null, DLedgerResponseCode.LEADER_TRANSFERRING, null);
+            //当前消息的index值为最后一条消息的index值 + 1
             long nextIndex = ledgerEndIndex + 1;
+            //设置实体的index值
             entry.setIndex(nextIndex);
+            //设置实体的轮次
             entry.setTerm(memberState.currTerm());
+            //设置实体的模数
             entry.setMagic(CURRENT_MAGIC);
+
+            //将消息的index、轮数、模数写入bytebuffer
             DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
+
+            //获取消息写入后的偏移量
             long prePos = dataFileList.preAppend(dataBuffer.remaining());
+
+            //设置消息在mappedfile list中的偏移量
             entry.setPos(prePos);
+            //偏移量必须大于等于0
             PreConditions.check(prePos != -1, DLedgerResponseCode.DISK_ERROR, null);
+            //将消息的位置写入缓存区
             DLedgerEntryCoder.setPos(dataBuffer, prePos);
             for (AppendHook writeHook : appendHooks) {
+                //写入消息体中的commitoffset值
                 writeHook.doHook(entry, dataBuffer.slice(), DLedgerEntry.BODY_OFFSET);
             }
+
+            //向dataFileList中添加消息
             long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
+            //添加消息后的位置与消息在mappedFile list中的偏移量要相等
             PreConditions.check(dataPos != -1, DLedgerResponseCode.DISK_ERROR, null);
             PreConditions.check(dataPos == prePos, DLedgerResponseCode.DISK_ERROR, null);
+
+            //将消息的索引信息写入index mappedFile list中
             DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
+            //将消息的索引信息写入index mappedFile list中
             long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
+            //检查消息的index值与消息的索引信息的偏移量之间的关系
             PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
             if (logger.isDebugEnabled()) {
                 logger.info("[{}] Append as Leader {} {}", memberState.getSelfId(), entry.getIndex(), entry.getBody().length);
             }
+
+            //增加最后一条消息的index值
             ledgerEndIndex++;
+            //最后一条消息的轮次
             ledgerEndTerm = memberState.currTerm();
             if (ledgerBeginIndex == -1) {
+                //设置第一条消息的index值
                 ledgerBeginIndex = ledgerEndIndex;
             }
+
+            //更新状态机的最后一条消息的索引值与轮次
             updateLedgerEndIndexAndTerm();
             return entry;
         }
