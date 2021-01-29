@@ -54,12 +54,30 @@ import org.apache.rocketmq.store.schedule.ScheduleMessageService;
  * Store all metadata downtime for recovery, data protection reliability
  */
 public class DLedgerCommitLog extends CommitLog {
+
+    /**
+     * 选举服务器
+     */
     private final DLedgerServer dLedgerServer;
+
+    /**
+     * 选举配置
+     */
     private final DLedgerConfig dLedgerConfig;
+
+    /**
+     * 选举消息存储
+     */
     private final DLedgerMmapFileStore dLedgerFileStore;
+
+    /**
+     * 选举文件列表
+     */
     private final MmapFileList dLedgerFileList;
 
-    //The id identifies the broker role, 0 means master, others means slave
+    /**
+     * 当前选举节点的id
+     */
     private final int id;
 
     private final MessageSerializer messageSerializer;
@@ -71,28 +89,52 @@ public class DLedgerCommitLog extends CommitLog {
 
     private boolean isInrecoveringOldCommitlog = false;
 
+    /**
+     * 实例化一个可选举的Commitlog
+     * @param defaultMessageStore 默认的消息存储配置
+     */
     public DLedgerCommitLog(final DefaultMessageStore defaultMessageStore) {
         super(defaultMessageStore);
         //选举配置
         dLedgerConfig =  new DLedgerConfig();
+        //配置：强制清理过期的mappedFile
         dLedgerConfig.setEnableDiskForceClean(defaultMessageStore.getMessageStoreConfig().isCleanFileForciblyEnable());
+        //配置：消息的存放位置文件
         dLedgerConfig.setStoreType(DLedgerConfig.FILE);
+
+        //配置：节点选举节点id
         dLedgerConfig.setSelfId(defaultMessageStore.getMessageStoreConfig().getdLegerSelfId());
+
+        //配置：选举集群的组名
         dLedgerConfig.setGroup(defaultMessageStore.getMessageStoreConfig().getdLegerGroup());
+        //配置：选举集群的节点-地址
         dLedgerConfig.setPeers(defaultMessageStore.getMessageStoreConfig().getdLegerPeers());
+        //配置：选举节点存储的根目录
         dLedgerConfig.setStoreBaseDir(defaultMessageStore.getMessageStoreConfig().getStorePathRootDir());
+
+        //配置：单个mappedFile文件大小
         dLedgerConfig.setMappedFileSizeForEntryData(defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog());
+
+        //配置：每天凌晨4点检测一次清理过期的消息mappedFile indexFile文件
         dLedgerConfig.setDeleteWhen(defaultMessageStore.getMessageStoreConfig().getDeleteWhen());
+
+        //mappedFile过期的时间 73小时
         dLedgerConfig.setFileReservedHours(defaultMessageStore.getMessageStoreConfig().getFileReservedTime() + 1);
+
+        //设置当前选举节点的id
         id = Integer.valueOf(dLedgerConfig.getSelfId().substring(1)) + 1;
         //选举服务器
         dLedgerServer = new DLedgerServer(dLedgerConfig);
+
+        //选举文件存储
         dLedgerFileStore = (DLedgerMmapFileStore) dLedgerServer.getdLedgerStore();
         DLedgerMmapFileStore.AppendHook appendHook = (entry, buffer, bodyOffset) -> {
             assert bodyOffset == DLedgerEntry.BODY_OFFSET;
             buffer.position(buffer.position() + bodyOffset + MessageDecoder.PHY_POS_POSITION);
             buffer.putLong(entry.getPos() + bodyOffset);
         };
+
+        //向文件存储中添加消息后的回调钩子
         dLedgerFileStore.addAppendHook(appendHook);
         dLedgerFileList = dLedgerFileStore.getDataFileList();
         this.messageSerializer = new MessageSerializer(defaultMessageStore.getMessageStoreConfig().getMaxMessageSize());

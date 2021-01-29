@@ -75,14 +75,21 @@ public class CommitLog {
      */
     protected final PutMessageLock putMessageLock;
 
+    /**
+     * 实例化一个Commitlog
+     * @param defaultMessageStore 默认的消息存储
+     */
     public CommitLog(final DefaultMessageStore defaultMessageStore) {
+
+        //mappedFile 队列
         this.mappedFileQueue = new MappedFileQueue(defaultMessageStore.getMessageStoreConfig().getStorePathCommitLog(),
             defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog(), defaultMessageStore.getAllocateMappedFileService());
+        //默认的消息存储
         this.defaultMessageStore = defaultMessageStore;
 
-        if (FlushDiskType.SYNC_FLUSH == defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
+        if (FlushDiskType.SYNC_FLUSH == defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {//同步刷新
             this.flushCommitLogService = new GroupCommitService();
-        } else {
+        } else {//异步刷新
             this.flushCommitLogService = new FlushRealTimeService();
         }
 
@@ -1090,6 +1097,9 @@ public class CommitLog {
         }
     }
 
+    /**
+     * 定时将mappedFile的mappedbyteBuffer中的字节数组刷新到mappedFile磁盘文件
+     */
     class FlushRealTimeService extends FlushCommitLogService {
 
         /**

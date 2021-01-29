@@ -180,6 +180,10 @@ public class MessageStoreConfig {
     private int syncFlushTimeout = 1000 * 5;
     private String messageDelayLevel = "1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h";
     private long flushDelayOffsetInterval = 1000 * 10;
+
+    /**
+     * 是否强制清理过期的mappedFile
+     */
     @ImportantField
     private boolean cleanFileForciblyEnable = true;
     private boolean warmMapedFileEnable = false;
@@ -206,8 +210,20 @@ public class MessageStoreConfig {
      * 当广播站集群中的主站挂了 是否选择一个从站作为主站
      */
     private boolean enableDLegerCommitLog = false;
+
+    /**
+     * 选举集群名
+     */
     private String dLegerGroup;
+
+    /**
+     * 选举节点及地址
+     */
     private String dLegerPeers;
+
+    /**
+     * 选举节点id
+     */
     private String dLegerSelfId;
 
     public boolean isDebugLockEnable() {

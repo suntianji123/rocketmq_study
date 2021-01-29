@@ -136,14 +136,28 @@ public class DefaultMessageStore implements MessageStore {
 
     boolean shutDownNormal = false;
 
+    /**
+     * 实例化一个默认的消息存储
+     * @param messageStoreConfig 消息存储皮遏制
+     * @param brokerStatsManager 广播站消息统计管理器
+     * @param messageArrivingListener 检查到commitlog文件有新写入的文件的消息时 将消息的位置信息写入到consumeQueue和 indexFile
+     * @param brokerConfig 广播站配置
+     * @throws IOException
+     */
     public DefaultMessageStore(final MessageStoreConfig messageStoreConfig, final BrokerStatsManager brokerStatsManager,
         final MessageArrivingListener messageArrivingListener, final BrokerConfig brokerConfig) throws IOException {
+        //设置检测到commitlog文件系统有新写入的消息时 将消息的位置信息写入consumeQueue以及indexFile
         this.messageArrivingListener = messageArrivingListener;
+        //设置广播站配置
         this.brokerConfig = brokerConfig;
+        //设置消息存储配置
         this.messageStoreConfig = messageStoreConfig;
+        //设置广播站统计管理器
         this.brokerStatsManager = brokerStatsManager;
+
+        //设置分配mappedFile文件的服务
         this.allocateMappedFileService = new AllocateMappedFileService(this);
-        if (messageStoreConfig.isEnableDLegerCommitLog()) {
+        if (messageStoreConfig.isEnableDLegerCommitLog()) {//使用dlegerCommitlog
             this.commitLog = new DLedgerCommitLog(this);
         } else {
             this.commitLog = new CommitLog(this);
