@@ -35,6 +35,10 @@ public enum DLedgerRequestCode {
     VOTE(51001, ""),
     HEART_BEAT(51002, ""),
     PULL(51003, ""),
+
+    /**
+     * 主节点向对端推送消息请求
+     */
     PUSH(51004, ""),
     LEADERSHIP_TRANSFER(51005, "");
 

@@ -36,6 +36,12 @@ public interface DLedgerProtocol extends DLedgerClientProtocol {
 
     CompletableFuture<PullEntriesResponse> pull(PullEntriesRequest request) throws Exception;
 
+    /**
+     * 向对端节点推送实体请求
+     * @param request 推送实体请求
+     * @return
+     * @throws Exception
+     */
     CompletableFuture<PushEntryResponse> push(PushEntryRequest request) throws Exception;
 
 }

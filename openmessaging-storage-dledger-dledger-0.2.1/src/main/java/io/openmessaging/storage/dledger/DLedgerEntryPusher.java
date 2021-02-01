@@ -130,8 +130,11 @@ public class DLedgerEntryPusher {
      * 启动消息推送器
      */
     public void startup() {
+        //启动实体处理器
         entryHandler.start();
         quorumAckChecker.start();
+
+        //启动为每个节点建立的实体分发器
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.start();
         }
@@ -145,6 +148,12 @@ public class DLedgerEntryPusher {
         }
     }
 
+    /**
+     * 处理leader节点推送消息的请求
+     * @param request 推送消息的请求
+     * @return
+     * @throws Exception
+     */
     public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
         return entryHandler.handlePush(request);
     }
@@ -407,23 +416,54 @@ public class DLedgerEntryPusher {
 
 
     /**
-     * 分发器实体
+     * 每一个对端节点对应的实体分发器
      */
     private class EntryDispatcher extends ShutdownAbleThread {
 
+        /**
+         * 分发器类型
+         */
         private AtomicReference<PushEntryRequest.Type> type = new AtomicReference<>(PushEntryRequest.Type.COMPARE);
+
+        /**
+         * 上一次提交的时间
+         */
         private long lastPushCommitTimeMs = -1;
 
         /**
          * 对端节点id
          */
         private String peerId;
+
+        /**
+         *比较index
+         */
         private long compareIndex = -1;
+
+        /**
+         * 向对端节点同步消息的起始下标
+         */
         private long writeIndex = -1;
         private int maxPendingSize = 1000;
+
+        /**
+         * 最后一条消息的轮次
+         */
         private long term = -1;
+
+        /**
+         * leaderId
+         */
         private String leaderId = null;
+
+        /**
+         * 最后一次检查的时间
+         */
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
+
+        /**
+         * 向对端同步消息的index | 请求时间 map
+         */
         private ConcurrentMap<Long, Long> pendingMap = new ConcurrentHashMap<>();
         private ConcurrentMap<Long, Pair<Long, Integer>> batchPendingMap = new ConcurrentHashMap<>();
         private PushEntryRequest batchAppendEntryRequest = new PushEntryRequest();
@@ -440,32 +480,58 @@ public class DLedgerEntryPusher {
             this.peerId = peerId;
         }
 
+        /**
+         * 检查是否可以刷新实体分发器的状态
+         * @return
+         */
         private boolean checkAndFreshState() {
-            if (!memberState.isLeader()) {
+            if (!memberState.isLeader()) {//当前节点的角色必须为leader
                 return false;
             }
+
+            //最后一条消息的轮次必须等于当前节点的状态机的轮次 leaderId必须存在 并且leaderId与状态机的leaderId相等
             if (term != memberState.currTerm() || leaderId == null || !leaderId.equals(memberState.getLeaderId())) {
-                synchronized (memberState) {
-                    if (!memberState.isLeader()) {
+                synchronized (memberState) {//加锁状态机
+                    if (!memberState.isLeader()) {//当前节点不是leader 直接返回
                         return false;
                     }
+
+                    //检查当前节点必须是leaderId
                     PreConditions.check(memberState.getSelfId().equals(memberState.getLeaderId()), DLedgerResponseCode.UNKNOWN);
+                    //设置实体分发器的轮次
                     term = memberState.currTerm();
+                    //设置leaderId
                     leaderId = memberState.getSelfId();
+                    //改变分发器的状态为比较
                     changeState(-1, PushEntryRequest.Type.COMPARE);
                 }
             }
             return true;
         }
 
+        /**
+         * 构建推送请求
+         * @param entry leader节点消息实体
+         * @param target 推送类型
+         * @return
+         */
         private PushEntryRequest buildPushRequest(DLedgerEntry entry, PushEntryRequest.Type target) {
+            //实例化一个推送实体的请求对象
             PushEntryRequest request = new PushEntryRequest();
+
+            //设置集群组名
             request.setGroup(memberState.getGroup());
+            //设置兑点节点id
             request.setRemoteId(peerId);
+            //设置leaderId
             request.setLeaderId(leaderId);
+            //轮次
             request.setTerm(term);
+            //消息实体
             request.setEntry(entry);
+            //推送乐西
             request.setType(target);
+            //当前节点的提交位置
             request.setCommitIndex(dLedgerStore.getCommittedIndex());
             return request;
         }
@@ -479,14 +545,23 @@ public class DLedgerEntryPusher {
             batchAppendEntryRequest.clear();
         }
 
+        /**
+         * 检查同步消息的index 与leader节点最后一条消息的index
+         * @param entry
+         */
         private void checkQuotaAndWait(DLedgerEntry entry) {
+            //需要同步消息的数量小于最大值
             if (dLedgerStore.getLedgerEndIndex() - entry.getIndex() <= maxPendingSize) {
                 return;
             }
+
+            //内存
             if (dLedgerStore instanceof DLedgerMemoryStore) {
                 return;
             }
             DLedgerMmapFileStore mmapFileStore = (DLedgerMmapFileStore) dLedgerStore;
+
+            //同步消息的大小不超过300M
             if (mmapFileStore.getDataFileList().getMaxWrotePosition() - entry.getPos() < dLedgerConfig.getPeerPushThrottlePoint()) {
                 return;
             }
@@ -497,23 +572,41 @@ public class DLedgerEntryPusher {
                 DLedgerUtils.sleep(leftNow);
             }
         }
+
+        /**
+         * 向对端节点同步消息
+         * @param index 同步消息的index
+         * @throws Exception
+         */
         private void doAppendInner(long index) throws Exception {
+            //获取同步消息
             DLedgerEntry entry = getDLedgerEntryForAppend(index);
             if (null == entry) {
                 return;
             }
+
+            //检查等待
             checkQuotaAndWait(entry);
+            //创建请求
             PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.APPEND);
+
+            //向对端节点添加消息 返回异步操作
             CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(request);
+            //向集合中添加一个消息对应请求entry
             pendingMap.put(index, System.currentTimeMillis());
             responseFuture.whenComplete((x, ex) -> {
                 try {
+                    //不能有异常
                     PreConditions.check(ex == null, DLedgerResponseCode.UNKNOWN);
+                    //虎丘响应码
                     DLedgerResponseCode responseCode = DLedgerResponseCode.valueOf(x.getCode());
                     switch (responseCode) {
                         case SUCCESS:
+                            //移除
                             pendingMap.remove(x.getIndex());
+                            //更新对端节点已经同步到的index值
                             updatePeerWaterMark(x.getTerm(), peerId, x.getIndex());
+                            //唤醒检查
                             quorumAckChecker.wakeup();
                             break;
                         case INCONSISTENT_STATE:
@@ -531,9 +624,16 @@ public class DLedgerEntryPusher {
             lastPushCommitTimeMs = System.currentTimeMillis();
         }
 
+        /**
+         * 获取leader节点同步消息
+         * @param index 消息index
+         * @return
+         */
         private DLedgerEntry getDLedgerEntryForAppend(long index) {
+            //消息实体
             DLedgerEntry entry;
             try {
+                //获取消息实体
                 entry = dLedgerStore.get(index);
             } catch (DLedgerException e) {
                 //  Do compare, in case the ledgerBeginIndex get refreshed.
@@ -544,41 +644,60 @@ public class DLedgerEntryPusher {
                 }
                 throw e;
             }
+
+            //消息实体不为null
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             return entry;
         }
 
+        /**
+         * 更新对端节点的commitIndex
+         * @throws Exception
+         */
         private void doCommit() throws Exception {
             if (DLedgerUtils.elapsed(lastPushCommitTimeMs) > 1000) {
                 PushEntryRequest request = buildPushRequest(null, PushEntryRequest.Type.COMMIT);
                 //Ignore the results
                 dLedgerRpcService.push(request);
+                //设置上一次更新CommitIndex的时间
                 lastPushCommitTimeMs = System.currentTimeMillis();
             }
         }
 
+        /**
+         * 向对端节点添加消息
+         * @throws Exception
+         */
         private void doCheckAppendResponse() throws Exception {
+            //获取对端节点已经同步到的位置
             long peerWaterMark = getPeerWaterMark(term, peerId);
+            //获取发送时间
             Long sendTimeMs = pendingMap.get(peerWaterMark + 1);
-            if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
+            if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {//超过1秒没有处理 再次添加一个
                 logger.warn("[Push-{}]Retry to push entry at {}", peerId, peerWaterMark + 1);
                 doAppendInner(peerWaterMark + 1);
             }
         }
 
+        /**
+         * 向对端节点发送同步消息请求 同步消息
+         * @throws Exception
+         */
         private void doAppend() throws Exception {
             while (true) {
-                if (!checkAndFreshState()) {
+                if (!checkAndFreshState()) {//检查状态
                     break;
                 }
-                if (type.get() != PushEntryRequest.Type.APPEND) {
+                if (type.get() != PushEntryRequest.Type.APPEND) {//推送器的状态为append
                     break;
                 }
-                if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
+                if (writeIndex > dLedgerStore.getLedgerEndIndex()) {//所有的消息已经同步完
                     doCommit();
                     doCheckAppendResponse();
                     break;
                 }
+
+                //请求添加消息的map请求过多 清理掉老的废弃的情趣
                 if (pendingMap.size() >= maxPendingSize || (DLedgerUtils.elapsed(lastCheckLeakTimeMs) > 1000)) {
                     long peerWaterMark = getPeerWaterMark(term, peerId);
                     for (Long index : pendingMap.keySet()) {
@@ -592,6 +711,8 @@ public class DLedgerEntryPusher {
                     doCheckAppendResponse();
                     break;
                 }
+
+                //向对端节点添加消息
                 doAppendInner(writeIndex);
                 writeIndex++;
             }
@@ -687,82 +808,129 @@ public class DLedgerEntryPusher {
             }
         }
 
+        /**
+         * 让对端节点删除truncateIndex之前的消息
+         * @param truncateIndex 删除的下标
+         * @throws Exception
+         */
         private void doTruncate(long truncateIndex) throws Exception {
+            //实体推送器的类型为截短
             PreConditions.check(type.get() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
+            //获取当前leader节点truncateIndex位置处的实体
             DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
+            //截取位置处的实体不为null
             PreConditions.check(truncateEntry != null, DLedgerResponseCode.UNKNOWN);
             logger.info("[Push-{}]Will push data to truncate truncateIndex={} pos={}", peerId, truncateIndex, truncateEntry.getPos());
+            //实例化一个截短请求
             PushEntryRequest truncateRequest = buildPushRequest(truncateEntry, PushEntryRequest.Type.TRUNCATE);
+            //推送截短请求  获取响应
             PushEntryResponse truncateResponse = dLedgerRpcService.push(truncateRequest).get(3, TimeUnit.SECONDS);
+            //截短响应不为nulll
             PreConditions.check(truncateResponse != null, DLedgerResponseCode.UNKNOWN, "truncateIndex=%d", truncateIndex);
+            //响应码为成功
             PreConditions.check(truncateResponse.getCode() == DLedgerResponseCode.SUCCESS.getCode(), DLedgerResponseCode.valueOf(truncateResponse.getCode()), "truncateIndex=%d", truncateIndex);
+            //设置上一次推送提交的时间
             lastPushCommitTimeMs = System.currentTimeMillis();
+            //改变推送器的类型为添加消息
             changeState(truncateIndex, PushEntryRequest.Type.APPEND);
         }
 
+        /**
+         * 改变实体分发器的状态
+         * @param index 对端节点已经写到的位置
+         * @param target 状态类型
+         */
         private synchronized void changeState(long index, PushEntryRequest.Type target) {
             logger.info("[Push-{}]Change state from {} to {} at {}", peerId, type.get(), target, index);
             switch (target) {
-                case APPEND:
-                    compareIndex = -1;
+                case APPEND://添加消息
+                    compareIndex = -1;//设置comareIndex = -1
+                    //更新对端节点已经同步到的位置
                     updatePeerWaterMark(term, peerId, index);
+                    //启动ackChecker检测 立刻执行
                     quorumAckChecker.wakeup();
+                    //同步消息的起始下标
                     writeIndex = index + 1;
                     if (dLedgerConfig.isEnableBatchPush()) {
                         resetBatchAppendEntryRequest();
                     }
                     break;
-                case COMPARE:
-                    if (this.type.compareAndSet(PushEntryRequest.Type.APPEND, PushEntryRequest.Type.COMPARE)) {
+                case COMPARE://和对端节点compareIndex位置的消息进行比较
+                    if (this.type.compareAndSet(PushEntryRequest.Type.APPEND, PushEntryRequest.Type.COMPARE)) {//由append变为compare类型
+                        //设置比较下标为-1
                         compareIndex = -1;
-                        if (dLedgerConfig.isEnableBatchPush()) {
+                        if (dLedgerConfig.isEnableBatchPush()) {//允许批量推送
                             batchPendingMap.clear();
                         } else {
                             pendingMap.clear();
                         }
                     }
                     break;
-                case TRUNCATE:
+                case TRUNCATE://截短对端节点指定位置之前的消息
                     compareIndex = -1;
                     break;
                 default:
                     break;
             }
+
+            //设置目标的类型为比较
             type.set(target);
         }
 
+        /**
+         * 执行比较逻辑
+         * 比较对端节点的最后一条消息的index 与当前leader节点最后一条消息的index
+         * @throws Exception
+         */
         private void doCompare() throws Exception {
             while (true) {
-                if (!checkAndFreshState()) {
+                if (!checkAndFreshState()) {//检查推送器的状态
                     break;
                 }
                 if (type.get() != PushEntryRequest.Type.COMPARE
-                    && type.get() != PushEntryRequest.Type.TRUNCATE) {
+                    && type.get() != PushEntryRequest.Type.TRUNCATE) {//如果不是compare状态 返回
                     break;
                 }
+
+                //当前leader没有写入消息
                 if (compareIndex == -1 && dLedgerStore.getLedgerEndIndex() == -1) {
                     break;
                 }
-                //revise the compareIndex
-                if (compareIndex == -1) {
+
+                if (compareIndex == -1) {//当前leader节点写入了消息
+                    //设置对端节点的比较index值
                     compareIndex = dLedgerStore.getLedgerEndIndex();
                     logger.info("[Push-{}][DoCompare] compareIndex=-1 means start to compare", peerId);
-                } else if (compareIndex > dLedgerStore.getLedgerEndIndex() || compareIndex < dLedgerStore.getLedgerBeginIndex()) {
+                } else if (compareIndex > dLedgerStore.getLedgerEndIndex() || compareIndex < dLedgerStore.getLedgerBeginIndex()) {//对端节点的比较index不在当前节点index的范围内
                     logger.info("[Push-{}][DoCompare] compareIndex={} out of range {}-{}", peerId, compareIndex, dLedgerStore.getLedgerBeginIndex(), dLedgerStore.getLedgerEndIndex());
+                    //设置对端节点的比较index为当前节点最后一条消息的index
                     compareIndex = dLedgerStore.getLedgerEndIndex();
                 }
 
+                //获取比较index位置的消息实体
                 DLedgerEntry entry = dLedgerStore.get(compareIndex);
+
+                //实体不能null
                 PreConditions.check(entry != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
+
+                //构建一个比较请求
                 PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.COMPARE);
+
+                //向对端节点推送消息请求
                 CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(request);
+
+                //等待3秒 获取异步操作结果
                 PushEntryResponse response = responseFuture.get(3, TimeUnit.SECONDS);
+                //响应存在
                 PreConditions.check(response != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
+                //响应码
                 PreConditions.check(response.getCode() == DLedgerResponseCode.INCONSISTENT_STATE.getCode() || response.getCode() == DLedgerResponseCode.SUCCESS.getCode()
                     , DLedgerResponseCode.valueOf(response.getCode()), "compareIndex=%d", compareIndex);
+
+                //对端节点将要截断的index的起始值  对端节点将会将index值小于truncateIndex之前的消息删除
                 long truncateIndex = -1;
 
-                if (response.getCode() == DLedgerResponseCode.SUCCESS.getCode()) {
+                if (response.getCode() == DLedgerResponseCode.SUCCESS.getCode()) {//如果对端节点存在存在比较消息
                     /*
                      * The comparison is successful:
                      * 1.Just change to append state, if the follower's end index is equal the compared index.
@@ -775,12 +943,8 @@ public class DLedgerEntryPusher {
                         truncateIndex = compareIndex;
                     }
                 } else if (response.getEndIndex() < dLedgerStore.getLedgerBeginIndex()
-                    || response.getBeginIndex() > dLedgerStore.getLedgerEndIndex()) {
-                    /*
-                     The follower's entries does not intersect with the leader.
-                     This usually happened when the follower has crashed for a long time while the leader has deleted the expired entries.
-                     Just truncate the follower.
-                     */
+                    || response.getBeginIndex() > dLedgerStore.getLedgerEndIndex()) {//对端节点不存在compareIndex位置的比较消息 对端节点的消息index不在当前节点的位置范围内
+                    //设置为第一条消息的截断index值
                     truncateIndex = dLedgerStore.getLedgerBeginIndex();
                 } else if (compareIndex < response.getBeginIndex()) {
                     /*
@@ -811,7 +975,10 @@ public class DLedgerEntryPusher {
                  If get value for truncateIndex, do it right now.
                  */
                 if (truncateIndex != -1) {
+                    //设置实体推送器的状态为截短
                     changeState(truncateIndex, PushEntryRequest.Type.TRUNCATE);
+
+                    //删除对端节点truncateIndex之前的消息
                     doTruncate(truncateIndex);
                     break;
                 }
@@ -821,7 +988,7 @@ public class DLedgerEntryPusher {
         @Override
         public void doWork() {
             try {
-                if (!checkAndFreshState()) {
+                if (!checkAndFreshState()) {//检查对端节点对应的实体推送器的状态
                     waitForRunning(1);
                     return;
                 }
@@ -830,9 +997,11 @@ public class DLedgerEntryPusher {
                     if (dLedgerConfig.isEnableBatchPush()) {
                         doBatchAppend();
                     } else {
+                        //向对端节点发送同步消息请求 同步消息
                         doAppend();
                     }
-                } else {
+                } else {//对端实体推送器的状态为compare
+                    //执行比较逻辑
                     doCompare();
                 }
                 waitForRunning(1);
@@ -851,6 +1020,7 @@ public class DLedgerEntryPusher {
         private long lastCheckFastForwardTimeMs = System.currentTimeMillis();
 
         ConcurrentMap<Long, Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>>> writeRequestMap = new ConcurrentHashMap<>();
+        //比较entry的请求与结果异步操作的队列
         BlockingQueue<Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>>> compareOrTruncateRequests = new ArrayBlockingQueue<Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>>>(100);
 
         /**
@@ -861,8 +1031,14 @@ public class DLedgerEntryPusher {
             super("EntryHandler-" + memberState.getSelfId(), logger);
         }
 
+        /**
+         * 处理leader节点推送消息的请求
+         * @param request 推送消息的请求
+         * @return
+         * @throws Exception
+         */
         public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
-            //The timeout should smaller than the remoting layer's request timeout
+            //实例化一个超时的异步操作
             CompletableFuture<PushEntryResponse> future = new TimeoutFuture<>(1000);
             switch (request.getType()) {
                 case APPEND:
@@ -883,10 +1059,12 @@ public class DLedgerEntryPusher {
                 case COMMIT:
                     compareOrTruncateRequests.put(new Pair<>(request, future));
                     break;
-                case COMPARE:
+                case COMPARE://比较
                 case TRUNCATE:
+                    //leader节点比较的消息实体不能为null
                     PreConditions.check(request.getEntry() != null, DLedgerResponseCode.UNEXPECTED_ARGUMENT);
                     writeRequestMap.clear();
+                    //向队列中添加一个比较的异步
                     compareOrTruncateRequests.put(new Pair<>(request, future));
                     break;
                 default:
@@ -897,15 +1075,28 @@ public class DLedgerEntryPusher {
             return future;
         }
 
+        /**
+         * 构建推送实体的响应
+         * @param request 推送消息的请求
+         * @param code 响应码
+         * @return
+         */
         private PushEntryResponse buildResponse(PushEntryRequest request, int code) {
+            //实例化一个推送实体的响应
             PushEntryResponse response = new PushEntryResponse();
+            //设置集群组名
             response.setGroup(request.getGroup());
+            //设置响应码
             response.setCode(code);
+            //设置轮次
             response.setTerm(request.getTerm());
             if (request.getType() != PushEntryRequest.Type.COMMIT) {
+                //设置消息index
                 response.setIndex(request.getEntry().getIndex());
             }
+            //设置当前节点第一条消息的index
             response.setBeginIndex(dLedgerStore.getLedgerBeginIndex());
+            //设置当前节点最后一条消息的index
             response.setEndIndex(dLedgerStore.getLedgerEndIndex());
             return response;
         }
@@ -921,13 +1112,22 @@ public class DLedgerEntryPusher {
             return response;
         }
 
+        /**
+         * 对端节点处理leader节点推送的同步消息请求
+         * @param writeIndex leader同步消息的index
+         * @param request 请求
+         * @param future 异步操作
+         */
         private void handleDoAppend(long writeIndex, PushEntryRequest request,
             CompletableFuture<PushEntryResponse> future) {
             try {
                 PreConditions.check(writeIndex == request.getEntry().getIndex(), DLedgerResponseCode.INCONSISTENT_STATE);
+                //向当前节点的消息 mappedfile list和索引 mappedfile list添加消息
                 DLedgerEntry entry = dLedgerStore.appendAsFollower(request.getEntry(), request.getTerm(), request.getLeaderId());
                 PreConditions.check(entry.getIndex() == writeIndex, DLedgerResponseCode.INCONSISTENT_STATE);
+                //完成
                 future.complete(buildResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
+                //更新committedIndex
                 dLedgerStore.updateCommittedIndex(request.getTerm(), request.getCommitIndex());
             } catch (Throwable t) {
                 logger.error("[HandleDoWrite] writeIndex={}", writeIndex, t);
@@ -935,26 +1135,46 @@ public class DLedgerEntryPusher {
             }
         }
 
+        /**
+         * 处理leader节点推送的比较实体请求
+         * @param compareIndex 比较消息实体的index值
+         * @param request 比较消息实体请求
+         * @param future 比较请求的异步操作
+         * @return
+         */
         private CompletableFuture<PushEntryResponse> handleDoCompare(long compareIndex, PushEntryRequest request,
             CompletableFuture<PushEntryResponse> future) {
             try {
+                //比较index必须与请求的消息的index相等
                 PreConditions.check(compareIndex == request.getEntry().getIndex(), DLedgerResponseCode.UNKNOWN);
+                //比较的类型必须为compare
                 PreConditions.check(request.getType() == PushEntryRequest.Type.COMPARE, DLedgerResponseCode.UNKNOWN);
+                //获取本地的比较消息
                 DLedgerEntry local = dLedgerStore.get(compareIndex);
                 PreConditions.check(request.getEntry().equals(local), DLedgerResponseCode.INCONSISTENT_STATE);
                 future.complete(buildResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
             } catch (Throwable t) {
+                //抛出异常 本地不存在leader节点对应的比较消息实体
                 logger.error("[HandleDoCompare] compareIndex={}", compareIndex, t);
+                //完成异步操作
                 future.complete(buildResponse(request, DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
             }
             return future;
         }
 
+        /**
+         * 更新上一次commitIndex的时间
+         * @param committedIndex commitIndex值
+         * @param request 请求
+         * @param future
+         * @return
+         */
         private CompletableFuture<PushEntryResponse> handleDoCommit(long committedIndex, PushEntryRequest request,
             CompletableFuture<PushEntryResponse> future) {
             try {
                 PreConditions.check(committedIndex == request.getCommitIndex(), DLedgerResponseCode.UNKNOWN);
                 PreConditions.check(request.getType() == PushEntryRequest.Type.COMMIT, DLedgerResponseCode.UNKNOWN);
+                //更新CommitIndex
                 dLedgerStore.updateCommittedIndex(request.getTerm(), committedIndex);
                 future.complete(buildResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
             } catch (Throwable t) {
@@ -964,15 +1184,24 @@ public class DLedgerEntryPusher {
             return future;
         }
 
+        /**
+         * 截断当期节点的消息 保持与leader节点的index范围同步
+         */
         private CompletableFuture<PushEntryResponse> handleDoTruncate(long truncateIndex, PushEntryRequest request,
             CompletableFuture<PushEntryResponse> future) {
             try {
                 logger.info("[HandleDoTruncate] truncateIndex={} pos={}", truncateIndex, request.getEntry().getPos());
+                //截断位置与请求消息实体的index值相等
                 PreConditions.check(truncateIndex == request.getEntry().getIndex(), DLedgerResponseCode.UNKNOWN);
+                //请求消息的类型为截短
                 PreConditions.check(request.getType() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
+
+                //截短对端节点truncateIndex之后的消息
                 long index = dLedgerStore.truncate(request.getEntry(), request.getTerm(), request.getLeaderId());
                 PreConditions.check(index == truncateIndex, DLedgerResponseCode.INCONSISTENT_STATE);
+                //设置异步操作完成
                 future.complete(buildResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
+                //更新commitIndex
                 dLedgerStore.updateCommittedIndex(request.getTerm(), request.getCommitIndex());
             } catch (Throwable t) {
                 logger.error("[HandleDoTruncate] truncateIndex={}", truncateIndex, t);
@@ -1104,18 +1333,20 @@ public class DLedgerEntryPusher {
         @Override
         public void doWork() {
             try {
-                if (!memberState.isFollower()) {
+                if (!memberState.isFollower()) {//必须是follower
                     waitForRunning(1);
                     return;
                 }
-                if (compareOrTruncateRequests.peek() != null) {
+
+                if (compareOrTruncateRequests.peek() != null) {//leader节点推送了比较实体请求等待处理
+                    //获取比较实体请求与异步操作
                     Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>> pair = compareOrTruncateRequests.poll();
                     PreConditions.check(pair != null, DLedgerResponseCode.UNKNOWN);
-                    switch (pair.getKey().getType()) {
-                        case TRUNCATE:
+                    switch (pair.getKey().getType()) {//判断leader节点推送的类型
+                        case TRUNCATE://截短对端节点
                             handleDoTruncate(pair.getKey().getEntry().getIndex(), pair.getKey(), pair.getValue());
                             break;
-                        case COMPARE:
+                        case COMPARE://比较
                             handleDoCompare(pair.getKey().getEntry().getIndex(), pair.getKey(), pair.getValue());
                             break;
                         case COMMIT:

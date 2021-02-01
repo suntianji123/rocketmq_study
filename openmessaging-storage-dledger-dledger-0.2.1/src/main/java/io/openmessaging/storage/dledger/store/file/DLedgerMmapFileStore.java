@@ -682,17 +682,33 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         }
     }
 
+    /**
+     * 截短消息实体
+     * @param entry leader节点截短处的消息
+     * @param leaderTerm leader节点的轮次
+     * @param leaderId leaderId
+     * @return
+     */
     @Override
     public long truncate(DLedgerEntry entry, long leaderTerm, String leaderId) {
+        //当前节点必须为follower
         PreConditions.check(memberState.isFollower(), DLedgerResponseCode.NOT_FOLLOWER, null);
+        //获取消息 缓存区
         ByteBuffer dataBuffer = localEntryBuffer.get();
+        //获取索引 缓存区
         ByteBuffer indexBuffer = localIndexBuffer.get();
+        //将消息编码到缓存区
         DLedgerEntryCoder.encode(entry, dataBuffer);
+        //获取消息大小
         int entrySize = dataBuffer.remaining();
-        synchronized (memberState) {
+        synchronized (memberState) {//加锁状态机
+            //必须是follower
             PreConditions.check(memberState.isFollower(), DLedgerResponseCode.NOT_FOLLOWER, "role=%s", memberState.getRole());
+            //当前节点状态机轮次与leader节点状态机轮次相等
             PreConditions.check(leaderTerm == memberState.currTerm(), DLedgerResponseCode.INCONSISTENT_TERM, "term %d != %d", leaderTerm, memberState.currTerm());
+            //当前节点的leaderId与leader节点id相等
             PreConditions.check(leaderId.equals(memberState.getLeaderId()), DLedgerResponseCode.INCONSISTENT_LEADER, "leaderId %s != %s", leaderId, memberState.getLeaderId());
+            //当前节点是否存在这个实体
             boolean existedEntry;
             try {
                 DLedgerEntry tmp = get(entry.getIndex());
@@ -700,39 +716,60 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             } catch (Throwable ignored) {
                 existedEntry = false;
             }
+
+            //截短偏移量
             long truncatePos = existedEntry ? entry.getPos() + entry.getSize() : entry.getPos();
-            if (truncatePos != dataFileList.getMaxWrotePosition()) {
+            if (truncatePos != dataFileList.getMaxWrotePosition()) {//截短偏移量
                 logger.warn("[TRUNCATE]leaderId={} index={} truncatePos={} != maxPos={}, this is usually happened on the old leader", leaderId, entry.getIndex(), truncatePos, dataFileList.getMaxWrotePosition());
             }
+
+            //删除节点偏移量之前的消息
             dataFileList.truncateOffset(truncatePos);
             if (dataFileList.getMaxWrotePosition() != truncatePos) {
                 logger.warn("[TRUNCATE] rebuild for data wrotePos: {} != truncatePos: {}", dataFileList.getMaxWrotePosition(), truncatePos);
                 PreConditions.check(dataFileList.rebuildWithPos(truncatePos), DLedgerResponseCode.DISK_ERROR, "rebuild data truncatePos=%d", truncatePos);
             }
+
+            //重新设置mapped file list已经刷新到的位置
             reviseDataFileListFlushedWhere(truncatePos);
-            if (!existedEntry) {
+            if (!existedEntry) {//之前节点不存在这个index位置处的实体 将实体添加到mapped file lsit
                 long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
                 PreConditions.check(dataPos == entry.getPos(), DLedgerResponseCode.DISK_ERROR, " %d != %d", dataPos, entry.getPos());
             }
 
+            //获取索引偏移量
             long truncateIndexOffset = entry.getIndex() * INDEX_UNIT_SIZE;
+            //截取索引偏移量之前的索引信息
             indexFileList.truncateOffset(truncateIndexOffset);
             if (indexFileList.getMaxWrotePosition() != truncateIndexOffset) {
                 logger.warn("[TRUNCATE] rebuild for index wrotePos: {} != truncatePos: {}", indexFileList.getMaxWrotePosition(), truncateIndexOffset);
                 PreConditions.check(indexFileList.rebuildWithPos(truncateIndexOffset), DLedgerResponseCode.DISK_ERROR, "rebuild index truncatePos=%d", truncateIndexOffset);
             }
+
+            //重置索引 mappedfiile list刷新到的位置
             reviseIndexFileListFlushedWhere(truncateIndexOffset);
+            //将索引写入到缓存区
             DLedgerEntryCoder.encodeIndex(entry.getPos(), entrySize, entry.getMagic(), entry.getIndex(), entry.getTerm(), indexBuffer);
+            //将索引消息添加到mappedfile list文件
             long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
+            //当前偏移量
             PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
+            //设置最后一条消息的轮次
             ledgerEndTerm = entry.getTerm();
+            //设置最后一条消息的偏移量
             ledgerEndIndex = entry.getIndex();
+            //重新设置第一条消息的index值
             reviseLedgerBeginIndex();
+            //更新状态机的最后一条消息的index 轮次
             updateLedgerEndIndexAndTerm();
             return entry.getIndex();
         }
     }
 
+    /**
+     * 重新设置
+     * @param truncatePos
+     */
     private void reviseDataFileListFlushedWhere(long truncatePos) {
         long offset = calculateWherePosition(this.dataFileList, truncatePos);
         logger.info("Revise dataFileList flushedWhere from {} to {}", this.dataFileList.getFlushedWhere(), offset);
@@ -747,48 +784,79 @@ public class DLedgerMmapFileStore extends DLedgerStore {
     }
 
     /**
-     * calculate wherePosition after truncate
-     *
-     * @param mappedFileList this.dataFileList or this.indexFileList
-     * @param continuedBeginOffset new begining of offset
+     * 重新计算刷新到的位置
+     * @param mappedFileList
+     * @param continuedBeginOffset 当前偏移量
+     * @return
      */
     private long calculateWherePosition(final MmapFileList mappedFileList, long continuedBeginOffset) {
-        if (mappedFileList.getFlushedWhere() == 0) {
+        if (mappedFileList.getFlushedWhere() == 0) {//刷新到0 直接返回
             return 0;
         }
-        if (mappedFileList.getMappedFiles().isEmpty()) {
+        if (mappedFileList.getMappedFiles().isEmpty()) {//没有mappedFile 返回当前开始位置
             return continuedBeginOffset;
         }
-        if (mappedFileList.getFlushedWhere() < mappedFileList.getFirstMappedFile().getFileFromOffset()) {
+        if (mappedFileList.getFlushedWhere() < mappedFileList.getFirstMappedFile().getFileFromOffset()) {//刷新位置小于mapped file list beginIndex 返回起始偏移量
             return mappedFileList.getFirstMappedFile().getFileFromOffset();
         }
+
+        //返回刷新到的位置
         return mappedFileList.getFlushedWhere();
     }
 
+    /**
+     * 同步leader节点推送的消息
+     * @param entry 消息实体
+     * @param leaderTerm 当前轮次
+     * @param leaderId leader节点id
+     * @return
+     */
     @Override
     public DLedgerEntry appendAsFollower(DLedgerEntry entry, long leaderTerm, String leaderId) {
+        //当前节点必须为follower
         PreConditions.check(memberState.isFollower(), DLedgerResponseCode.NOT_FOLLOWER, "role=%s", memberState.getRole());
+        //磁盘没有满
         PreConditions.check(!isDiskFull, DLedgerResponseCode.DISK_FULL);
+        //获取数据 缓存区
         ByteBuffer dataBuffer = localEntryBuffer.get();
+        //获取索引 缓存区
         ByteBuffer indexBuffer = localIndexBuffer.get();
+
+        //将消息实体编码到数据缓存区
         DLedgerEntryCoder.encode(entry, dataBuffer);
+
+        //获取消息实体大小
         int entrySize = dataBuffer.remaining();
-        synchronized (memberState) {
+        synchronized (memberState) {//加锁状态机
+            //状态机角色为follower
             PreConditions.check(memberState.isFollower(), DLedgerResponseCode.NOT_FOLLOWER, "role=%s", memberState.getRole());
+            //下一条消息的index
             long nextIndex = ledgerEndIndex + 1;
+            //下一条消息的索引与推送的消息的index值相等
             PreConditions.check(nextIndex == entry.getIndex(), DLedgerResponseCode.INCONSISTENT_INDEX, null);
+            //轮次与当前节点状态机相等
             PreConditions.check(leaderTerm == memberState.currTerm(), DLedgerResponseCode.INCONSISTENT_TERM, null);
+            //leaderId与当前状态机的leaderId相等
             PreConditions.check(leaderId.equals(memberState.getLeaderId()), DLedgerResponseCode.INCONSISTENT_LEADER, null);
+            //向mappedfile list文件系统添加消息
             long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
+            //新加入到mappedfile list文件系统的消息与消息实体的偏移量相等
             PreConditions.check(dataPos == entry.getPos(), DLedgerResponseCode.DISK_ERROR, "%d != %d", dataPos, entry.getPos());
+            //将消息索引信息编码到缓冲区
             DLedgerEntryCoder.encodeIndex(dataPos, entrySize, entry.getMagic(), entry.getIndex(), entry.getTerm(), indexBuffer);
+            //向索引mappedfile list文件系统添加消息
             long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
+            //检查索引偏移量
             PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
+            //设置当前节点最后一条消息的轮次
             ledgerEndTerm = entry.getTerm();
+            //设置当前节点最后一条消息的index值
             ledgerEndIndex = entry.getIndex();
             if (ledgerBeginIndex == -1) {
+                //第一条消息的index
                 ledgerBeginIndex = ledgerEndIndex;
             }
+            //更新状态机的i最后一条消息的轮次和轮次
             updateLedgerEndIndexAndTerm();
             return entry;
         }

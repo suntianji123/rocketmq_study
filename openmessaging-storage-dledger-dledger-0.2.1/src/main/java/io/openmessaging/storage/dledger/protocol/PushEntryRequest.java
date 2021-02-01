@@ -22,6 +22,9 @@ import io.openmessaging.storage.dledger.utils.PreConditions;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 推送实体的请求
+ */
 public class PushEntryRequest extends RequestOrResponse {
     private long commitIndex = -1;
     private Type type = Type.APPEND;

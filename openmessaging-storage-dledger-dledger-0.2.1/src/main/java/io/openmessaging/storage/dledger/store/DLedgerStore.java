@@ -33,8 +33,20 @@ public abstract class DLedgerStore {
      */
     public abstract DLedgerEntry appendAsLeader(DLedgerEntry entry);
 
+    /**
+     * 同步leader节点推送的消息实体
+     * @param entry 消息实体
+     * @param leaderTerm 当前轮次
+     * @param leaderId leader节点id
+     * @return
+     */
     public abstract DLedgerEntry appendAsFollower(DLedgerEntry entry, long leaderTerm, String leaderId);
 
+    /**
+     * 根据index获取某个消息实体
+     * @param index 消息index值
+     * @return
+     */
     public abstract DLedgerEntry get(Long index);
 
     public abstract long getCommittedIndex();

@@ -61,6 +61,9 @@ public class DLedgerConfig {
     private String storeBaseDir = File.separator + "tmp" + File.separator + "dledgerstore";
 
 
+    /**
+     * leader节点和从节点单次同步消息数据的最大值300M
+     */
     @Parameter(names = {"--peer-push-throttle-point"}, description = "When the follower is behind the leader more than this value, it will trigger the throttle")
     private int peerPushThrottlePoint = 300 * 1024 * 1024;
 

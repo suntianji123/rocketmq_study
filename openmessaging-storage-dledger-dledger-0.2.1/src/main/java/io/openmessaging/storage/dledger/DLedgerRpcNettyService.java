@@ -149,6 +149,8 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         this.remotingServer.registerProcessor(DLedgerRequestCode.APPEND.getCode(), protocolProcessor, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.GET.getCode(), protocolProcessor, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.PULL.getCode(), protocolProcessor, null);
+
+        //注册主节点推送消息的请求处理器
         this.remotingServer.registerProcessor(DLedgerRequestCode.PUSH.getCode(), protocolProcessor, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.VOTE.getCode(), protocolProcessor, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.HEART_BEAT.getCode(), protocolProcessor, null);
@@ -292,25 +294,42 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return CompletableFuture.completedFuture(response);
     }
 
+    /**
+     * 向对端节点推送实体请求
+     * @param request 推送实体请求
+     * @return
+     * @throws Exception
+     */
     @Override public CompletableFuture<PushEntryResponse> push(PushEntryRequest request) throws Exception {
+        //实例化一个异步操作对象
         CompletableFuture<PushEntryResponse> future = new CompletableFuture<>();
         try {
+            //创建推送请求
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.PUSH.getCode(), null);
+            //设置请求体
             wrapperRequest.setBody(JSON.toJSONBytes(request));
+            //执行远程命令
             remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
+                //获取响应
                 RemotingCommand responseCommand = responseFuture.getResponseCommand();
-                if (responseCommand != null) {
+                if (responseCommand != null) {//推送成功
+                    //获取响应
                     PushEntryResponse response = JSON.parseObject(responseCommand.getBody(), PushEntryResponse.class);
+                    //完成异步操作
                     future.complete(response);
-                } else {
+                } else {//推送失败
+                    //实例化一个响应
                     PushEntryResponse response = new PushEntryResponse();
                     response.copyBaseInfo(request);
+                    //设置响应码
                     response.setCode(DLedgerResponseCode.NETWORK_ERROR.getCode());
+                    //完成异步操作
                     future.complete(response);
                 }
             });
-        } catch (Throwable t) {
+        } catch (Throwable t) {//抛出异常
             logger.error("Send push request failed, {}", request.baseInfo(), t);
+            //实例化一个响应
             PushEntryResponse response = new PushEntryResponse();
             response.copyBaseInfo(request);
             response.setCode(DLedgerResponseCode.NETWORK_ERROR.getCode());
@@ -411,8 +430,10 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
                 }, futureExecutor);
                 break;
             }
-            case PUSH: {
+            case PUSH: {//主节点向对端节点推送消息的请求
+                //反序列化请求
                 PushEntryRequest pushEntryRequest = JSON.parseObject(request.getBody(), PushEntryRequest.class);
+                //处理leader节点推送消息的请求
                 CompletableFuture<PushEntryResponse> future = handlePush(pushEntryRequest);
                 future.whenCompleteAsync((x, y) -> {
                     writeResponse(x, y, request, ctx);
@@ -503,6 +524,12 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return dLedgerServer.handlePull(request);
     }
 
+    /**
+     * 处理leader节点推送消息的请求
+     * @param request 请求体
+     * @return
+     * @throws Exception
+     */
     @Override public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
         return dLedgerServer.handlePush(request);
     }

@@ -330,9 +330,17 @@ public class DLedgerServer implements DLedgerProtocolHander {
         return null;
     }
 
+    /**
+     * 处理leader节点推送消息的请求
+     * @param request 推送消息的请求体
+     * @return
+     * @throws Exception
+     */
     @Override public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
         try {
+            //请求节点id与当前节点的id相等
             PreConditions.check(memberState.getSelfId().equals(request.getRemoteId()), DLedgerResponseCode.UNKNOWN_MEMBER, "%s != %s", request.getRemoteId(), memberState.getSelfId());
+            //请求的集群组名与当前节点的集群组名相等
             PreConditions.check(memberState.getGroup().equals(request.getGroup()), DLedgerResponseCode.UNKNOWN_GROUP, "%s != %s", request.getGroup(), memberState.getGroup());
             return dLedgerEntryPusher.handlePush(request);
         } catch (DLedgerException e) {
